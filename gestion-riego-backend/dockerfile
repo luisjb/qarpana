@@ -1,0 +1,14 @@
+FROM node:18
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+RUN npm uninstall bcrypt
+RUN npm install cors argon2
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["node", "server.js"]

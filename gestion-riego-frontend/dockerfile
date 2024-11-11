@@ -1,0 +1,24 @@
+# gestion-riego-frontend/Dockerfile
+FROM node:18
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+# Copia los archivos de PWA al directorio público
+COPY manifest.json ./public/
+COPY service-worker.js ./public/
+# Asegúrate de copiar también los iconos
+
+
+# Copia el resto de los archivos del proyecto
+COPY . .
+
+RUN npm run build
+
+RUN npm install -g serve
+
+EXPOSE 3000
+
+CMD ["serve", "-s", "build", "-l", "3000"]

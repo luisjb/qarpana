@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: bambooDB
+      POSTGRES_USER: bamboo
+      POSTGRES_PASSWORD: BambooAsesores2024
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./seed.sql:/docker-entrypoint-initdb.d/seed.sql
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./gestion-riego-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_USER=bamboo
+      - DB_HOST=db
+      - DB_NAME=bambooDB
+      - DB_PASSWORD=BambooAsesores2024
+      - DB_PORT=5432
+      - JWT_SECRET=tu_clave_secreta_muy_segura
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      - db
+
+  frontend:
+    build: ./gestion-riego-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./manifest.json:/app/public/manifest.json
+      - ./service-worker.js:/app/public/service-worker.js
+    depends_on:
+      - backend
