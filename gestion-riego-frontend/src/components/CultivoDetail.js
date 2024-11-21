@@ -15,7 +15,7 @@ function CultivoDetail() {
 
     const fetchCultivoDetails = async () => {
         try {
-            const response = await fetch(`http://localhost:5000/api/cultivos/${id}`);
+            const response = await fetch(`http://qarpana.com.ar:5000/api/cultivos/${id}`);
             if (!response.ok) {
                 throw new Error('Error al cargar los detalles del cultivo');
             }
@@ -34,7 +34,7 @@ function CultivoDetail() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch(`http://localhost:5000/api/cultivos/${id}/cambios`, {
+            const response = await fetch(`http://qarpana.com.ar:5000/api/cultivos/${id}/cambios`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

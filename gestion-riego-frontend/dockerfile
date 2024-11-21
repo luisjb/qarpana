@@ -6,13 +6,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copia los archivos de PWA al directorio público
 COPY manifest.json ./public/
 COPY service-worker.js ./public/
-# Asegúrate de copiar también los iconos
 
-
-# Copia el resto de los archivos del proyecto
 COPY . .
 
 RUN npm install -g react-scripts
