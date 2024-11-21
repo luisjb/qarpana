@@ -15,6 +15,12 @@ COPY service-worker.js ./public/
 # Copia el resto de los archivos del proyecto
 COPY . .
 
+# Cambiar permisos
+RUN chown -R node:node /app
+
+# Cambiar a usuario node
+USER node
+
 RUN npm run build
 
 RUN npm install -g serve
