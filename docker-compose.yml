@@ -31,8 +31,5 @@ services:
     build: ./gestion-riego-frontend
     ports:
       - "3000:3000"
-    volumes:
-      - ./manifest.json:/app/public/manifest.json
-      - ./service-worker.js:/app/public/service-worker.js
     depends_on:
       - backend
