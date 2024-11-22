@@ -35,7 +35,7 @@ function DataEntry() {
 
     const fetchCultivos = async () => {
         try {
-            const response = await fetch('http://qarpana.com.ar:5000/api/cultivos');
+            const response = await fetch('s://qarpana.com.ar:5000/api/cultivos');
             if (!response.ok) {
                 throw new Error('Error al cargar los cultivos');
             }
@@ -48,7 +48,7 @@ function DataEntry() {
 
     const fetchEspecies = async () => {
         try {
-            const response = await fetch('http://qarpana.com.ar:5000/api/especies');
+            const response = await fetch('https://qarpana.com.ar:5000/api/especies');
             if (!response.ok) {
                 throw new Error('Error al cargar las especies');
             }
@@ -71,7 +71,7 @@ function DataEntry() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch('http://qarpana.com.ar:5000/api/cultivos', {
+            const response = await fetch('https://qarpana.com.ar:5000/api/cultivos', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

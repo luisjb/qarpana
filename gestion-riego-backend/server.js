@@ -28,7 +28,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN || 'https://qarpana.com.ar:3000',
     credentials: true
 }));
 
@@ -78,7 +78,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(port, () => {
-    console.log(`Servidor corriendo en http://localhost:${port}`);
+    console.log(`Servidor corriendo en https://qarpana.com.ar:${port}`);
 });
 
 app.post('/api/forzar-actualizacion', async (req, res) => {
