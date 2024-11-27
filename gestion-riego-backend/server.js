@@ -77,7 +77,7 @@ app.use((err, req, res, next) => {
     res.status(500).send('Algo salió mal!');
 });
 
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
     console.log(`Servidor corriendo en https://qarpana.com.ar:${port}`);
 });
 
