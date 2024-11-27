@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const instance = axios.create({
-    baseURL: 'https://qarpana.com.ar:5000/api'
+    baseURL: 'https://api.qarpana.com.ar/api'
 });
 
 instance.interceptors.request.use(

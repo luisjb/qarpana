@@ -29,7 +29,7 @@ services:
       - DB_PASSWORD=BambooAsesores2024
       - DB_PORT=5432
       - JWT_SECRET=tu_clave_secreta_muy_segura
-      - CORS_ORIGIN=http://localhost:3000
+      - CORS_ORIGIN=https://qarpana.com.ar  
     depends_on:
       - db
     networks:
