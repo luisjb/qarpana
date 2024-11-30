@@ -230,31 +230,19 @@ function CambiosDiarios() {
 
     const fetchAvailableItems = async () => {
         try {
-            let response;
-            if (tipoEvapMasiva === 'campo') {
-                const userRole = localStorage.getItem('role');
-                const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
-                response = await axios.get(endpoint);
-                setAvailableItems(response.data.map(campo => ({
-                    id: campo.id,
-                    nombre: campo.nombre_campo
-                })));
-            } else {
-                if (selectedCampo) {
-                    response = await axios.get(`/lotes/campo/${selectedCampo}`);
-                    setAvailableItems(response.data.lotes.map(lote => ({
-                        id: lote.id,
-                        nombre: lote.nombre_lote
-                    })));
-                } else {
-                setAvailableItems([]);
-                }
-            }
-            setAvailableItems(response.data);
+            const userRole = localStorage.getItem('role');
+            const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
+            const response = await axios.get(endpoint);
+            setAvailableItems(response.data.map(campo => ({
+                id: campo.id,
+                nombre: campo.nombre_campo
+            })));
         } catch (error) {
-            console.error('Error al obtener los items:', error);
+            console.error('Error al obtener los campos:', error);
+            setAvailableItems([]);
         }
     };
+    
 
     const formatDate = (dateString) => {
         if (!dateString) return '';
@@ -370,55 +358,39 @@ function CambiosDiarios() {
                     <Grid container spacing={3}>
                         <Grid item xs={12} md={6}>
                             <FormControl fullWidth margin="normal">
-                                <InputLabel>Tipo</InputLabel>
-                                <Select
-                                    value={tipoEvapMasiva}
-                                    onChange={(e) => {
-                                        setTipoEvapMasiva(e.target.value);
-                                        setSelectedItems([]);
-                                    }}
-                                >
-                                    <MenuItem value="campo">Campo</MenuItem>
-                                    <MenuItem value="lote">Lote</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                            <FormControl fullWidth margin="normal">
-                                <InputLabel>{tipoEvapMasiva === 'campo' ? 'Campos' : 'Lotes'}</InputLabel>
-                                <Select
-                                    multiple
-                                    value={selectedItems}
-                                    onChange={handleItemSelection}
-                                    input={<OutlinedInput label={tipoEvapMasiva === 'campo' ? 'Campos' : 'Lotes'} />}
-                                    renderValue={(selected) => selected.map(id => 
-                                        availableItems.find(item => item.id.toString() === id.toString())?.nombre || id
-                                    ).join(', ')}
-                                >
-                                    {availableItems.map((item) => (
-                                        <MenuItem key={item.id} value={item.id}>
-                                            <Checkbox checked={selectedItems.indexOf(item.id.toString()) > -1} />
-                                            <ListItemText primary={item.nombre || item.nombre_lote} />
-                                        </MenuItem>
-                                    ))}
-                                </Select>
+                            <InputLabel>Campos</InputLabel>
+                            <Select
+                                multiple
+                                value={selectedItems}
+                                onChange={handleItemSelection}
+                                input={<OutlinedInput label="Campos" />}
+                                renderValue={(selected) => selected.map(id => 
+                                    availableItems.find(item => item.id.toString() === id.toString())?.nombre
+                                ).join(', ')}
+                            >
+                                {availableItems.map((item) => (
+                                    <MenuItem key={item.id} value={item.id}>
+                                        <Checkbox checked={selectedItems.indexOf(item.id.toString()) > -1} />
+                                        <ListItemText primary={item.nombre} />
+                                    </MenuItem>
+                                ))}
+                            </Select>
                             </FormControl>
                         </Grid>
                     </Grid>
                     {evapMasiva.map((item, index) => (
                         <Grid container spacing={2} key={index} alignItems="center" style={{ marginTop: '10px' }}>
                             <Grid item xs={5}>
-                            <TextField
-                                fullWidth
-                                margin="normal"
-                                name="fecha_cambio"
-                                label="Fecha"
-                                type="date"
-                                value={formatDate(currentCambio.fecha_cambio)}
-                                onChange={handleInputChange}
-                                InputLabelProps={{ shrink: true }}
-                                required
-                            />
+                                <TextField
+                                    fullWidth
+                                    name="fecha"
+                                    label="Fecha"
+                                    type="date"
+                                    value={item.fecha}
+                                    onChange={(e) => handleEvapInputChange(index, e)}
+                                    InputLabelProps={{ shrink: true }}
+                                    required
+                                />
                             </Grid>
                             <Grid item xs={5}>
                                 <TextField
@@ -437,13 +409,6 @@ function CambiosDiarios() {
                             </Grid>
                         </Grid>
                     ))}
-                    <Button 
-                        onClick={handleAddEvapRow}
-                        startIcon={<CloudUpload />}
-                        style={{ marginTop: '20px' }}
-                    >
-                        Añadir Fila
-                    </Button>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setOpenEvapDialog(false)}>Cancelar</Button>

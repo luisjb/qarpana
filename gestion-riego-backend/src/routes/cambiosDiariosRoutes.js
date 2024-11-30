@@ -178,7 +178,7 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const { datos, tipo, ids } = req.body;
+        const { datos, ids } = req.body;
 
         // Validar datos de entrada
         if (!datos || !Array.isArray(datos) || datos.length === 0) {
@@ -190,21 +190,13 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
                 const evapotranspiracion = convertToNumberOrZero(dato.evapotranspiracion);
                 const fecha = dato.fecha;
                 
-                if (tipo === 'campo') {
-                    await client.query(
-                        'INSERT INTO cambios_diarios (lote_id, fecha_cambio, evapotranspiracion) ' +
-                        'SELECT id, $2, $3 FROM lotes WHERE campo_id = $1 ' +
-                        'ON CONFLICT (lote_id, fecha_cambio) DO UPDATE SET evapotranspiracion = EXCLUDED.evapotranspiracion',
-                        [id, fecha, evapotranspiracion]
-                    );
-                } else if (tipo === 'lote') {
-                    await client.query(
-                        'INSERT INTO cambios_diarios (lote_id, fecha_cambio, evapotranspiracion) ' +
-                        'VALUES ($1, $2, $3) ' +
-                        'ON CONFLICT (lote_id, fecha_cambio) DO UPDATE SET evapotranspiracion = EXCLUDED.evapotranspiracion',
-                        [id, fecha, evapotranspiracion]
-                    );
-                }
+                // Siempre insertar para todos los lotes del campo
+                await client.query(
+                    'INSERT INTO cambios_diarios (lote_id, fecha_cambio, evapotranspiracion) ' +
+                    'SELECT id, $2, $3 FROM lotes WHERE campo_id = $1 ' +
+                    'ON CONFLICT (lote_id, fecha_cambio) DO UPDATE SET evapotranspiracion = EXCLUDED.evapotranspiracion',
+                    [id, fecha, evapotranspiracion]
+                );
             }
         }
 

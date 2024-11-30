@@ -260,8 +260,12 @@ function Simulations() {
 
     const formatDate = (dateString) => format(new Date(dateString), 'dd/MM/yyyy');
     const formatShortDate = (dateString) => format(new Date(dateString), 'dd/MM');
-    const formatNumber = (value) => typeof value === 'number' && !isNaN(value) ? Math.round(value).padStart(5, '0') : 'N/A';
-    
+    const formatNumber = (value) => {
+        if (typeof value === 'number' && !isNaN(value)) {
+            return Math.round(value);
+        }
+        return 'N/A';
+    };    
 
     const getEstadosFenologicosAnnotations = () => {
         if (!simulationData || !simulationData.estadosFenologicos) return [];
