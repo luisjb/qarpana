@@ -108,12 +108,14 @@ function CambiosDiarios() {
         if (name.includes('fecha')) {
             setCurrentCambio(prev => ({
                 ...prev,
-                [name]: value // Store date strings directly
+                [name]: value || null // Mantener las fechas como null si están vacías
             }));
         } else {
+            // Convertir valores numéricos vacíos a 0
+            const numericValue = value === '' ? 0 : parseFloat(value);
             setCurrentCambio(prev => ({
                 ...prev,
-                [name]: value
+                [name]: isNaN(numericValue) ? 0 : numericValue
             }));
         }
     };
@@ -165,7 +167,16 @@ function CambiosDiarios() {
     const handleEvapInputChange = (index, event) => {
         const { name, value } = event.target;
         const newEvapMasiva = [...evapMasiva];
-        newEvapMasiva[index] = { ...newEvapMasiva[index], [name]: value };
+        // Convertir valores numéricos vacíos a 0
+        if (name === 'evapotranspiracion') {
+            const numericValue = value === '' ? 0 : parseFloat(value);
+            newEvapMasiva[index] = { 
+                ...newEvapMasiva[index], 
+                [name]: isNaN(numericValue) ? 0 : numericValue 
+            };
+        } else {
+            newEvapMasiva[index] = { ...newEvapMasiva[index], [name]: value };
+        }
         setEvapMasiva(newEvapMasiva);
     };
 
@@ -221,9 +232,23 @@ function CambiosDiarios() {
         try {
             let response;
             if (tipoEvapMasiva === 'campo') {
-                response = await axios.get('/campos');
+                const userRole = localStorage.getItem('role');
+                const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
+                response = await axios.get(endpoint);
+                setAvailableItems(response.data.map(campo => ({
+                    id: campo.id,
+                    nombre: campo.nombre_campo
+                })));
             } else {
-                response = await axios.get('/lotes');
+                if (selectedCampo) {
+                    response = await axios.get(`/lotes/campo/${selectedCampo}`);
+                    setAvailableItems(response.data.lotes.map(lote => ({
+                        id: lote.id,
+                        nombre: lote.nombre_lote
+                    })));
+                } else {
+                setAvailableItems([]);
+                }
             }
             setAvailableItems(response.data);
         } catch (error) {
@@ -296,7 +321,7 @@ function CambiosDiarios() {
                 <Table>
                     <TableHead>
                         <TableRow>
-                            <TableCell>Fecha</TableCell>
+                            <TableCell>Fecha de Registro</TableCell>
                             <TableCell>Riego (mm)</TableCell>
                             <TableCell>Fecha Inicio Riego</TableCell>
                             <TableCell>Precipitaciones (mm)</TableCell>
@@ -454,7 +479,7 @@ function CambiosDiarios() {
                             fullWidth
                             margin="normal"
                             name="fecha_cambio"
-                            label="Fecha"
+                            label="Fecha de Registro"
                             type="date"
                             value={currentCambio.fecha_cambio}
                             onChange={handleInputChange}

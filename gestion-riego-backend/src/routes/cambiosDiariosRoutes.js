@@ -4,6 +4,11 @@ const pool = require('../db');
 const { verifyToken } = require('../middleware/auth');
 const { calcularLluviaEfectiva, calcularTotales } = require('../utils/calculosHidricos');
 
+// Función auxiliar para convertir valores nulos o undefined a 0
+const convertToNumberOrZero = (value) => {
+    const number = parseFloat(value);
+    return isNaN(number) ? 0 : number;
+};
 
 // Obtener todos los cambios diarios para un lote
 router.get('/:loteId', verifyToken, async (req, res) => {
@@ -38,26 +43,39 @@ router.post('/', verifyToken, async (req, res) => {
             precipitaciones,
             humedad,
             temperatura,
-            evapotranspiracion
+            evapotranspiracion,
+            etc
         } = req.body;
 
-        const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
+        // Convertir valores a números o 0 si son nulos
+        const valores = {
+            riego_cantidad: convertToNumberOrZero(riego_cantidad),
+            precipitaciones: convertToNumberOrZero(precipitaciones),
+            humedad: convertToNumberOrZero(humedad),
+            temperatura: convertToNumberOrZero(temperatura),
+            evapotranspiracion: convertToNumberOrZero(evapotranspiracion),
+            etc: convertToNumberOrZero(etc)
+        };
+
+        const lluvia_efectiva = calcularLluviaEfectiva(valores.precipitaciones);
 
         const { rows } = await client.query(
             `INSERT INTO cambios_diarios 
             (lote_id, fecha_cambio, riego_cantidad, riego_fecha_inicio, 
-             precipitaciones, humedad, temperatura, evapotranspiracion, lluvia_efectiva) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+             precipitaciones, humedad, temperatura, evapotranspiracion, 
+             etc, lluvia_efectiva) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
             RETURNING *`,
             [
                 lote_id,
                 fecha_cambio,
-                riego_cantidad,
+                valores.riego_cantidad,
                 riego_fecha_inicio,
-                precipitaciones,
-                humedad,
-                temperatura,
-                evapotranspiracion,
+                valores.precipitaciones,
+                valores.humedad,
+                valores.temperatura,
+                valores.evapotranspiracion,
+                valores.etc,
                 lluvia_efectiva
             ]
         );
@@ -67,12 +85,10 @@ router.post('/', verifyToken, async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error al crear cambio diario:', err);
-        if (!res.headersSent) {
-            res.status(500).json({ 
-                error: 'Error del servidor',
-                details: err.message
-            });
-        }
+        res.status(500).json({ 
+            error: 'Error del servidor',
+            details: err.message
+        });
     } finally {
         client.release();
     }
@@ -164,9 +180,16 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
         await client.query('BEGIN');
         const { datos, tipo, ids } = req.body;
 
+        // Validar datos de entrada
+        if (!datos || !Array.isArray(datos) || datos.length === 0) {
+            throw new Error('Datos inválidos');
+        }
+        
         for (const id of ids) {
             for (const dato of datos) {
-                const { fecha, evapotranspiracion } = dato;
+                const evapotranspiracion = convertToNumberOrZero(dato.evapotranspiracion);
+                const fecha = dato.fecha;
+                
                 if (tipo === 'campo') {
                     await client.query(
                         'INSERT INTO cambios_diarios (lote_id, fecha_cambio, evapotranspiracion) ' +
@@ -190,16 +213,13 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error en carga masiva de evapotranspiración:', err);
-        if (!res.headersSent) {
-            res.status(500).json({ 
-                error: 'Error del servidor', 
-                details: err.message 
-            });
-        }
+        res.status(500).json({ 
+            error: 'Error del servidor', 
+            details: err.message 
+        });
     } finally {
         client.release();
     }
 });
-
 
 module.exports = router;

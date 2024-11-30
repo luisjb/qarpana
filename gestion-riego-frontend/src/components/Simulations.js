@@ -11,6 +11,9 @@ import Widget from './Widget';
 import CorreccionDiasDialog from './CorreccionDiasDialog';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import annotationPlugin from 'chartjs-plugin-annotation';
+import { Circle } from 'lucide-react';
+
+
 
 
 
@@ -53,6 +56,35 @@ function Simulations() {
     });
 
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+    const GaugeIndicator = ({ percentage, size = 40 }) => {
+        // Get color based on percentage
+        const getColor = (value) => {
+          if (value <= simulationData.porcentajeAguaUtilUmbral/2) return '#ef4444'; // red
+          if (value <= simulationData.porcentajeAguaUtilUmbral) return '#f97316'; // orange
+          return '#22c55e'; // green
+        };
+    
+        const color = getColor(percentage);
+        
+        return (
+            <div className="relative inline-block">
+                <Circle size={size} className="text-gray-200" />
+                <div 
+                className="absolute inset-0 flex items-center justify-center"
+                style={{
+                    background: `conic-gradient(${color} ${percentage}%, transparent ${percentage}%, transparent 100%)`,
+                    borderRadius: '50%',
+                }}
+                >
+                <div className="bg-white rounded-full" style={{ width: `${size-8}px`, height: `${size-8}px` }} />
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center text-sm font-medium">
+                {Math.round(percentage)}%
+                </div>
+            </div>
+        );
+    };
 
     useEffect(() => {
         fetchCampos();
@@ -228,7 +260,8 @@ function Simulations() {
 
     const formatDate = (dateString) => format(new Date(dateString), 'dd/MM/yyyy');
     const formatShortDate = (dateString) => format(new Date(dateString), 'dd/MM');
-    const formatNumber = (value) => typeof value === 'number' && !isNaN(value) ? value.toFixed(2).padStart(5, '0') : 'N/A';
+    const formatNumber = (value) => typeof value === 'number' && !isNaN(value) ? Math.round(value).padStart(5, '0') : 'N/A';
+    
 
     const getEstadosFenologicosAnnotations = () => {
         if (!simulationData || !simulationData.estadosFenologicos) return [];
@@ -331,7 +364,7 @@ function Simulations() {
             },
             title: {
                 display: true,
-                text: 'Simulación de Agua, Riego y Lluvia',
+                text: 'Balance Hídrico',
             }
         },
     };
@@ -409,7 +442,7 @@ function Simulations() {
         <ThemeProvider theme={theme}>
             <Container maxWidth="lg">
             <Typography variant="h4" gutterBottom sx={{ my: 4, fontWeight: 'bold', color: theme.palette.primary.main }}>
-                Simulaciones
+                Balance Hídrico
             </Typography>
             
             <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
@@ -493,10 +526,18 @@ function Simulations() {
             {simulationData && (
                 <>
                 <Grid container spacing={2} sx={{ mb: 4 }}>
+                <Grid item xs={12} md={4}>
+                    <Widget 
+                        title="Cultivo" 
+                        value={simulationData.cultivo} 
+                        unit="" 
+                        icon="grass"
+                        />
+                    </Grid>
                     <Grid item xs={12} md={4}>
                     <Widget 
-                        title="Estado Fenológico" 
-                        value={simulationData.estadoFenologico} 
+                        title="Variedad" 
+                        value={simulationData.variedad} 
                         unit="" 
                         icon="grass"
                         />
@@ -511,7 +552,15 @@ function Simulations() {
                     </Grid>
                     <Grid item xs={12} md={4}>
                     <Widget 
-                        title="AU Inicial" 
+                        title="Estado Fenológico" 
+                        value={simulationData.estadoFenologico} 
+                        unit="" 
+                        icon="grass"
+                        />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                    <Widget 
+                        title="AU Total" 
                         value={formatNumber(simulationData.auInicial)} 
                         unit="mm" 
                         icon="waterDrop"
@@ -536,32 +585,27 @@ function Simulations() {
                     <Grid item xs={12} md={4}>
                     <Widget 
                         title="% Agua Útil" 
-                        value={`${formatNumber(simulationData.porcentajeAguaUtil)}% (${formatNumber(simulationData.aguaUtil[simulationData.aguaUtil.length - 1])}mm)`}
+                        value={
+                            <div className="flex items-center gap-2">
+                                <GaugeIndicator percentage={simulationData.porcentajeAguaUtil} />
+                                <span>`${formatNumber(simulationData.porcentajeAguaUtil)}% (${formatNumber(simulationData.aguaUtil[simulationData.aguaUtil.length - 1])}mm)`</span>
+                            </div>
+                        }
                         unit="" 
                         icon="waterDrop"
                         maxWidth='container'
                         />
                     </Grid>
-                    <Grid item xs={12} md={4}>
-                    <Widget 
-                        title="Cultivo" 
-                        value={simulationData.cultivo} 
-                        unit="" 
-                        icon="grass"
-                        />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                    <Widget 
-                        title="Variedad" 
-                        value={simulationData.variedad} 
-                        unit="" 
-                        icon="grass"
-                        />
-                    </Grid>
+                    
                     <Grid item xs={12} md={4}>
                     <Widget 
                         title="Proyección AU 10 días" 
-                        value={formatNumber(simulationData.proyeccionAU10Dias)} 
+                        value={
+                            <div className="flex items-center gap-2">
+                                <GaugeIndicator percentage={(simulationData.proyeccionAU10Dias / simulationData.auInicial) * 100} />
+                                <span>{formatNumber(simulationData.proyeccionAU10Dias)}mm</span>
+                            </div>
+                        }
                         unit="mm" 
                         icon="waterDrop"
                         />
@@ -571,7 +615,8 @@ function Simulations() {
                 </Grid>
 
                 <Typography variant="body2" align="right" sx={{ mb: 2, fontStyle: 'italic' }}>
-                    % Agua Util Umbral: {simulationData.porcentajeAguaUtilUmbral}% - Última actualización: {formatDate(simulationData.fechaActualizacion)}
+                Profundidad estratos: {simulationData.estratosDisponibles * 20}cm - 
+                % Agua Util Umbral: {simulationData.porcentajeAguaUtilUmbral}% - Última actualización: {formatDate(simulationData.fechaActualizacion)}
                 </Typography>
                 
                 <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>

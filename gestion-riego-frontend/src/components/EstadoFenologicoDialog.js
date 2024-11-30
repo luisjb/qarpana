@@ -99,7 +99,7 @@ function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, onSave }
                 {!loteId ? (
                     <Typography color="error">Error: ID de lote no definido</Typography>
                 ) : (
-                    <Grid container spacing={2}>
+                    <Grid container spacing={2} paddingTop={5}>
                         {estados.map((estado, index) => (
                             <Grid item xs={12} key={index} container alignItems="center" spacing={1}>
                                 <Grid item xs={5}>
