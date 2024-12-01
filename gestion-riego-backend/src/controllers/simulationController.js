@@ -6,7 +6,7 @@ exports.getSimulationData = async (req, res) => {
 
     try {
         const result = await pool.query(`
-             SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
+            SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
                    cd.fecha_cambio, cd.precipitaciones, cd.riego_cantidad, cd.evapotranspiracion,
                    cd.agua_util_diaria, cd.lluvia_efectiva, cd.kc, cd.dias, cd.crecimiento_radicular,
                    l.porcentaje_agua_util_umbral, l.agua_util_total,
@@ -18,8 +18,9 @@ exports.getSimulationData = async (req, res) => {
             LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
             WHERE l.id = $1
             ${campaña ? 'AND l.campaña = $2' : ''}
-            ORDER BY cd.fecha_cambio
-        `, campaña ? [loteId, campaña] : [loteId]);
+            ORDER BY cd.fecha_cambio`, 
+            campaña ? [loteId, campaña] : [loteId]
+        );
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Lote no encontrado o sin datos' });

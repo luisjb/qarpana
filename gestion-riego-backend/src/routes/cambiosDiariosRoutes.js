@@ -47,36 +47,37 @@ router.post('/', verifyToken, async (req, res) => {
             etc
         } = req.body;
 
-        // Convertir valores a números o 0 si son nulos
-        const valores = {
-            riego_cantidad: convertToNumberOrZero(riego_cantidad),
-            precipitaciones: convertToNumberOrZero(precipitaciones),
-            humedad: convertToNumberOrZero(humedad),
-            temperatura: convertToNumberOrZero(temperatura),
-            evapotranspiracion: convertToNumberOrZero(evapotranspiracion),
-            etc: convertToNumberOrZero(etc)
-        };
+        // Obtener los días desde la siembra
+        const loteResult = await client.query(
+            'SELECT fecha_siembra FROM lotes WHERE id = $1',
+            [lote_id]
+        );
+        
+        const fechaSiembra = loteResult.rows[0]?.fecha_siembra;
+        const dias = Math.floor((new Date(fecha_cambio) - new Date(fechaSiembra)) / (1000 * 60 * 60 * 24));
 
-        const lluvia_efectiva = calcularLluviaEfectiva(valores.precipitaciones);
+        // Calcular lluvia efectiva
+        const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
 
         const { rows } = await client.query(
             `INSERT INTO cambios_diarios 
             (lote_id, fecha_cambio, riego_cantidad, riego_fecha_inicio, 
              precipitaciones, humedad, temperatura, evapotranspiracion, 
-             etc, lluvia_efectiva) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+             etc, lluvia_efectiva, dias) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
             RETURNING *`,
             [
                 lote_id,
                 fecha_cambio,
-                valores.riego_cantidad,
+                convertToNumberOrZero(riego_cantidad),
                 riego_fecha_inicio,
-                valores.precipitaciones,
-                valores.humedad,
-                valores.temperatura,
-                valores.evapotranspiracion,
-                valores.etc,
-                lluvia_efectiva
+                convertToNumberOrZero(precipitaciones),
+                convertToNumberOrZero(humedad),
+                convertToNumberOrZero(temperatura),
+                convertToNumberOrZero(evapotranspiracion),
+                convertToNumberOrZero(etc),
+                lluvia_efectiva,
+                dias
             ]
         );
 
