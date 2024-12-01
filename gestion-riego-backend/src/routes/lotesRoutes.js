@@ -101,21 +101,36 @@ router.put('/:loteId', verifyToken, async (req, res) => {
 
 // Eliminar un lote
 router.delete('/:loteId', verifyToken, async (req, res) => {
-    const { loteId } = req.params;
-
+    const client = await pool.connect();
     try {
-        const result = await pool.query('DELETE FROM lotes WHERE id = $1 RETURNING *', [loteId]);
+        await client.query('BEGIN');
+        const { loteId } = req.params;
+
+        // Eliminar registros dependientes en orden
+        await client.query('DELETE FROM pronostico WHERE lote_id = $1', [loteId]);
+        await client.query('DELETE FROM agua_util_inicial WHERE lote_id = $1', [loteId]);
+        await client.query('DELETE FROM cambios_diarios WHERE lote_id = $1', [loteId]);
+        await client.query('DELETE FROM estado_fenologico WHERE lote_id = $1', [loteId]);
+        
+        // Finalmente eliminar el lote
+        const result = await client.query('DELETE FROM lotes WHERE id = $1 RETURNING *', [loteId]);
 
         if (result.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ error: 'Lote no encontrado' });
         }
 
+        await client.query('COMMIT');
         res.json({ message: 'Lote eliminado con éxito' });
     } catch (err) {
-        console.error(err);
+        await client.query('ROLLBACK');
+        console.error('Error al eliminar lote:', err);
         res.status(500).json({ error: 'Error del servidor' });
+    } finally {
+        client.release();
     }
 });
+
 
 // Nueva ruta para obtener el cultivo de un lote específico para una campaña
 router.get('/:loteId/cultivo', verifyToken, async (req, res) => {

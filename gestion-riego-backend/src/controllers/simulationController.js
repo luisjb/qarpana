@@ -87,7 +87,7 @@ exports.getSimulationData = async (req, res) => {
         };
 
           // Función para calcular el agua útil acumulada por estratos
-          const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, aguaUtilAnterior, estratoAnterior) => {
+        const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, aguaUtilAnterior, estratoAnterior) => {
             if (!valoresEstratos || !dia) {
                 return {
                     aguaUtilDiaria: 0,
@@ -100,20 +100,28 @@ exports.getSimulationData = async (req, res) => {
             
             const numEstratos = valoresEstratos.length;
             const PROFUNDIDAD_POR_ESTRATO = 20; // 20 cm por estrato
-        
-            // Calculamos la profundidad alcanzada por las raíces en cm
-            const profundidadRaices = parseFloat(dia) * parseFloat(indice_crecimiento_radicular || 0);
             
-            // Calculamos cuántos estratos están disponibles
+            // Calculamos la profundidad alcanzada por las raíces usando el índice específico del cultivo
+            const profundidadRaices = Math.min(
+                parseFloat(dia) * parseFloat(indice_crecimiento_radicular),
+                numEstratos * PROFUNDIDAD_POR_ESTRATO // máximo total
+            );
+            
+            // Calculamos cuántos estratos están disponibles (cambio cada PROFUNDIDAD_POR_ESTRATO cm)
             const estratosDisponibles = Math.min(
                 Math.floor(profundidadRaices / PROFUNDIDAD_POR_ESTRATO) + 1,
                 numEstratos
             );
         
+            // Aseguramos que no haya saltos de más de un estrato por vez
+            const estratosDisponiblesFinales = estratoAnterior ? 
+                Math.min(estratosDisponibles, estratoAnterior + 1) : 
+                estratosDisponibles;
+            
             // Valor por estrato (agua útil total dividida por número de estratos)
             const valorPorEstrato = parseFloat(aguaUtilTotal) / numEstratos;
-        
-            // Aplicamos los cambios diarios (esto ocurre todos los días)
+            
+            // Aplicamos los cambios diarios
             const perdidaAgua = Math.max(
                 parseFloat(evapotranspiracion || 0),
                 parseFloat(etc || 0)
@@ -124,11 +132,11 @@ exports.getSimulationData = async (req, res) => {
             let aguaUtilDiaria;
             
             if (aguaUtilAnterior === undefined) {
-                // Primer día: valor de agua por estrato - pérdida + ganancia
+                // Primer día: solo consideramos el primer estrato
                 aguaUtilDiaria = valorPorEstrato - perdidaAgua + gananciaAgua;
             } else {
                 // Días subsiguientes
-                if (estratosDisponibles > estratoAnterior) {
+                if (estratosDisponiblesFinales > estratoAnterior) {
                     // Si alcanzamos un nuevo estrato
                     aguaUtilDiaria = aguaUtilAnterior + valorPorEstrato - perdidaAgua + gananciaAgua;
                 } else {
@@ -137,19 +145,34 @@ exports.getSimulationData = async (req, res) => {
                 }
             }
         
-        
             aguaUtilDiaria = Math.max(0, aguaUtilDiaria);
-
+        
+            // Calculamos el agua útil máxima disponible actual
+            const aguaUtilMaximaActual = valorPorEstrato * estratosDisponiblesFinales;
+        
+            // Limitamos el agua útil diaria al máximo disponible
+            aguaUtilDiaria = Math.min(aguaUtilDiaria, aguaUtilMaximaActual);
+        
             // Calculamos el porcentaje de agua útil
-            const porcentajeAguaUtil = (aguaUtilDiaria / (valorPorEstrato * estratosDisponibles)) * 100;
+            const porcentajeAguaUtil = (aguaUtilDiaria / aguaUtilMaximaActual) * 100;
         
             // Calculamos el agua útil umbral
-            const aguaUtilUmbral = (valorPorEstrato * estratosDisponibles) * (porcentajeUmbral / 100);
+            const aguaUtilUmbral = aguaUtilMaximaActual * (porcentajeUmbral / 100);
+        
+            // Para debug
+            console.log('Día:', dia, {
+                profundidadRaices,
+                estratosDisponibles,
+                estratosDisponiblesFinales,
+                aguaUtilDiaria,
+                aguaUtilMaximaActual,
+                porcentajeAguaUtil
+            });
         
             return {
                 aguaUtilDiaria,
                 aguaUtilUmbral,
-                estratosDisponibles,
+                estratosDisponibles: estratosDisponiblesFinales,
                 porcentajeAguaUtil,
                 profundidadRaices
             };
