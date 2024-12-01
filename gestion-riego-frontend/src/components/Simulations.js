@@ -58,29 +58,31 @@ function Simulations() {
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     const GaugeIndicator = ({ percentage, size = 40 }) => {
-        // Get color based on percentage
+        const safePercentage = percentage === null || percentage === undefined || isNaN(percentage) ? 0 : Math.round(Number(percentage));
+        
         const getColor = (value) => {
-          if (value <= simulationData.porcentajeAguaUtilUmbral/2) return '#ef4444'; // red
-          if (value <= simulationData.porcentajeAguaUtilUmbral) return '#f97316'; // orange
-          return '#22c55e'; // green
+            value = Number(value) || 0;
+            if (value <= simulationData.porcentajeAguaUtilUmbral/2) return '#ef4444';
+            if (value <= simulationData.porcentajeAguaUtilUmbral) return '#f97316';
+            return '#22c55e';
         };
     
-        const color = getColor(percentage);
+        const color = getColor(safePercentage);
         
         return (
             <div className="relative inline-block">
                 <Circle size={size} className="text-gray-200" />
                 <div 
-                className="absolute inset-0 flex items-center justify-center"
-                style={{
-                    background: `conic-gradient(${color} ${percentage}%, transparent ${percentage}%, transparent 100%)`,
-                    borderRadius: '50%',
-                }}
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{
+                        background: `conic-gradient(${color} ${safePercentage}%, transparent ${safePercentage}%, transparent 100%)`,
+                        borderRadius: '50%',
+                    }}
                 >
-                <div className="bg-white rounded-full" style={{ width: `${size-8}px`, height: `${size-8}px` }} />
+                    <div className="bg-white rounded-full" style={{ width: `${size-8}px`, height: `${size-8}px` }} />
                 </div>
                 <div className="absolute inset-0 flex items-center justify-center text-sm font-medium">
-                {Math.round(percentage)}%
+                    {safePercentage}%
                 </div>
             </div>
         );
@@ -261,11 +263,11 @@ function Simulations() {
     const formatDate = (dateString) => format(new Date(dateString), 'dd/MM/yyyy');
     const formatShortDate = (dateString) => format(new Date(dateString), 'dd/MM');
     const formatNumber = (value) => {
-        if (typeof value === 'number' && !isNaN(value)) {
-            return Math.round(value);
+        if (value === null || value === undefined || isNaN(value)) {
+            return 0;
         }
-        return 'N/A';
-    };    
+        return Math.round(Number(value));
+    };
 
     const getEstadosFenologicosAnnotations = () => {
         if (!simulationData || !simulationData.estadosFenologicos) return [];
@@ -587,40 +589,46 @@ function Simulations() {
                         />
                     </Grid>
                     <Grid item xs={12} md={4}>
-                    <Widget 
-                        title="% Agua Útil" 
-                        value={
-                            <div className="flex items-center gap-2">
-                                <GaugeIndicator percentage={simulationData.porcentajeAguaUtil} />
-                                <span>`${formatNumber(simulationData.porcentajeAguaUtil)}% (${formatNumber(simulationData.aguaUtil[simulationData.aguaUtil.length - 1])}mm)`</span>
-                            </div>
-                        }
-                        unit="" 
-                        icon="waterDrop"
-                        maxWidth='container'
+                        <Widget 
+                            title="% Agua Útil" 
+                            value={
+                                <div className="flex items-center gap-2">
+                                    <GaugeIndicator percentage={simulationData.porcentajeAguaUtil} />
+                                    <span>
+                                        {formatNumber(simulationData.porcentajeAguaUtil)}% (
+                                        {formatNumber(simulationData.aguaUtil[simulationData.aguaUtil.length - 1])}mm)
+                                    </span>
+                                </div>
+                            }
+                            unit="" 
+                            icon="waterDrop"
+                            maxWidth='container'
                         />
                     </Grid>
                     
                     <Grid item xs={12} md={4}>
-                    <Widget 
-                        title="Proyección AU 10 días" 
-                        value={
-                            <div className="flex items-center gap-2">
-                                <GaugeIndicator percentage={(simulationData.proyeccionAU10Dias / simulationData.auInicial) * 100} />
-                                <span>{formatNumber(simulationData.proyeccionAU10Dias)}mm</span>
-                            </div>
-                        }
-                        unit="mm" 
-                        icon="waterDrop"
+                        <Widget 
+                            title="Proyección AU 10 días" 
+                            value={
+                                <div className="flex items-center gap-2">
+                                    <GaugeIndicator 
+                                        percentage={
+                                            formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial) * 100)
+                                        } 
+                                    />
+                                    <span>{formatNumber(simulationData.proyeccionAU10Dias)}mm</span>
+                                </div>
+                            }
+                            unit="" 
+                            icon="waterDrop"
                         />
                     </Grid>
-                    
-
                 </Grid>
 
                 <Typography variant="body2" align="right" sx={{ mb: 2, fontStyle: 'italic' }}>
-                Profundidad estratos: {simulationData.estratosDisponibles * 20}cm - 
-                % Agua Util Umbral: {simulationData.porcentajeAguaUtilUmbral}% - Última actualización: {formatDate(simulationData.fechaActualizacion)}
+                    Profundidad estratos: {formatNumber(simulationData.estratosDisponibles * 20) || 0}cm - 
+                    % Agua Util Umbral: {formatNumber(simulationData.porcentajeAguaUtilUmbral)}% - 
+                    Última actualización: {formatDate(simulationData.fechaActualizacion)}
                 </Typography>
                 
                 <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
