@@ -108,7 +108,7 @@ function CambiosDiarios() {
         if (name.includes('fecha')) {
             setCurrentCambio(prev => ({
                 ...prev,
-                [name]: value || fecha_cambio // Mantener las fechas como null si están vacías
+                [name]: value || null // Mantener las fechas como null si están vacías
             }));
         } else {
             // Convertir valores numéricos vacíos a 0
