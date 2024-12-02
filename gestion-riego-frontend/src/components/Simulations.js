@@ -71,7 +71,7 @@ function Simulations() {
         
         return (
             <div className="relative inline-block">
-                <Circle size={size} className="text-gray-200" />
+                {/*<Circle size={size} className="text-gray-200" />*/}
                 <div 
                     className="absolute inset-0 flex items-center justify-center"
                     style={{
@@ -79,11 +79,11 @@ function Simulations() {
                         borderRadius: '50%',
                     }}
                 >
-                    <div className="bg-white rounded-full" style={{ width: `${size-8}px`, height: `${size-8}px` }} />
+                    <div className="bg-white rounded-full" style={{ width: `20px`, height: `20px` }} />
                 </div>
-                <div className="absolute inset-0 flex items-center justify-center text-sm font-medium">
+               {/* <div className="absolute inset-0 flex items-center justify-center text-sm font-medium">
                     {safePercentage}%
-                </div>
+                </div>*/}
             </div>
         );
     };

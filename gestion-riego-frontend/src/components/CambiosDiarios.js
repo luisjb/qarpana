@@ -123,25 +123,26 @@ function CambiosDiarios() {
     const handleSubmit = async (event) => {
         event.preventDefault();
         try {
+            const dataToSend = {
+                ...currentCambio,
+                riego_cantidad: Number(currentCambio.riego_cantidad) || 0,
+                precipitaciones: Number(currentCambio.precipitaciones) || 0,
+                humedad: Number(currentCambio.humedad) || 0,
+                temperatura: Number(currentCambio.temperatura) || 0,
+                evapotranspiracion: Number(currentCambio.evapotranspiracion) || 0,
+                etc: Number(currentCambio.etc) || 0
+            };
+    
             if (editing) {
-                await axios.put(`/cambios-diarios/${currentCambio.id}`, currentCambio);
+                await axios.put(`/cambios-diarios/${currentCambio.id}`, dataToSend);
             } else {
-                await axios.post('/cambios-diarios', { ...currentCambio, lote_id: selectedLote });
+                await axios.post('/cambios-diarios', { ...dataToSend, lote_id: selectedLote });
             }
+            
             fetchCambiosDiarios(selectedLote);
             setOpenDialog(false);
             setEditing(false);
-            setCurrentCambio({
-                fecha_cambio: '',
-                riego_cantidad: '',
-                riego_fecha_inicio: '',
-                precipitaciones: '',
-                humedad: '',
-                temperatura: '',
-                evapotranspiracion: '',
-                etc: '',
-                lluvia_efectiva: ''
-            });
+            setCurrentCambio(initialCambioState);
         } catch (error) {
             console.error('Error al guardar cambio diario:', error);
         }
