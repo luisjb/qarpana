@@ -70,20 +70,38 @@ function Simulations() {
         const color = getColor(safePercentage);
         
         return (
-            <div className="relative inline-block">
-                {/*<Circle size={size} className="text-gray-200" />*/}
-                <div 
-                    className="absolute inset-0 flex items-center justify-center"
-                    style={{
-                        background: `conic-gradient(${color} ${safePercentage}%, transparent ${safePercentage}%, transparent 100%)`,
+            <div style={{
+                position: 'relative',
+                width: `${size}px`,
+                height: `${size}px`,
+                borderRadius: '50%',
+                background: '#e5e7eb', // color de fondo
+            }}>
+                <div style={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: '50%',
+                    background: `conic-gradient(${color} ${safePercentage}%, transparent ${safePercentage}%, transparent 100%)`,
+                    transform: 'rotate(-90deg)', // Comienza desde arriba
+                }}>
+                    <div style={{
+                        position: 'absolute',
+                        top: '10%',
+                        left: '10%',
+                        right: '10%',
+                        bottom: '10%',
+                        background: 'white',
                         borderRadius: '50%',
-                    }}
-                >
-                    <div className="bg-white rounded-full" style={{ width: `20px`, height: `20px` }} />
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transform: 'rotate(90deg)', // Corrige la rotación para el texto
+                        fontSize: `${size/3}px`,
+                    }}>
+                        {safePercentage}%
+                    </div>
                 </div>
-               {/* <div className="absolute inset-0 flex items-center justify-center text-sm font-medium">
-                    {safePercentage}%
-                </div>*/}
             </div>
         );
     };
@@ -626,7 +644,8 @@ function Simulations() {
                 </Grid>
 
                 <Typography variant="body2" align="right" sx={{ mb: 2, fontStyle: 'italic' }}>
-                    Profundidad estratos: {formatNumber(simulationData.estratosDisponibles * 20) || 0}cm - 
+                    Profundidad estratos: {simulationData.estratosDisponibles ? 
+                        `${formatNumber(simulationData.estratosDisponibles[simulationData.estratosDisponibles.length - 1] * 20)}cm` : '0cm'} - 
                     % Agua Util Umbral: {formatNumber(simulationData.porcentajeAguaUtilUmbral)}% - 
                     Última actualización: {formatDate(simulationData.fechaActualizacion)}
                 </Typography>
