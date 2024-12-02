@@ -16,23 +16,24 @@ function CambiosDiarios() {
     const [selectedCampo, setSelectedCampo] = useState('');
     const [selectedLote, setSelectedLote] = useState('');
     const [openDialog, setOpenDialog] = useState(false);
-    const [currentCambio, setCurrentCambio] = useState({
-        fecha_cambio: '',
-        riego_cantidad: '',
-        riego_fecha_inicio: '',
-        precipitaciones: '',
-        humedad: '',
-        temperatura: '',
-        evapotranspiracion: '',
-        etc: '',
-        lluvia_efectiva: ''
-    });
     const [editing, setEditing] = useState(false);
     const [openEvapDialog, setOpenEvapDialog] = useState(false);
     const [evapMasiva, setEvapMasiva] = useState([{ fecha: '', evapotranspiracion: '' }]);
     const [tipoEvapMasiva, setTipoEvapMasiva] = useState('campo');
     const [selectedItems, setSelectedItems] = useState([]);
     const [availableItems, setAvailableItems] = useState([]);
+    const initialCambioState = {
+        fecha_cambio: '',
+        riego_cantidad: 0,
+        riego_fecha_inicio: '',
+        precipitaciones: 0,
+        humedad: 0,
+        temperatura: 0,
+        evapotranspiracion: 0,
+        etc: 0
+    };
+    
+    const [currentCambio, setCurrentCambio] = useState(initialCambioState);
 
     useEffect(() => {
         fetchCampos();
@@ -426,17 +427,7 @@ function CambiosDiarios() {
             <Dialog open={openDialog} onClose={() => {
                 setOpenDialog(false);
                 setEditing(false);
-                setCurrentCambio({
-                    fecha_cambio: '',
-                    riego_cantidad: '',
-                    riego_fecha_inicio: '',
-                    precipitaciones: '',
-                    humedad: '',
-                    temperatura: '',
-                    evapotranspiracion: '',
-                    etc: '',
-                    lluvia_efectiva: ''
-                });
+                setCurrentCambio(initialCambioState);
             }}>
                 <DialogTitle>{editing ? 'Editar Cambio Diario' : 'Agregar Cambio Diario'}</DialogTitle>
                 <DialogContent>
