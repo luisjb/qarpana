@@ -57,7 +57,7 @@ function Simulations() {
 
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-    const GaugeIndicator = ({ percentage, size = 40 }) => {
+    const GaugeIndicator = ({ percentage, size = 60 }) => {
         const safePercentage = percentage === null || percentage === undefined || isNaN(percentage) ? 0 : Math.round(Number(percentage));
         
         const getColor = (value) => {
@@ -612,10 +612,9 @@ function Simulations() {
                             value={
                                 <div className="flex items-center gap-2">
                                     <GaugeIndicator percentage={simulationData.porcentajeAguaUtil} />
-                                    <span>
-                                        {formatNumber(simulationData.porcentajeAguaUtil)}% (
-                                        {formatNumber(simulationData.aguaUtil[simulationData.aguaUtil.length - 1])}mm)
-                                    </span>
+                                    
+                                    {formatNumber(simulationData.aguaUtil[simulationData.aguaUtil.length - 1])}mm
+                                    
                                 </div>
                             }
                             unit="" 
@@ -634,7 +633,7 @@ function Simulations() {
                                             formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial) * 100)
                                         } 
                                     />
-                                    <span>{formatNumber(simulationData.proyeccionAU10Dias)}mm</span>
+                                    {formatNumber(simulationData.proyeccionAU10Dias)}mm
                                 </div>
                             }
                             unit="" 

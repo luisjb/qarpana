@@ -26,8 +26,11 @@ exports.getSimulationData = async (req, res) => {
             return res.status(404).json({ error: 'Lote no encontrado o sin datos' });
         }
 
+        
         const lote = result.rows[0];
         const cambios = result.rows;
+
+        
 
         // Función auxiliar para sumar valores numéricos con manejo de nulos
         const sumarValores = (array, propiedad) => {
@@ -87,6 +90,15 @@ exports.getSimulationData = async (req, res) => {
             return isNaN(num) ? null : num;
         };
 
+        console.log('Datos crudos:', cambios.map(c => ({
+            fecha: c.fecha_cambio,
+            lluvia: c.precipitaciones,
+            lluviaEfectiva: c.lluvia_efectiva,
+            evapotranspiracion: c.evapotranspiracion,
+            etc: c.etc,
+            aguaUtilDiaria: c.agua_util_diaria
+        })));
+
           // Función para calcular el agua útil acumulada por estratos
         const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, aguaUtilAnterior, estratoAnterior) => {
             if (!valoresEstratos || !dia) {
@@ -98,6 +110,13 @@ exports.getSimulationData = async (req, res) => {
                     profundidadRaices: 0
                 };
             }
+            console.log('Inputs del cálculo:', {
+                dia,
+                precipitaciones: lluvia_efectiva,
+                evapotranspiracion,
+                etc,
+                aguaUtilAnterior
+            });
             
             const numEstratos = valoresEstratos.length;
             const PROFUNDIDAD_POR_ESTRATO = 20; // 20 cm por estrato
@@ -168,6 +187,11 @@ exports.getSimulationData = async (req, res) => {
                 aguaUtilDiaria,
                 aguaUtilMaximaActual,
                 porcentajeAguaUtil
+            });
+            console.log('Resultado del cálculo:', {
+                aguaUtilDiaria,
+                gananciaAgua,
+                perdidaAgua
             });
         
             return {
