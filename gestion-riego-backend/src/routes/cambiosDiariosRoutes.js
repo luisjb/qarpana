@@ -111,18 +111,16 @@ router.post('/', verifyToken, async (req, res) => {
 
         // Obtener el Kc actual del cultivo
         const { rows: [kc_data] } = await client.query(`
-            SELECT cc.indice_kc 
-            FROM lotes l
+            SELECT cc.indice_kc, cd.dias
+            FROM cambios_diarios cd
+            JOIN lotes l ON cd.lote_id = l.id
             JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
-            WHERE l.id = $1
-            AND cc.indice_dias <= (
-                SELECT COALESCE(MAX(dias), 0)
-                FROM cambios_diarios
-                WHERE lote_id = $1
-            )
+            WHERE cd.lote_id = $1
+            AND cc.indice_dias <= cd.dias
             ORDER BY cc.indice_dias DESC
             LIMIT 1
         `, [lote_id]);
+        
 
         const kc = kc_data?.indice_kc || 1;
         const etc = evapotranspiracion * kc;

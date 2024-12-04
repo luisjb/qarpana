@@ -157,19 +157,21 @@ exports.getSimulationData = async (req, res) => {
             
             // Calculamos el agua útil diaria
             let aguaUtilDiaria;
-            
+
             if (aguaUtilAnterior === undefined) {
-                // Primer día: solo consideramos el primer estrato
+                // Primer día: consideramos el primer estrato
                 aguaUtilDiaria = valorPorEstrato - perdidaAgua + gananciaAgua;
             } else {
-                // Días subsiguientes
+                // Días subsiguientes: siempre sumamos el agua útil anterior
+                aguaUtilDiaria = aguaUtilAnterior;
+                
                 if (estratosDisponiblesFinales > estratoAnterior) {
-                    // Si alcanzamos un nuevo estrato
-                    aguaUtilDiaria = aguaUtilAnterior + valorPorEstrato - perdidaAgua + gananciaAgua;
-                } else {
-                    // Mismo estrato que el día anterior
-                    aguaUtilDiaria = aguaUtilAnterior - perdidaAgua + gananciaAgua;
+                    // Si alcanzamos un nuevo estrato, sumamos su valor
+                    aguaUtilDiaria += valorPorEstrato;
                 }
+                
+                // Aplicamos pérdidas y ganancias
+                aguaUtilDiaria = aguaUtilDiaria - perdidaAgua + gananciaAgua;
             }
         
             aguaUtilDiaria = Math.max(0, aguaUtilDiaria);
@@ -379,7 +381,7 @@ async function calcularProyeccionAU(loteId) {
             perdidaAgua: pronostico.etc,
             lluviaEfectiva: pronostico.lluvia_efectiva
         });
-        
+
         const aguaUtilProyectada = Math.max(0, 
             aguaUtilActual - perdidaAgua + lluviaEfectiva
         );
