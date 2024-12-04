@@ -56,15 +56,14 @@ exports.getSimulationData = async (req, res) => {
             riegoAcumulado = sumarValores(cambios, 'riego_cantidad');
         }
 
-        console.log('Valores acumulados calculados:', {
-            lluviasEfectivasAcumuladas,
-            riegoAcumulado,
-            cantidadRegistros: cambios.length,
-            muestraValores: cambios.map(c => ({
-                lluvia_efectiva: c.lluvia_efectiva,
-                riego_cantidad: c.riego_cantidad
-            }))
-        });
+        console.log('Datos crudos de cambios:', cambios.map(c => ({
+            fecha: c.fecha_cambio,
+            lluvia: c.precipitaciones,
+            lluvia_efectiva: c.lluvia_efectiva,
+            riego: c.riego_cantidad,
+            evap: c.evapotranspiracion,
+            etc: c.etc
+        })));
 
         // Cálculos 
         const fechas = cambios.map(c => c.fecha_cambio);
@@ -101,6 +100,21 @@ exports.getSimulationData = async (req, res) => {
 
           // Función para calcular el agua útil acumulada por estratos
         const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, aguaUtilAnterior, estratoAnterior) => {
+
+            console.log('Entrada función:', {
+                dia,
+                valoresEstratos,
+                aguaUtilTotal,
+                porcentajeUmbral,
+                indice_crecimiento_radicular,
+                evapotranspiracion,
+                etc,
+                lluvia_efectiva,
+                riego_cantidad,
+                aguaUtilAnterior,
+                estratoAnterior
+            });
+
             if (!valoresEstratos || !dia) {
                 return {
                     aguaUtilDiaria: 0,
@@ -110,13 +124,6 @@ exports.getSimulationData = async (req, res) => {
                     profundidadRaices: 0
                 };
             }
-            console.log('Inputs del cálculo:', {
-                dia,
-                precipitaciones: lluvia_efectiva,
-                evapotranspiracion,
-                etc,
-                aguaUtilAnterior
-            });
             
             const numEstratos = valoresEstratos.length;
             const PROFUNDIDAD_POR_ESTRATO = 20; // 20 cm por estrato
@@ -188,8 +195,12 @@ exports.getSimulationData = async (req, res) => {
                 aguaUtilMaximaActual,
                 porcentajeAguaUtil
             });
-            console.log('Resultado del cálculo:', {
+             console.log('Salida función:', {
                 aguaUtilDiaria,
+                aguaUtilUmbral,
+                estratosDisponibles,
+                porcentajeAguaUtil,
+                profundidadRaices,
                 gananciaAgua,
                 perdidaAgua
             });
@@ -319,6 +330,8 @@ function calcularPorcentajeAguaUtil(aguaUtilActual, aguaUtilTotal) {
 
 async function calcularProyeccionAU(loteId) {
     try {
+        console.log('Calculando proyección AU para lote:', loteId);
+
         // Obtener el pronóstico del día 8 y los datos necesarios
         const result = await pool.query(`
             WITH ultima_agua_util AS (
@@ -332,6 +345,7 @@ async function calcularProyeccionAU(loteId) {
                 p.*,
                 ua.agua_util_diaria as agua_util_actual,
                 cc.indice_kc
+                l.nombre_lote
             FROM pronostico p
             CROSS JOIN ultima_agua_util ua
             INNER JOIN lotes l ON p.lote_id = l.id
@@ -342,6 +356,8 @@ async function calcularProyeccionAU(loteId) {
             LIMIT 1`,
             [loteId]
         );
+        console.log('Resultado consulta proyección:', result.rows[0]);
+
 
         if (result.rows.length === 0) {
             console.log('No se encontró pronóstico para el día 8');
@@ -349,12 +365,21 @@ async function calcularProyeccionAU(loteId) {
         }
 
         const pronostico = result.rows[0];
+
+        
         
         // Asegurar valores numéricos
         const aguaUtilActual = parseFloat(pronostico.agua_util_actual || 0);
         const perdidaAgua = parseFloat(pronostico.etc || 0);
         const lluviaEfectiva = parseFloat(pronostico.lluvia_efectiva || 0);
-
+        
+        console.log('Valores para cálculo:', {
+            loteId,
+            aguaUtilActual: pronostico.agua_util_actual,
+            perdidaAgua: pronostico.etc,
+            lluviaEfectiva: pronostico.lluvia_efectiva
+        });
+        
         const aguaUtilProyectada = Math.max(0, 
             aguaUtilActual - perdidaAgua + lluviaEfectiva
         );

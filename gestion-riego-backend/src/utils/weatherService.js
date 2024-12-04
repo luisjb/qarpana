@@ -14,12 +14,16 @@ class WeatherService {
             await client.query('BEGIN');
     
             const camposResult = await client.query(`
-                SELECT DISTINCT c.id, c.nombre_campo, c."ubicación"
+                SELECT DISTINCT c.id, c.nombre_campo, c."ubicación",
+                       COUNT(l.id) as cantidad_lotes
                 FROM campos c
                 INNER JOIN lotes l ON l.campo_id = c.id
                 WHERE c."ubicación" IS NOT NULL 
                 AND l.activo = true
+                GROUP BY c.id, c.nombre_campo, c."ubicación"
             `);
+            console.log('Campos y lotes a procesar:', camposResult.rows);
+
     
             for (const campo of camposResult.rows) {
                 try {
@@ -119,22 +123,49 @@ class WeatherService {
             const pronosticoExtendido = [...pronosticoBase];
             const ultimosDias = pronosticoBase.slice(-3);
 
-            for (let i = 0; i < 3; i++) {
-                const diaBase = ultimosDias[i];
-                const nuevaFecha = new Date(pronosticoExtendido[pronosticoExtendido.length - 1].fecha);
-                nuevaFecha.setDate(nuevaFecha.getDate() + 1);
-
-                pronosticoExtendido.push({
-                    ...diaBase,
-                    fecha: nuevaFecha
-                });
+            for (const campo of camposResult.rows) {
+                // Obtener y loguear los lotes específicos del campo
+                const lotesResult = await client.query(`
+                    SELECT l.id, l.nombre_lote, l.cultivo_id
+                    FROM lotes l
+                    WHERE l.campo_id = $1 AND l.activo = true
+                `, [campo.id]);
+    
+                console.log(`Campo ${campo.nombre_campo} tiene ${lotesResult.rows.length} lotes activos:`, 
+                    lotesResult.rows.map(l => l.nombre_lote));
+    
+                const [lat, lon] = campo.ubicación.split(',').map(coord => coord.trim());
+                const pronostico = await this.obtenerPronosticoCampo(lat, lon);
+    
+                // Procesar cada lote individualmente
+                for (const lote of lotesResult.rows) {
+                    try {
+                        console.log(`Iniciando actualización para lote: ${lote.nombre_lote}`);
+                        await this.actualizarPronosticoLote(client, lote, pronostico);
+                        console.log(`Actualización completada para lote: ${lote.nombre_lote}`);
+    
+                        // Verificar que se guardó correctamente
+                        const verificacion = await client.query(`
+                            SELECT COUNT(*) FROM pronostico 
+                            WHERE lote_id = $1 
+                            AND fecha_pronostico > CURRENT_DATE
+                        `, [lote.id]);
+                        
+                        console.log(`Registros de pronóstico para lote ${lote.nombre_lote}:`, 
+                            verificacion.rows[0].count);
+                    } catch (error) {
+                        console.error(`Error procesando lote ${lote.nombre_lote}:`, error);
+                    }
+                }
             }
-
-            return pronosticoExtendido;
-
+    
+            await client.query('COMMIT');
         } catch (error) {
-            console.error('Error detallado en obtenerPronosticoCampo:', error);
+            await client.query('ROLLBACK');
+            console.error('Error general en actualización:', error);
             throw error;
+        } finally {
+            client.release();
         }
     }
 
