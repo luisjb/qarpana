@@ -92,6 +92,8 @@ router.get('/:loteId', verifyToken, async (req, res) => {
     }
 });
 
+
+
 // Crear nuevo cambio diario
 router.post('/', verifyToken, async (req, res) => {
     const client = await pool.connect();
@@ -111,19 +113,18 @@ router.post('/', verifyToken, async (req, res) => {
 
         // Obtener el Kc actual del cultivo
         const { rows: [kc_data] } = await client.query(`
-            SELECT cc.indice_kc, cd.dias
-            FROM cambios_diarios cd
-            JOIN lotes l ON cd.lote_id = l.id
+            SELECT cc.indice_kc 
+            FROM lotes l
             JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
-            WHERE cd.lote_id = $1
-            AND cc.indice_dias <= cd.dias
+            WHERE l.id = $1
+            AND cc.indice_dias <= $2
             ORDER BY cc.indice_dias DESC
             LIMIT 1
-        `, [lote_id]);
+        `, [loteId, dias]);
         
 
-        const kc = kc_data?.indice_kc || 1;
-        const etc = evapotranspiracion * kc;
+        const kc = kc_data?.indice_kc || 0;
+        const etc = parseFloat(evapotranspiracion || 0) * parseFloat(kc);
         const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones || 0);
 
         const { rows } = await client.query(
