@@ -334,6 +334,8 @@ async function calcularProyeccionAU(loteId) {
     try {
         console.log('Calculando proyección AU para lote:', loteId);
 
+        const pool = require('../db');  // Asegúrate que esta línea esté al inicio
+
         // Obtener el pronóstico del día 8 y los datos necesarios
         const result = await pool.query(`
             WITH ultima_agua_util AS (
@@ -347,7 +349,6 @@ async function calcularProyeccionAU(loteId) {
                 p.*,
                 ua.agua_util_diaria as agua_util_actual,
                 cc.indice_kc
-                l.nombre_lote
             FROM pronostico p
             CROSS JOIN ultima_agua_util ua
             INNER JOIN lotes l ON p.lote_id = l.id

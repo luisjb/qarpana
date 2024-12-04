@@ -69,7 +69,9 @@ class WeatherService {
     }
 
     async obtenerPronosticoCampo(lat, lon) {
+        const client = await pool.connect();  // Agregar esta línea
         try {
+
             console.log('Iniciando consulta a OpenWeather API con parámetros:', {
                 lat,
                 lon,
@@ -165,7 +167,9 @@ class WeatherService {
             console.error('Error general en actualización:', error);
             throw error;
         } finally {
-            client.release();
+            if (client) {
+                client.release();
+            }
         }
     }
 
