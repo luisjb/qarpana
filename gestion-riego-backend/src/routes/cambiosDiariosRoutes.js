@@ -101,63 +101,52 @@ router.post('/', verifyToken, async (req, res) => {
         const {
             lote_id,
             fecha_cambio,
-            riego_cantidad,
+            riego_cantidad = 0,
             riego_fecha_inicio,
-            precipitaciones,
-            humedad,
-            temperatura,
-            evapotranspiracion,
-            etc
+            precipitaciones = 0,
+            humedad = 0,
+            temperatura = 0,
+            evapotranspiracion = 0,
         } = req.body;
 
-        // Obtener información del lote
-        const loteInfo = await client.query(
-            'SELECT fecha_siembra, cultivo_id FROM lotes WHERE id = $1',
-            [lote_id]
-        );
+        // Obtener el Kc actual del cultivo
+        const { rows: [kc_data] } = await client.query(`
+            SELECT cc.indice_kc 
+            FROM lotes l
+            JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
+            WHERE l.id = $1
+            AND cc.indice_dias <= (
+                SELECT COALESCE(MAX(dias), 0)
+                FROM cambios_diarios
+                WHERE lote_id = $1
+            )
+            ORDER BY cc.indice_dias DESC
+            LIMIT 1
+        `, [lote_id]);
 
-        if (loteInfo.rows.length === 0) {
-            throw new Error('Lote no encontrado');
-        }
-
-        const { fecha_siembra, cultivo_id } = loteInfo.rows[0];
-
-        // Calcular días desde siembra
-        const dias = Math.floor((new Date(fecha_cambio) - new Date(fecha_siembra)) / (1000 * 60 * 60 * 24));
-
-        // Calcular valores
-        const kc = await calcularKC(client, lote_id, dias);
-        const crecimiento_radicular = await calcularCrecimientoRadicular(client, lote_id, dias);
-        const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
-
-        // Calcular estrato alcanzado
-        const estrato_alcanzado = Math.floor(crecimiento_radicular / 20) + 1;
+        const kc = kc_data?.indice_kc || 1;
+        const etc = evapotranspiracion * kc;
+        const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones || 0);
 
         const { rows } = await client.query(
             `INSERT INTO cambios_diarios 
             (lote_id, fecha_cambio, riego_cantidad, riego_fecha_inicio, 
              precipitaciones, humedad, temperatura, evapotranspiracion, 
-             etc, lluvia_efectiva, dias, cultivo_id, fecha_siembra,
-             crecimiento_radicular, kc, estrato_alcanzado) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) 
+             lluvia_efectiva, etc, kc) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
             RETURNING *`,
             [
                 lote_id,
                 fecha_cambio,
-                convertToNumberOrZero(riego_cantidad),
+                riego_cantidad,
                 riego_fecha_inicio,
-                convertToNumberOrZero(precipitaciones),
-                convertToNumberOrZero(humedad),
-                convertToNumberOrZero(temperatura),
-                convertToNumberOrZero(evapotranspiracion),
-                convertToNumberOrZero(etc),
+                precipitaciones,
+                humedad,
+                temperatura,
+                evapotranspiracion,
                 lluvia_efectiva,
-                dias,
-                cultivo_id,
-                fecha_siembra,
-                crecimiento_radicular,
-                kc,
-                estrato_alcanzado
+                etc,
+                kc
             ]
         );
 
@@ -189,35 +178,31 @@ router.put('/:id', verifyToken, async (req, res) => {
             humedad,
             temperatura,
             evapotranspiracion,
-            etc
         } = req.body;
 
-        // Primero obtener información del lote asociado a este cambio diario
-        const cambioInfo = await client.query(
-            'SELECT cd.lote_id, l.fecha_siembra, l.cultivo_id FROM cambios_diarios cd ' +
-            'JOIN lotes l ON cd.lote_id = l.id WHERE cd.id = $1',
+        // Obtener el lote_id del cambio diario actual
+        const { rows: [cambioActual] } = await client.query(
+            'SELECT lote_id FROM cambios_diarios WHERE id = $1',
             [id]
         );
 
-        if (cambioInfo.rows.length === 0) {
-            throw new Error('Cambio diario no encontrado');
-        }
+        // Obtener el Kc actual
+        const { rows: [kc_data] } = await client.query(`
+            SELECT cc.indice_kc 
+            FROM lotes l
+            JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
+            WHERE l.id = $1
+            AND cc.indice_dias <= (
+                SELECT COALESCE(MAX(dias), 0)
+                FROM cambios_diarios
+                WHERE lote_id = $1
+            )
+            ORDER BY cc.indice_dias DESC
+            LIMIT 1
+        `, [cambioActual.lote_id]);
 
-        const { lote_id, fecha_siembra, cultivo_id } = cambioInfo.rows[0];
-
-        // Calcular días desde siembra
-        const dias = Math.floor((new Date(req.body.fecha_cambio) - new Date(fecha_siembra)) / (1000 * 60 * 60 * 24));
-
-        // Calcular KC basado en los días
-        const kc = await calcularKC(client, lote_id, dias);
-
-        // Calcular crecimiento radicular
-        const crecimiento_radicular = await calcularCrecimientoRadicular(client, lote_id, dias);
-
-        // Calcular estrato alcanzado
-        const estrato_alcanzado = Math.floor(crecimiento_radicular / 20) + 1;
-
-        // Calcular lluvia efectiva
+        const kc = kc_data?.indice_kc || 1;
+        const etc = evapotranspiracion * kc;
         const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
 
         const { rows } = await client.query(
@@ -230,27 +215,19 @@ router.put('/:id', verifyToken, async (req, res) => {
             evapotranspiracion = $6,
             etc = $7,
             lluvia_efectiva = $8,
-            dias = $9,
-            cultivo_id = $10,
-            kc = $11,
-            crecimiento_radicular = $12,
-            estrato_alcanzado = $13
-            WHERE id = $14 
+            kc = $9
+            WHERE id = $10 
             RETURNING *`,
             [
-                convertToNumberOrZero(riego_cantidad),
+                riego_cantidad,
                 riego_fecha_inicio,
-                convertToNumberOrZero(precipitaciones),
-                convertToNumberOrZero(humedad),
-                convertToNumberOrZero(temperatura),
-                convertToNumberOrZero(evapotranspiracion),
-                convertToNumberOrZero(etc),
+                precipitaciones,
+                humedad,
+                temperatura,
+                evapotranspiracion,
+                etc,
                 lluvia_efectiva,
-                dias,
-                cultivo_id,
                 kc,
-                crecimiento_radicular,
-                estrato_alcanzado,
                 id
             ]
         );
@@ -266,7 +243,7 @@ router.put('/:id', verifyToken, async (req, res) => {
         console.error('Error al actualizar cambio diario:', err);
         res.status(500).json({ 
             error: 'Error del servidor',
-            details: err.message
+            details: err.message 
         });
     } finally {
         client.release();
