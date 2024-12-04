@@ -122,9 +122,10 @@ router.post('/', verifyToken, async (req, res) => {
             LIMIT 1
         `, [loteId, dias]);
         
-
+        console.log("KC obtenido: ", kc_data);
         const kc = kc_data?.indice_kc || 0;
         const etc = parseFloat(evapotranspiracion || 0) * parseFloat(kc);
+        console.log("ETC de la formula: ", etc," es igual a evapotranspiracion: ", evapotranspiracion," por el kc anterior ----------" );
         const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones || 0);
 
         const { rows } = await client.query(
