@@ -89,19 +89,19 @@ exports.getSimulationData = async (req, res) => {
             return isNaN(num) ? null : num;
         };
 
-        console.log('Datos crudos:', cambios.map(c => ({
+        /*console.log('Datos crudos:', cambios.map(c => ({
             fecha: c.fecha_cambio,
             lluvia: c.precipitaciones,
             lluviaEfectiva: c.lluvia_efectiva,
             evapotranspiracion: c.evapotranspiracion,
             etc: c.etc,
             aguaUtilDiaria: c.agua_util_diaria
-        })));
+        })));*/
 
           // Función para calcular el agua útil acumulada por estratos
         const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, aguaUtilAnterior, estratoAnterior) => {
 
-            console.log('Entrada función:', {
+            /*console.log('Entrada función:', {
                 dia,
                 valoresEstratos,
                 aguaUtilTotal,
@@ -113,7 +113,7 @@ exports.getSimulationData = async (req, res) => {
                 riego_cantidad,
                 aguaUtilAnterior,
                 estratoAnterior
-            });
+            });*/
 
             if (!valoresEstratos || !dia) {
                 return {
@@ -189,14 +189,14 @@ exports.getSimulationData = async (req, res) => {
             const aguaUtilUmbral = aguaUtilMaximaActual * (porcentajeUmbral / 100);
         
             // Para debug
-            console.log('Día:', dia, {
+            /*console.log('Día:', dia, {
                 profundidadRaices,
                 estratosDisponibles,
                 estratosDisponiblesFinales,
                 aguaUtilDiaria,
                 aguaUtilMaximaActual,
                 porcentajeAguaUtil
-            });
+            });*/
              console.log('Salida función:', {
                 aguaUtilDiaria,
                 aguaUtilUmbral,
@@ -336,6 +336,21 @@ async function calcularProyeccionAU(loteId) {
 
         const pool = require('../db');  // Asegúrate que esta línea esté al inicio
 
+        
+        // Obtener el último día registrado para el lote
+        const { rows: [ultimoDia] } = await pool.query(`
+            SELECT dias
+            FROM cambios_diarios
+            WHERE lote_id = $1
+            ORDER BY fecha_cambio DESC
+            LIMIT 1
+        `, [loteId]);
+
+        if (!ultimoDia) return null;
+
+        const diaPronostico = parseInt(ultimoDia.dias) + 8;
+    
+
         // Obtener el pronóstico del día 8 y los datos necesarios
         const result = await pool.query(`
             WITH ultima_agua_util AS (
@@ -353,12 +368,11 @@ async function calcularProyeccionAU(loteId) {
             CROSS JOIN ultima_agua_util ua
             INNER JOIN lotes l ON p.lote_id = l.id
             LEFT JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
+                AND cc.indice_dias <= $2
             WHERE p.lote_id = $1 
-            AND p.prono_dias = 8
-            ORDER BY p.fecha_pronostico DESC 
-            LIMIT 1`,
-            [loteId]
-        );
+            ORDER BY cc.indice_dias DESC, p.fecha_pronostico DESC
+            LIMIT 1
+        `, [loteId, diaPronostico]);
         console.log('Resultado consulta proyección:', result.rows[0]);
 
 

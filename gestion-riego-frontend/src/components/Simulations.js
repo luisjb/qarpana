@@ -610,16 +610,26 @@ function Simulations() {
                         <Widget 
                             title="% Agua Útil" 
                             value={
-                                <div className="flex items-center gap-2">
-                                    <GaugeIndicator percentage={simulationData.porcentajeAguaUtil} />
-                                    
-                                    {formatNumber(simulationData.aguaUtil[simulationData.aguaUtil.length - 1])}mm
-                                    
-                                </div>
+                                <Box sx={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: 2,
+                                    '& .gauge': { flexShrink: 0 },
+                                    '& .value': { 
+                                        fontSize: '1.2rem',
+                                        opacity: 0.7,
+                                        marginLeft: 2
+                                    }
+                                }}>
+                                    <div className="gauge">
+                                        <GaugeIndicator percentage={simulationData.porcentajeAguaUtil} size={80} />
+                                    </div>
+                                    <span className="value">
+                                        {formatNumber(simulationData.aguaUtil[simulationData.aguaUtil.length - 1])}mm
+                                    </span>
+                                </Box>
                             }
-                            unit="" 
                             icon="waterDrop"
-                            maxWidth='container'
                         />
                     </Grid>
                     
@@ -627,16 +637,28 @@ function Simulations() {
                         <Widget 
                             title="Proyección AU 10 días" 
                             value={
-                                <div className="flex items-center gap-2">
-                                    <GaugeIndicator 
-                                        percentage={
-                                            formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial) * 100)
-                                        } 
-                                    />
-                                    {formatNumber(simulationData.proyeccionAU10Dias)}mm
-                                </div>
+                                <Box sx={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: 2,
+                                    '& .gauge': { flexShrink: 0 },
+                                    '& .value': { 
+                                        fontSize: '1.2rem',
+                                        opacity: 0.7,
+                                        marginLeft: 2
+                                    }
+                                }}>
+                                    <div className="gauge">
+                                        <GaugeIndicator 
+                                            percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial) * 100)}
+                                            size={80}
+                                        />
+                                    </div>
+                                    <span className="value">
+                                        {formatNumber(simulationData.proyeccionAU10Dias)}mm
+                                    </span>
+                                </Box>
                             }
-                            unit="" 
                             icon="waterDrop"
                         />
                     </Grid>
