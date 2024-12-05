@@ -109,7 +109,7 @@ function CambiosDiarios() {
         if (name.includes('fecha')) {
             setCurrentCambio(prev => ({
                 ...prev,
-                [name]: value || null // Mantener las fechas como null si están vacías
+                [name]: value  // Mantener las fechas como null si están vacías
             }));
         } else {
             // Convertir valores numéricos vacíos a 0
@@ -411,6 +411,13 @@ function CambiosDiarios() {
                             </Grid>
                         </Grid>
                     ))}
+                    <Button 
+                        onClick={handleAddEvapRow}
+                        startIcon={<CloudUpload />}
+                        style={{ marginTop: '20px' }}
+                    >
+                        Añadir Fila
+                    </Button>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setOpenEvapDialog(false)}>Cancelar</Button>

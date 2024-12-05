@@ -180,7 +180,7 @@ exports.getSimulationData = async (req, res) => {
             const aguaUtilMaximaActual = valorPorEstrato * estratosDisponiblesFinales;
         
             // Limitamos el agua útil diaria al máximo disponible
-            aguaUtilDiaria = Math.min(aguaUtilDiaria, aguaUtilMaximaActual);
+            //aguaUtilDiaria = Math.min(aguaUtilDiaria, aguaUtilMaximaActual);
         
             // Calculamos el porcentaje de agua útil
             const porcentajeAguaUtil = (aguaUtilDiaria / aguaUtilMaximaActual) * 100;
