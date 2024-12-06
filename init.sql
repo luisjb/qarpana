@@ -307,5 +307,7 @@ CREATE TABLE pronostico (
 CREATE INDEX idx_pronostico_lote_fecha ON pronostico(lote_id, fecha_pronostico);
 CREATE INDEX idx_pronostico_fecha ON pronostico(fecha_pronostico);
 
-ALTER TABLE cambios_diarios 
-ALTER COLUMN riego_fecha_inicio DROP NOT NULL;
+
+
+ALTER TABLE cambios_diarios ALTER COLUMN riego_fecha_inicio DROP NOT NULL;
+

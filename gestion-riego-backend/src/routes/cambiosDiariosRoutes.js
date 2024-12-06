@@ -104,13 +104,22 @@ router.post('/', verifyToken, async (req, res) => {
             lote_id,
             fecha_cambio,
             riego_cantidad = 0,
-            riego_fecha_inicio,
+            riego_fecha_inicio = null,
             precipitaciones = 0,
             humedad = 0,
             temperatura = 0,
             evapotranspiracion = 0,
             dias,
         } = req.body;
+
+        const { rows: [loteInfo] } = await client.query(
+            'SELECT fecha_siembra FROM lotes WHERE id = $1',
+            [lote_id]
+        );
+
+        const diasDesdeSiembra = Math.floor(
+            (new Date(fecha_cambio) - new Date(loteInfo.fecha_siembra)) / (1000 * 60 * 60 * 24)
+        );
 
         // Obtener el Kc actual del cultivo
         const { rows: [kc_data] } = await client.query(`
@@ -121,13 +130,11 @@ router.post('/', verifyToken, async (req, res) => {
             AND cc.indice_dias <= $2
             ORDER BY cc.indice_dias DESC
             LIMIT 1
-        `, [lote_id, dias]);
-        
-        console.log("KC obtenido: ", kc_data);
-        const kc = kc_data?.indice_kc || 0;
-        const etc = parseFloat(evapotranspiracion || 0) * parseFloat(kc);
-        console.log("ETC de la formula: ", etc," es igual a evapotranspiracion: ", evapotranspiracion," por el kc anterior -------------------------------" );
-        const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones || 0);
+        `, [lote_id, diasDesdeSiembra]);
+
+        const kc = kc_data?.indice_kc || 1;
+        const etc = evapotranspiracion * kc;
+        const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
 
         const { rows } = await client.query(
             `INSERT INTO cambios_diarios 

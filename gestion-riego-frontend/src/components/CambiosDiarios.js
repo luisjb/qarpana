@@ -23,15 +23,22 @@ function CambiosDiarios() {
     const [selectedItems, setSelectedItems] = useState([]);
     const [availableItems, setAvailableItems] = useState([]);
     const initialCambioState = {
-        fecha_cambio: '',
-        riego_cantidad: 0,
+        fecha_cambio: new Date().toISOString().split('T')[0],
+        riego_cantidad: '',
         riego_fecha_inicio: '',
-        precipitaciones: 0,
-        humedad: 0,
-        temperatura: 0,
-        evapotranspiracion: 0,
-        etc: 0
+        precipitaciones: '',
+        humedad: '',
+        temperatura: '',
+        evapotranspiracion: '',
+        etc: ''
     };
+    const [formData, setFormData] = useState({
+        fecha_cambio: new Date().toISOString().split('T')[0], // Fecha actual por defecto
+        riego_fecha_inicio: '',
+        // ... otros campos
+    });
+    
+
     
     const [currentCambio, setCurrentCambio] = useState(initialCambioState);
 
@@ -106,13 +113,17 @@ function CambiosDiarios() {
 
     const handleInputChange = (event) => {
         const { name, value } = event.target;
-        if (name.includes('fecha')) {
+        if (name === 'fecha_cambio') {
             setCurrentCambio(prev => ({
                 ...prev,
-                [name]: value  // Mantener las fechas como null si están vacías
+                [name]: value || new Date().toISOString().split('T')[0]
+            }));
+        } else if (name === 'riego_fecha_inicio') {
+            setCurrentCambio(prev => ({
+                ...prev,
+                [name]: value // Mantener vacío si no hay valor
             }));
         } else {
-            // Convertir valores numéricos vacíos a 0
             const numericValue = value === '' ? 0 : parseFloat(value);
             setCurrentCambio(prev => ({
                 ...prev,
@@ -126,12 +137,14 @@ function CambiosDiarios() {
         try {
             const dataToSend = {
                 ...currentCambio,
-                riego_cantidad: Number(currentCambio.riego_cantidad) || 0,
-                precipitaciones: Number(currentCambio.precipitaciones) || 0,
-                humedad: Number(currentCambio.humedad) || 0,
-                temperatura: Number(currentCambio.temperatura) || 0,
-                evapotranspiracion: Number(currentCambio.evapotranspiracion) || 0,
-                etc: Number(currentCambio.etc) || 0
+                fecha_cambio: currentCambio.fecha_cambio || new Date().toISOString().split('T')[0],
+                riego_fecha_inicio: currentCambio.riego_fecha_inicio || null,
+                // Convertir a números solo al enviar, permitiendo valores vacíos
+                riego_cantidad: currentCambio.riego_cantidad === '' ? 0 : Number(currentCambio.riego_cantidad),
+                precipitaciones: currentCambio.precipitaciones === '' ? 0 : Number(currentCambio.precipitaciones),
+                humedad: currentCambio.humedad === '' ? 0 : Number(currentCambio.humedad),
+                temperatura: currentCambio.temperatura === '' ? 0 : Number(currentCambio.temperatura),
+                evapotranspiracion: currentCambio.evapotranspiracion === '' ? 0 : Number(currentCambio.evapotranspiracion)
             };
     
             if (editing) {
@@ -465,9 +478,10 @@ function CambiosDiarios() {
                             name="riego_fecha_inicio"
                             label="Fecha de inicio de riego"
                             type="date"
-                            value={currentCambio.riego_fecha_inicio}
+                            value={currentCambio.riego_fecha_inicio || ''}
                             onChange={handleInputChange}
                             InputLabelProps={{ shrink: true }}
+                            required={false}
                         />
                         <TextField
                             fullWidth
