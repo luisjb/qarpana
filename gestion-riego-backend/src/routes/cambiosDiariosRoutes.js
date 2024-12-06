@@ -104,24 +104,24 @@ router.post('/', verifyToken, async (req, res) => {
             lote_id,
             fecha_cambio,
             riego_cantidad = 0,
-            riego_fecha_inicio = null,
+            riego_fecha_inicio = null, // Hacerlo opcional
             precipitaciones = 0,
             humedad = 0,
             temperatura = 0,
             evapotranspiracion = 0,
-            dias,
         } = req.body;
 
+        // Obtener fecha de siembra y calcular días
         const { rows: [loteInfo] } = await client.query(
             'SELECT fecha_siembra FROM lotes WHERE id = $1',
             [lote_id]
         );
-
+        
         const diasDesdeSiembra = Math.floor(
             (new Date(fecha_cambio) - new Date(loteInfo.fecha_siembra)) / (1000 * 60 * 60 * 24)
         );
 
-        // Obtener el Kc actual del cultivo
+        // Calcular KC y ETC
         const { rows: [kc_data] } = await client.query(`
             SELECT cc.indice_kc 
             FROM lotes l
@@ -132,16 +132,16 @@ router.post('/', verifyToken, async (req, res) => {
             LIMIT 1
         `, [lote_id, diasDesdeSiembra]);
 
-        const kc = kc_data?.indice_kc || 1;
+        const kc = kc_data?.indice_kc || 0;
         const etc = evapotranspiracion * kc;
         const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
 
         const { rows } = await client.query(
             `INSERT INTO cambios_diarios 
             (lote_id, fecha_cambio, riego_cantidad, riego_fecha_inicio, 
-             precipitaciones, humedad, temperatura, evapotranspiracion, 
-             lluvia_efectiva, etc, kc) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+             precipitaciones, humedad, temperatura, evapotranspiracion,
+             lluvia_efectiva, etc, kc, dias) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
             RETURNING *`,
             [
                 lote_id,
@@ -154,7 +154,8 @@ router.post('/', verifyToken, async (req, res) => {
                 evapotranspiracion,
                 lluvia_efectiva,
                 etc,
-                kc
+                kc,
+                diasDesdeSiembra
             ]
         );
 
@@ -163,10 +164,7 @@ router.post('/', verifyToken, async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error al crear cambio diario:', err);
-        res.status(500).json({ 
-            error: 'Error del servidor',
-            details: err.message
-        });
+        res.status(500).json({ error: 'Error del servidor' });
     } finally {
         client.release();
     }
