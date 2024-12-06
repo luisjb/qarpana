@@ -42,7 +42,6 @@ class WeatherService {
                     console.log(`Procesando ${lotesResult.rows.length} lotes para campo ${campo.nombre_campo}`);
     
                     // Procesar cada lote de manera secuencial
-                    for (const lote of lotesResult.rows) {
                         try {
                             console.log(`Actualizando pronóstico para lote ${lote.id}`);
                             await this.actualizarPronosticoLote(client, lote, pronostico);
@@ -51,7 +50,7 @@ class WeatherService {
                             console.error(`Error procesando lote ${lote.id}:`, loteError);
                             // Continuar con el siguiente lote en caso de error
                         }
-                    }
+                    
                 } catch (error) {
                     console.error(`Error procesando campo ${campo.nombre_campo}:`, error);
                 }
@@ -69,107 +68,44 @@ class WeatherService {
     }
 
     async obtenerPronosticoCampo(lat, lon) {
-        const client = await pool.connect();  // Agregar esta línea
         try {
-
-            console.log('Iniciando consulta a OpenWeather API con parámetros:', {
-                lat,
-                lon,
-                url: this.BASE_URL
-            });
-
-            // Construir URL completa para debugging
-            const urlCompleta = `${this.BASE_URL}?lat=${lat}&lon=${lon}&appid=${this.API_KEY}&units=metric`;
-            console.log('URL de consulta:', urlCompleta);
-
             const response = await axios.get(urlCompleta);
-
-            // Log de la respuesta
-            console.log('Respuesta de la API:', {
-                status: response.status,
-                tieneData: !!response.data,
-                cantidadItems: response.data?.list?.length || 0
-            });
-
-            if (!response.data || !response.data.list) {
-                throw new Error('Respuesta de API inválida');
-            }
-
             const medicionesPorDia = new Map();
             
             response.data.list.forEach(item => {
                 const fecha = new Date(item.dt * 1000);
                 const fechaKey = fecha.toISOString().split('T')[0];
-
                 if (!medicionesPorDia.has(fechaKey)) {
                     medicionesPorDia.set(fechaKey, []);
                 }
                 medicionesPorDia.get(fechaKey).push(item);
             });
-
-            // Filtrar y mapear datos
+    
             const pronosticoBase = Array.from(medicionesPorDia.entries())
-                .slice(0, 5) // Tomar solo los primeros 5 días
-                .map(([fechaKey, mediciones]) => {
-                    // Calcular promedios y valores min/max
-                    const stats = this.calcularEstadisticasDiarias(mediciones);
-                    return {
-                        fecha: new Date(fechaKey),
-                        ...stats
-                    };
-                });
-
-            console.log('Pronóstico base procesado:', pronosticoBase);
-
-            // Extender a 8 días
-            const pronosticoExtendido = [...pronosticoBase];
+                .slice(0, 5)
+                .map(([fechaKey, mediciones]) => ({
+                    fecha: new Date(fechaKey),
+                    ...this.calcularEstadisticasDiarias(mediciones)
+                }));
+    
+            // Extender a 8 días usando promedio de últimos 3 días
             const ultimosDias = pronosticoBase.slice(-3);
-
-            for (const campo of camposResult.rows) {
-                // Obtener y loguear los lotes específicos del campo
-                const lotesResult = await client.query(`
-                    SELECT l.id, l.nombre_lote, l.cultivo_id
-                    FROM lotes l
-                    WHERE l.campo_id = $1 AND l.activo = true
-                `, [campo.id]);
+            const pronosticoExtendido = [...pronosticoBase];
     
-                console.log(`Campo ${campo.nombre_campo} tiene ${lotesResult.rows.length} lotes activos:`, 
-                    lotesResult.rows.map(l => l.nombre_lote));
-    
-                const [lat, lon] = campo.ubicación.split(',').map(coord => coord.trim());
-                const pronostico = await this.obtenerPronosticoCampo(lat, lon);
-    
-                // Procesar cada lote individualmente
-                for (const lote of lotesResult.rows) {
-                    try {
-                        console.log(`Iniciando actualización para lote: ${lote.nombre_lote}`);
-                        await this.actualizarPronosticoLote(client, lote, pronostico);
-                        console.log(`Actualización completada para lote: ${lote.nombre_lote}`);
-    
-                        // Verificar que se guardó correctamente
-                        const verificacion = await client.query(`
-                            SELECT COUNT(*) FROM pronostico 
-                            WHERE lote_id = $1 
-                            AND fecha_pronostico > CURRENT_DATE
-                        `, [lote.id]);
-                        
-                        console.log(`Registros de pronóstico para lote ${lote.nombre_lote}:`, 
-                            verificacion.rows[0].count);
-                    } catch (error) {
-                        console.error(`Error procesando lote ${lote.nombre_lote}:`, error);
-                    }
-                }
+            for (let i = 0; i < 3; i++) {
+                const diaBase = ultimosDias[i];
+                const nuevaFecha = new Date(pronosticoExtendido[pronosticoExtendido.length - 1].fecha);
+                nuevaFecha.setDate(nuevaFecha.getDate() + 1);
+                pronosticoExtendido.push({
+                    ...diaBase,
+                    fecha: nuevaFecha
+                });
             }
     
-            await client.query('COMMIT');
+            return pronosticoExtendido;
         } catch (error) {
-            await client.query('ROLLBACK');
-            console.error('Error general en actualización:', error);
+            console.error('Error en obtenerPronosticoCampo:', error);
             throw error;
-        } finally {
-            if (client) {
-                client.release();
-            }
         }
     }
 

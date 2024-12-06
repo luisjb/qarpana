@@ -109,6 +109,7 @@ router.post('/', verifyToken, async (req, res) => {
             humedad = 0,
             temperatura = 0,
             evapotranspiracion = 0,
+            dias,
         } = req.body;
 
         // Obtener el Kc actual del cultivo
@@ -120,7 +121,7 @@ router.post('/', verifyToken, async (req, res) => {
             AND cc.indice_dias <= $2
             ORDER BY cc.indice_dias DESC
             LIMIT 1
-        `, [loteId, dias]);
+        `, [lote_id, dias]);
         
         console.log("KC obtenido: ", kc_data);
         const kc = kc_data?.indice_kc || 0;
