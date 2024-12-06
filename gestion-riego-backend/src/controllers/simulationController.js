@@ -56,14 +56,14 @@ exports.getSimulationData = async (req, res) => {
             riegoAcumulado = sumarValores(cambios, 'riego_cantidad');
         }
 
-        console.log('Datos crudos de cambios:', cambios.map(c => ({
+        /*console.log('Datos crudos de cambios:', cambios.map(c => ({
             fecha: c.fecha_cambio,
             lluvia: c.precipitaciones,
             lluvia_efectiva: c.lluvia_efectiva,
             riego: c.riego_cantidad,
             evap: c.evapotranspiracion,
             etc: c.etc
-        })));
+        })));*/
 
         // Cálculos 
         const fechas = cambios.map(c => c.fecha_cambio);
@@ -273,10 +273,10 @@ exports.getSimulationData = async (req, res) => {
             proyeccionAU10Dias: await calcularProyeccionAU(loteId),
             fechaActualizacion: new Date().toISOString().split('T')[0]
         };
-        console.log('Datos de simulación procesados:', {
+        /*console.log('Datos de simulación procesados:', {
             aguaUtil: simulationData.aguaUtil,
             porcentajeAguaUtil: simulationData.porcentajeAguaUtil
-        });
+        });*/
 
         res.json(simulationData);
     } catch (error) {
@@ -390,12 +390,12 @@ async function calcularProyeccionAU(loteId) {
         const perdidaAgua = parseFloat(pronostico.etc || 0);
         const lluviaEfectiva = parseFloat(pronostico.lluvia_efectiva || 0);
         
-        console.log('Valores para cálculo:', {
+        /*console.log('Valores para cálculo:', {
             loteId,
             aguaUtilActual: pronostico.agua_util_actual,
             perdidaAgua: pronostico.etc,
             lluviaEfectiva: pronostico.lluvia_efectiva
-        });
+        });*/
 
         const aguaUtilProyectada = Math.max(0, 
             aguaUtilActual - perdidaAgua + lluviaEfectiva
