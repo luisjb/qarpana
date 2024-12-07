@@ -203,7 +203,7 @@ router.post('/', verifyToken, async (req, res) => {
             ORDER BY cc.indice_dias DESC
             LIMIT 1
         `, [lote_id, diasDesdeSiembra]);
-        const kc = await calcularKCPorPendiente(client, lote_Id, diasDesdeSiembra);
+        const kc = await calcularKCPorPendiente(client, lote_id, diasDesdeSiembra);
 
         const etc = evapotranspiracion * kc;
         const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
@@ -268,21 +268,7 @@ router.put('/:id', verifyToken, async (req, res) => {
          const diasDesdeSiembra = Math.floor(
             (new Date(cambioActual.fecha_cambio) - new Date(cambioActual.fecha_siembra)) / (1000 * 60 * 60 * 24)
         );
-        // Obtener el Kc actual
-        const { rows: [kc_data] } = await client.query(`
-            SELECT cc.indice_kc 
-            FROM lotes l
-            JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
-            WHERE l.id = $1
-            AND cc.indice_dias <= (
-                SELECT COALESCE(MAX(dias), 0)
-                FROM cambios_diarios
-                WHERE lote_id = $1
-            )
-            ORDER BY cc.indice_dias DESC
-            LIMIT 1
-        `, [cambioActual.lote_id]);
-
+        
        // Ahora podemos calcular el KC usando el lote_id correcto
         const kc = await calcularKCPorPendiente(client, cambioActual.lote_id, diasDesdeSiembra);
         const etc = evapotranspiracion * kc;
