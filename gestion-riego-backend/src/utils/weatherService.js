@@ -69,8 +69,27 @@ class WeatherService {
 
     async obtenerPronosticoCampo(lat, lon) {
         try {
+
+           
+            // Construir URL completa para debugging
+            const urlCompleta = `${this.BASE_URL}?lat=${lat}&lon=${lon}&appid=${this.API_KEY}&units=metric`;
+            console.log('URL de consulta:', urlCompleta);
+
             const response = await axios.get(urlCompleta);
+
+            // Log de la respuesta
+            console.log('Respuesta de la API:', {
+                status: response.status,
+                tieneData: !!response.data,
+                cantidadItems: response.data?.list?.length || 0
+            });
+
             const medicionesPorDia = new Map();
+
+            if (!response.data || !response.data.list) {
+                throw new Error('Respuesta de API inválida');
+            }
+
             
             response.data.list.forEach(item => {
                 const fecha = new Date(item.dt * 1000);
