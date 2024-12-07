@@ -43,8 +43,9 @@ exports.getSimulationData = async (req, res) => {
             }, 0);
         };
 
-        const aguaUtilTotal = parseFloat(lote.agua_util_total) || 0;
-
+        const aguaUtilTotal = lote.valores_estratos 
+            ? lote.valores_estratos.reduce((sum, valor) => sum + parseFloat(valor), 0)
+            : 0;
 
         // Calcular acumulados
         let lluviasEfectivasAcumuladas = 0;
@@ -176,14 +177,19 @@ exports.getSimulationData = async (req, res) => {
         
             aguaUtilDiaria = Math.max(0, aguaUtilDiaria);
         
+            
+                // Limitamos el agua útil diaria al máximo disponible
+                //aguaUtilDiaria = Math.min(aguaUtilDiaria, aguaUtilMaximaActual);
+            
             // Calculamos el agua útil máxima disponible actual
             const aguaUtilMaximaActual = valorPorEstrato * estratosDisponiblesFinales;
-        
-            // Limitamos el agua útil diaria al máximo disponible
-            //aguaUtilDiaria = Math.min(aguaUtilDiaria, aguaUtilMaximaActual);
-        
+
+            const aguaUtilDisponibleActual = valoresEstratos
+                .slice(0, estratosDisponiblesFinales)
+                .reduce((sum, valor) => sum + parseFloat(valor), 0);
             // Calculamos el porcentaje de agua útil
-            const porcentajeAguaUtil = (aguaUtilDiaria / aguaUtilMaximaActual) * 100;
+            const porcentajeAguaUtil = (aguaUtilDiaria / aguaUtilDisponibleActual) * 100;
+
         
             // Calculamos el agua útil umbral
             const aguaUtilUmbral = aguaUtilMaximaActual * (porcentajeUmbral / 100);
@@ -323,6 +329,71 @@ async function obtenerAguaUtilInicial(loteId) {
         console.error('Error al obtener agua útil inicial:', error);
         return 0;
     }
+}
+
+async function calcularKCPorPendiente(client, loteId, diasDesdeSiembra) {
+    // Primero obtenemos el cultivo_id del lote
+    const { rows: [lote] } = await client.query(
+        'SELECT cultivo_id FROM lotes WHERE id = $1',
+        [loteId]
+    );
+
+    // Obtenemos los coeficientes del cultivo, considerando días de corrección
+    const { rows: coeficientes } = await client.query(`
+        SELECT 
+            indice_kc,
+            COALESCE(dias_correccion, indice_dias) as dias_efectivos,
+            indice_dias as dias_originales
+        FROM coeficiente_cultivo 
+        WHERE cultivo_id = $1
+        ORDER BY dias_efectivos ASC`,
+        [lote.cultivo_id]
+    );
+
+    // Si no hay coeficientes, retornamos un valor por defecto
+    if (!coeficientes.length) return 1;
+
+    // Si estamos antes del primer período, usamos el KC inicial
+    if (diasDesdeSiembra <= coeficientes[0].dias_efectivos) {
+        return coeficientes[0].indice_kc;
+    }
+
+    // Buscamos el intervalo correcto para calcular la pendiente
+    for (let i = 0; i < coeficientes.length - 1; i++) {
+        const periodoActual = coeficientes[i];
+        const periodoSiguiente = coeficientes[i + 1];
+
+        if (diasDesdeSiembra > periodoActual.dias_efectivos && 
+            diasDesdeSiembra <= periodoSiguiente.dias_efectivos) {
+            
+            // Calculamos la pendiente (a) entre los dos períodos
+            const a = (periodoSiguiente.indice_kc - periodoActual.indice_kc) / 
+                     (periodoSiguiente.dias_efectivos - periodoActual.dias_efectivos);
+            
+            // Calculamos el intercepto (b)
+            const b = periodoActual.indice_kc - (a * periodoActual.dias_efectivos);
+            
+            // Calculamos el KC para el día actual usando y = ax + b
+            const kc = (a * diasDesdeSiembra) + b;
+
+            // Para debug
+            console.log('Cálculo KC:', {
+                diasDesdeSiembra,
+                periodoActual: periodoActual.dias_efectivos,
+                periodoSiguiente: periodoSiguiente.dias_efectivos,
+                kcActual: periodoActual.indice_kc,
+                kcSiguiente: periodoSiguiente.indice_kc,
+                pendiente: a,
+                intercepto: b,
+                kcCalculado: kc
+            });
+
+            return kc;
+        }
+    }
+
+    // Si estamos después del último período, usamos el último KC
+    return coeficientes[coeficientes.length - 1].indice_kc;
 }
 
 

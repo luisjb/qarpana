@@ -50,9 +50,9 @@ SELECT id, 0.35, 192 FROM cultivos WHERE nombre_cultivo = 'Garbanzo';
 
 -- Maiz
 INSERT INTO coeficiente_cultivo (cultivo_id, indice_kc, indice_dias)
-SELECT id, 0.7, 0 FROM cultivos WHERE nombre_cultivo = 'Maiz'
+SELECT id, 0.3, 0 FROM cultivos WHERE nombre_cultivo = 'Maiz'
 UNION ALL
-SELECT id, 0.7, 25 FROM cultivos WHERE nombre_cultivo = 'Maiz'
+SELECT id, 0.3, 25 FROM cultivos WHERE nombre_cultivo = 'Maiz'
 UNION ALL
 SELECT id, 1.2, 65 FROM cultivos WHERE nombre_cultivo = 'Maiz'
 UNION ALL
