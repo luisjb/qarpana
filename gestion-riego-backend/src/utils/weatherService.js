@@ -13,9 +13,10 @@ class WeatherService {
         try {
             await client.query('BEGIN');
     
+             // Obtener los campos activos
             const camposResult = await client.query(`
                 SELECT DISTINCT c.id, c.nombre_campo, c."ubicación",
-                       COUNT(l.id) as cantidad_lotes
+                    COUNT(l.id) as cantidad_lotes
                 FROM campos c
                 INNER JOIN lotes l ON l.campo_id = c.id
                 WHERE c."ubicación" IS NOT NULL 
@@ -27,30 +28,33 @@ class WeatherService {
     
             for (const campo of camposResult.rows) {
                 try {
+                     // Obtener pronóstico para el campo
                     const [lat, lon] = campo.ubicación.split(',').map(coord => coord.trim());
                     const pronostico = await this.obtenerPronosticoCampo(lat, lon);
                     console.log(`Pronóstico obtenido para campo ${campo.nombre_campo}`);
+
     
-                    // Obtener lotes activos del campo
+                     // Obtener lotes activos del campo
                     const lotesResult = await client.query(`
-                        SELECT l.id, l.cultivo_id, cc.indice_kc
+                        SELECT l.id, l.nombre_lote, l.cultivo_id, cc.indice_kc
                         FROM lotes l
                         LEFT JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
                         WHERE l.campo_id = $1 AND l.activo = true
                     `, [campo.id]);
-    
+        
                     console.log(`Procesando ${lotesResult.rows.length} lotes para campo ${campo.nombre_campo}`);
     
-                    // Procesar cada lote de manera secuencial
+                    // Procesar cada lote del campo
+                    for (const lote of lotesResult.rows) {
                         try {
-                            console.log(`Actualizando pronóstico para lote ${lote.id}`);
+                            console.log(`Actualizando pronóstico para lote ${lote.nombre_lote}`);
                             await this.actualizarPronosticoLote(client, lote, pronostico);
-                            console.log(`Pronóstico actualizado exitosamente para lote ${lote.id}`);
+                            console.log(`Pronóstico actualizado exitosamente para lote ${lote.nombre_lote}`);
                         } catch (loteError) {
-                            console.error(`Error procesando lote ${lote.id}:`, loteError);
-                            // Continuar con el siguiente lote en caso de error
+                            console.error(`Error procesando lote ${lote.nombre_lote}:`, loteError);
                         }
-                    
+                    }
+
                 } catch (error) {
                     console.error(`Error procesando campo ${campo.nombre_campo}:`, error);
                 }
