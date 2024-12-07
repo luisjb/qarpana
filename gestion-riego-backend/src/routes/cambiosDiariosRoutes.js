@@ -172,7 +172,7 @@ router.post('/', verifyToken, async (req, res) => {
             lote_id,
             fecha_cambio,
             riego_cantidad = 0,
-            riego_fecha_inicio = null, // Hacerlo opcional
+            riego_fecha_inicio = null,
             precipitaciones = 0,
             humedad = 0,
             temperatura = 0,
@@ -180,10 +180,14 @@ router.post('/', verifyToken, async (req, res) => {
         } = req.body;
 
         // Obtener fecha de siembra y calcular días
-        const { rows: [loteInfo] } = await client.query(
-            'SELECT fecha_siembra FROM lotes WHERE id = $1',
+         const { rows: [loteInfo] } = await client.query(
+            'SELECT fecha_siembra, cultivo_id FROM lotes WHERE id = $1',
             [lote_id]
         );
+
+        if (!loteInfo) {
+            return res.status(404).json({ error: 'Lote no encontrado' });
+        }
         
         const diasDesdeSiembra = Math.floor(
             (new Date(fecha_cambio) - new Date(loteInfo.fecha_siembra)) / (1000 * 60 * 60 * 24)
@@ -256,10 +260,14 @@ router.put('/:id', verifyToken, async (req, res) => {
 
         // Obtener el lote_id del cambio diario actual
         const { rows: [cambioActual] } = await client.query(
-            'SELECT lote_id FROM cambios_diarios WHERE id = $1',
+            'SELECT cd.lote_id, cd.fecha_cambio, l.fecha_siembra FROM cambios_diarios cd JOIN lotes l ON cd.lote_id = l.id WHERE cd.id = $1',
             [id]
         );
 
+         // Calculamos los días desde la siembra
+         const diasDesdeSiembra = Math.floor(
+            (new Date(cambioActual.fecha_cambio) - new Date(cambioActual.fecha_siembra)) / (1000 * 60 * 60 * 24)
+        );
         // Obtener el Kc actual
         const { rows: [kc_data] } = await client.query(`
             SELECT cc.indice_kc 
@@ -275,7 +283,8 @@ router.put('/:id', verifyToken, async (req, res) => {
             LIMIT 1
         `, [cambioActual.lote_id]);
 
-        const kc = await calcularKCPorPendiente(client, lote_Id, diasDesdeSiembra);
+       // Ahora podemos calcular el KC usando el lote_id correcto
+        const kc = await calcularKCPorPendiente(client, cambioActual.lote_id, diasDesdeSiembra);
         const etc = evapotranspiracion * kc;
         const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
 
