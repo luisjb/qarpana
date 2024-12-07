@@ -199,7 +199,7 @@ router.post('/', verifyToken, async (req, res) => {
             ORDER BY cc.indice_dias DESC
             LIMIT 1
         `, [lote_id, diasDesdeSiembra]);
-        const kc = await calcularKCPorPendiente(client, loteId, diasDesdeSiembra);
+        const kc = await calcularKCPorPendiente(client, lote_Id, diasDesdeSiembra);
 
         const etc = evapotranspiracion * kc;
         const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
@@ -275,7 +275,7 @@ router.put('/:id', verifyToken, async (req, res) => {
             LIMIT 1
         `, [cambioActual.lote_id]);
 
-        const kc = await calcularKCPorPendiente(client, loteId, diasDesdeSiembra);
+        const kc = await calcularKCPorPendiente(client, lote_Id, diasDesdeSiembra);
         const etc = evapotranspiracion * kc;
         const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
 
