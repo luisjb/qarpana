@@ -194,7 +194,7 @@ exports.getSimulationData = async (req, res) => {
 
         
             // Calculamos el agua útil umbral
-            const aguaUtilUmbral = aguaUtilDisponibleActual * (porcentajeUmbral / 100);
+            const aguaUtilUmbral = aguaUtilMaximaActual * (porcentajeUmbral / 100);
         
             // Para debug
             console.log('Cálculos de agua útil:', {
