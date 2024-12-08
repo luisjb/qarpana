@@ -100,8 +100,9 @@ exports.getSimulationData = async (req, res) => {
         })));*/
 
           // Función para calcular el agua útil acumulada por estratos
-        const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, aguaUtilAnterior, estratoAnterior) => {
-
+        const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, 
+            indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, 
+            aguaUtilAnterior, estratoAnterior) => {
             /*console.log('Entrada función:', {
                 dia,
                 valoresEstratos,
@@ -184,23 +185,25 @@ exports.getSimulationData = async (req, res) => {
             // Calculamos el agua útil máxima disponible actual
             const aguaUtilMaximaActual = valorPorEstrato * estratosDisponiblesFinales;
 
-            const aguaUtilDisponibleActual = valoresEstratos.slice(0, estratosDisponiblesFinales).reduce((sum, valor) => sum + parseFloat(valor), 0);
+            const aguaUtilDisponibleActual = valoresEstratos
+            .slice(0, estratosDisponiblesFinales)
+            .reduce((sum, valor) => sum + parseFloat(valor), 0);            
+            
             // Calculamos el porcentaje de agua útil
             const porcentajeAguaUtil = (aguaUtilDiaria / aguaUtilDisponibleActual) * 100;
 
         
             // Calculamos el agua útil umbral
-            const aguaUtilUmbral = aguaUtilMaximaActual * (porcentajeUmbral / 100);
+            const aguaUtilUmbral = aguaUtilDisponibleActual * (porcentajeUmbral / 100);
         
             // Para debug
-            /*console.log('Día:', dia, {
-                profundidadRaices,
-                estratosDisponibles,
-                estratosDisponiblesFinales,
+            console.log('Cálculos de agua útil:', {
+                estratosDisponibles: estratosDisponiblesFinales,
+                aguaUtilDisponibleActual,
                 aguaUtilDiaria,
-                aguaUtilMaximaActual,
                 porcentajeAguaUtil
-            });*/
+            });
+
              console.log('Salida función:', {
                 aguaUtilDiaria,
                 aguaUtilUmbral,
