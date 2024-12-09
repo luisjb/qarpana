@@ -6,23 +6,33 @@ exports.getSimulationData = async (req, res) => {
 
     try {
         const result = await pool.query(`
-            SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
-                    cd.fecha_cambio, cd.precipitaciones, cd.riego_cantidad, cd.evapotranspiracion,
-                    cd.agua_util_diaria, cd.lluvia_efectiva, cd.kc, 
-                    FLOOR(DATE_PART('day', cd.fecha_cambio::timestamp - l.fecha_siembra::timestamp)) as dias,
-                    cd.crecimiento_radicular,
-                    l.porcentaje_agua_util_umbral, l.agua_util_total, l.fecha_siembra,
-                    (SELECT array_agg(valor ORDER BY estratos) 
-                        FROM agua_util_inicial 
-                        WHERE lote_id = l.id) as valores_estratos
-                FROM lotes l
-                JOIN cultivos c ON l.cultivo_id = c.id
-                LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
-                WHERE l.id = $1
-                ${campaña ? 'AND l.campaña = $2' : ''}
-                ORDER BY cd.fecha_cambio`, 
+            SELECT 
+                l.*,
+                c.nombre_cultivo,
+                c.indice_crecimiento_radicular,
+                c.indice_capacidad_extraccion,
+                cd.fecha_cambio,
+                cd.precipitaciones,
+                cd.riego_cantidad,
+                cd.evapotranspiracion,
+                cd.agua_util_diaria,
+                cd.lluvia_efectiva,
+                cd.kc,
+                cd.dias,
+                cd.crecimiento_radicular,
+                cd.estrato_alcanzado,
+                (SELECT array_agg(valor ORDER BY estratos) 
+                    FROM agua_util_inicial 
+                    WHERE lote_id = l.id) as valores_estratos
+            FROM lotes l
+            JOIN cultivos c ON l.cultivo_id = c.id
+            LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
+            WHERE l.id = $1
+            ${campaña ? 'AND l.campaña = $2' : ''}
+            ORDER BY cd.fecha_cambio`, 
             campaña ? [loteId, campaña] : [loteId]
         );
+
 
 
 
@@ -85,6 +95,9 @@ exports.getSimulationData = async (req, res) => {
         Math.floor((new Date() - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24));
         
         const estadoFenologico = await getEstadoFenologico(loteId, diasDesdeSiembra);
+
+        console.log('Días desde siembra:', diasDesdeSiembra);
+        console.log('Estados fenológicos:', estadoFenologico);
 
         // Obtener todos los estados fenológicos
         const estadosFenologicos = await getEstadosFenologicos(loteId);
@@ -304,7 +317,7 @@ async function getEstadoFenologico(loteId, diasDesdeSiembra) {
         // Asegurarse de que diasDesdeSiembra sea un número
         if (typeof diasDesdeSiembra !== 'number' || isNaN(diasDesdeSiembra)) {
             console.error('Días desde siembra inválidos:', diasDesdeSiembra);
-            return 'Desconocido';
+            return 'Desconocidoooo';
         }
 
         const result = await pool.query(`
@@ -332,10 +345,10 @@ async function getEstadoFenologico(loteId, diasDesdeSiembra) {
             console.log('Estado fenológico encontrado:', result.rows[0].fenologia);
         }
 
-        return result.rows[0]?.fenologia || 'Desconocido';
+        return result.rows[0]?.fenologia || 'Desconocidoo';
     } catch (error) {
         console.error('Error en getEstadoFenologico:', error);
-        return 'Desconocido';
+        return 'Desconocidooo';
     }
 }
 
