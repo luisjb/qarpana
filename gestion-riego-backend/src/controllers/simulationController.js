@@ -7,18 +7,19 @@ exports.getSimulationData = async (req, res) => {
     try {
         const result = await pool.query(`
             SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
-                   cd.fecha_cambio, cd.precipitaciones, cd.riego_cantidad, cd.evapotranspiracion,
-                   cd.agua_util_diaria, cd.lluvia_efectiva, cd.kc, cd.dias, cd.crecimiento_radicular,
-                   l.porcentaje_agua_util_umbral, l.agua_util_total,
-                   (SELECT array_agg(valor ORDER BY estratos) 
-                    FROM agua_util_inicial 
-                    WHERE lote_id = l.id) as valores_estratos
-            FROM lotes l
-            JOIN cultivos c ON l.cultivo_id = c.id
-            LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
-            WHERE l.id = $1
-            ${campaña ? 'AND l.campaña = $2' : ''}
-            ORDER BY cd.fecha_cambio`, 
+                    cd.fecha_cambio, cd.precipitaciones, cd.riego_cantidad, cd.evapotranspiracion,
+                    cd.agua_util_diaria, cd.lluvia_efectiva, cd.kc, cd.dias, cd.crecimiento_radicular,
+                    l.porcentaje_agua_util_umbral, l.agua_util_total, l.fecha_siembra,
+                    DATE_PART('day', cd.fecha_cambio::timestamp - l.fecha_siembra::timestamp) as dias_desde_siembra,
+                    (SELECT array_agg(valor ORDER BY estratos) 
+                        FROM agua_util_inicial 
+                        WHERE lote_id = l.id) as valores_estratos
+                FROM lotes l
+                JOIN cultivos c ON l.cultivo_id = c.id
+                LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
+                WHERE l.id = $1
+                ${campaña ? 'AND l.campaña = $2' : ''}
+                ORDER BY cd.fecha_cambio`, 
             campaña ? [loteId, campaña] : [loteId]
         );
 
