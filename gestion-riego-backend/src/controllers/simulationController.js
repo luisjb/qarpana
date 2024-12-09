@@ -80,7 +80,7 @@ exports.getSimulationData = async (req, res) => {
         const diasDesdeSiembra = Math.floor(
             (new Date(cambios[cambios.length - 1]?.fecha_cambio) - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24)
         );
-        const estadoFenologico = await getEstadoFenologico(loteId, diasDesdeSiembra);
+        const estadoFenologico =  await getEstadoFenologico(loteId, cambios[cambios.length - 1]?.dias_desde_siembra || 0);
 
         // Obtener todos los estados fenológicos
         const estadosFenologicos = await getEstadosFenologicos(loteId);
