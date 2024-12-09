@@ -292,18 +292,21 @@ exports.getSimulationData = async (req, res) => {
 
 async function getEstadoFenologico(loteId, diasDesdeSiembra) {
     try {
+        console.log('Calculando estado fenológico para días:', diasDesdeSiembra);
+        
         const result = await pool.query(`
-            SELECT ef.fenologia 
-            FROM estado_fenologico ef
-            WHERE ef.lote_id = $1 
-            AND ef.dias <= $2
-            ORDER BY ef.dias DESC 
+            SELECT fenologia 
+            FROM estado_fenologico 
+            WHERE lote_id = $1 
+            AND dias <= $2 
+            ORDER BY dias DESC 
             LIMIT 1
         `, [loteId, diasDesdeSiembra]);
 
+        console.log('Estado fenológico encontrado:', result.rows[0]);
         return result.rows[0]?.fenologia || 'Desconocido';
     } catch (error) {
-        console.error('Error al obtener estado fenológico:', error);
+        console.error('Error en getEstadoFenologico:', error);
         return 'Desconocido';
     }
 }
@@ -340,85 +343,53 @@ function calcularPorcentajeAguaUtil(aguaUtilActual, aguaUtilTotal) {
 
 async function calcularProyeccionAU(loteId) {
     try {
-        console.log('Calculando proyección AU para lote:', loteId);
-
-        const pool = require('../db');  // Asegúrate que esta línea esté al inicio
-
-        
-        // Obtener el último día registrado para el lote
-        const { rows: [ultimoDia] } = await pool.query(`
-            SELECT dias
-            FROM cambios_diarios
-            WHERE lote_id = $1
-            ORDER BY fecha_cambio DESC
+        // Obtener último estado
+        const { rows: [ultimoCambio] } = await pool.query(`
+            SELECT cd.*, l.valores_estratos, l.porcentaje_agua_util_umbral, 
+                   l.indice_crecimiento_radicular
+            FROM cambios_diarios cd
+            JOIN lotes l ON cd.lote_id = l.id
+            WHERE cd.lote_id = $1
+            ORDER BY cd.fecha_cambio DESC
             LIMIT 1
         `, [loteId]);
 
-        if (!ultimoDia) return null;
+        // Obtener pronósticos futuros
+        const { rows: pronosticos } = await pool.query(`
+            SELECT * FROM pronostico 
+            WHERE lote_id = $1 
+            AND fecha_pronostico > $2
+            ORDER BY fecha_pronostico ASC 
+            LIMIT 8
+        `, [loteId, ultimoCambio.fecha_cambio]);
 
-        const diaPronostico = parseInt(ultimoDia.dias) + 8;
-    
+        let aguaUtilProyectada = ultimoCambio.agua_util_diaria;
+        let estratoActual = ultimoCambio.estrato_alcanzado;
 
-        // Obtener el pronóstico del día 8 y los datos necesarios
-        const result = await pool.query(`
-            WITH ultima_agua_util AS (
-                SELECT agua_util_diaria
-                FROM cambios_diarios
-                WHERE lote_id = $1
-                ORDER BY fecha_cambio DESC
-                LIMIT 1
-            )
-            SELECT 
-                p.*,
-                ua.agua_util_diaria as agua_util_actual,
-                cc.indice_kc
-            FROM pronostico p
-            CROSS JOIN ultima_agua_util ua
-            INNER JOIN lotes l ON p.lote_id = l.id
-            LEFT JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
-                AND cc.indice_dias <= $2
-            WHERE p.lote_id = $1 
-            ORDER BY cc.indice_dias DESC, p.fecha_pronostico DESC
-            LIMIT 1
-        `, [loteId, diaPronostico]);
-        console.log('Resultado consulta proyección:', result.rows[0]);
-
-
-        if (result.rows.length === 0) {
-            console.log('No se encontró pronóstico para el día 8');
-            return null;
+        // Calcular agua útil día a día
+        for (const dia of pronosticos) {
+            const resultado = calcularAguaUtilPorEstratos(
+                ultimoCambio.dias + pronosticos.indexOf(dia) + 1,
+                ultimoCambio.valores_estratos,
+                ultimoCambio.agua_util_total,
+                ultimoCambio.porcentaje_agua_util_umbral,
+                ultimoCambio.indice_crecimiento_radicular,
+                dia.evapotranspiracion,
+                dia.etc,
+                dia.lluvia_efectiva,
+                0, // sin riego
+                aguaUtilProyectada,
+                estratoActual
+            );
+            
+            aguaUtilProyectada = resultado.aguaUtilDiaria;
+            estratoActual = resultado.estratosDisponibles;
         }
 
-        const pronostico = result.rows[0];
-
-        
-        
-        // Asegurar valores numéricos
-        const aguaUtilActual = parseFloat(pronostico.agua_util_actual || 0);
-        const perdidaAgua = parseFloat(pronostico.etc || 0);
-        const lluviaEfectiva = parseFloat(pronostico.lluvia_efectiva || 0);
-        
-        /*console.log('Valores para cálculo:', {
-            loteId,
-            aguaUtilActual: pronostico.agua_util_actual,
-            perdidaAgua: pronostico.etc,
-            lluviaEfectiva: pronostico.lluvia_efectiva
-        });*/
-
-        const aguaUtilProyectada = Math.max(0, 
-            aguaUtilActual - perdidaAgua + lluviaEfectiva
-        );
-
-        console.log('Proyección AU calculada:', {
-            aguaUtilActual,
-            perdidaAgua,
-            lluviaEfectiva,
-            aguaUtilProyectada
-        });
-
-        return parseFloat(aguaUtilProyectada.toFixed(2));
+        return Math.max(0, aguaUtilProyectada);
     } catch (error) {
-        console.error('Error al calcular proyección AU:', error);
-        return null;
+        console.error('Error en calcularProyeccionAU:', error);
+        return 0;
     }
+
 }
