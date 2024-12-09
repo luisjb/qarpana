@@ -76,7 +76,9 @@ exports.getSimulationData = async (req, res) => {
         const lluviasEficientesAcumuladas = cambios.reduce((sum, c) => sum + (c.lluvia_efectiva || 0), 0);
 
         // Obtener estado fenológico actual
-        const diasDesdeSiembra = cambios[cambios.length - 1]?.dias || 0;
+        const diasDesdeSiembra = Math.floor(
+            (new Date(cambios[cambios.length - 1]?.fecha_cambio) - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24)
+        );
         const estadoFenologico = await getEstadoFenologico(loteId, diasDesdeSiembra);
 
         // Obtener todos los estados fenológicos
@@ -265,7 +267,7 @@ exports.getSimulationData = async (req, res) => {
             porcentajeAguaUtilUmbral: lote.porcentaje_agua_util_umbral,
             porcentajeAguaUtil: parseFloat(datosSimulacion[datosSimulacion.length - 1]?.porcentajeAguaUtil) || 0,
             estratosDisponibles: datosSimulacion.map(d => d.estratosDisponibles),
-            estadoFenologico: await getEstadoFenologico(loteId, cambios[cambios.length - 1]?.dias || 0),
+            estadoFenologico: estadoFenologico,
             estadosFenologicos: await getEstadosFenologicos(loteId),
             fechaSiembra: lote.fecha_siembra,
             auInicial: aguaUtilTotal,
