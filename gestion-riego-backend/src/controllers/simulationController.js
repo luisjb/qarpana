@@ -105,6 +105,12 @@ exports.getSimulationData = async (req, res) => {
         // Cálculo de proyección a 10 días
         const proyeccionAU10Dias = await calcularProyeccionAU(loteId);
 
+        const proyeccion = await calcularProyeccionAU(loteId);
+        const todasLasFechas = [
+            ...cambios.map(c => c.fecha_cambio),
+            ...proyeccion.proyeccionCompleta.map(p => p.fecha)
+        ];
+
         const ensureNumber = (value) => {
             const num = Number(value);
             return isNaN(num) ? null : num;
@@ -277,10 +283,19 @@ exports.getSimulationData = async (req, res) => {
         
 
         const simulationData = {
-            fechas: datosSimulacion.map(d => d.fecha),
-            lluvias: cambios.map(c => c.precipitaciones || 0),
-            riego: cambios.map(c => c.riego_cantidad || 0),
-            aguaUtil: datosSimulacion.map(d => parseFloat(d.aguaUtilDiaria) || 0), // Asegurar que es número
+            fechas: todasLasFechas,
+            lluvias: [
+                ...cambios.map(c => c.precipitaciones || 0),
+                ...proyeccion.proyeccionCompleta.map(p => p.lluviaEfectiva || 0)
+            ],
+            riego: [
+                ...cambios.map(c => c.riego_cantidad || 0),
+                ...proyeccion.proyeccionCompleta.map(() => 0) // No hay riego en la proyección
+            ],
+            aguaUtil: [
+                ...cambios.map(c => c.agua_util_diaria || 0),
+                ...proyeccion.proyeccionCompleta.map(p => p.aguaUtil)
+            ], // Asegurar que es número
             aguaUtilUmbral: datosSimulacion.map(d => d.aguaUtilUmbral),
             porcentajeAguaUtilUmbral: lote.porcentaje_agua_util_umbral,
             porcentajeAguaUtil: parseFloat(datosSimulacion[datosSimulacion.length - 1]?.porcentajeAguaUtil) || 0,
@@ -289,6 +304,9 @@ exports.getSimulationData = async (req, res) => {
             estadosFenologicos: await getEstadosFenologicos(loteId),
             fechaSiembra: lote.fecha_siembra,
             auInicial: aguaUtilTotal,
+            aguaUtilProyectada: proyeccion.proyeccionCompleta.map(p => p.aguaUtil),
+            fechasProyeccion: proyeccion.proyeccionCompleta.map(p => p.fecha),
+            proyeccionAU10Dias: proyeccion.aguaUtilDia8,
             lluviasEfectivasAcumuladas: parseFloat(lluviasEfectivasAcumuladas.toFixed(2)),
             riegoAcumulado: parseFloat(riegoAcumulado.toFixed(2)),
             porcentajeAguaUtil: datosSimulacion.length > 0 ? datosSimulacion[datosSimulacion.length - 1].porcentajeAguaUtil : 0,
@@ -432,14 +450,19 @@ async function calcularProyeccionAU(loteId) {
     try {
         // Obtener último estado
         const { rows: [ultimoCambio] } = await pool.query(`
-            SELECT cd.*, l.valores_estratos, l.porcentaje_agua_util_umbral, 
-                   l.indice_crecimiento_radicular
+            SELECT cd.*, l.agua_util_total, l.porcentaje_agua_util_umbral, 
+                   l.indice_crecimiento_radicular,
+                   (SELECT array_agg(valor ORDER BY estratos) 
+                    FROM agua_util_inicial 
+                    WHERE lote_id = l.id) as valores_estratos
             FROM cambios_diarios cd
             JOIN lotes l ON cd.lote_id = l.id
             WHERE cd.lote_id = $1
             ORDER BY cd.fecha_cambio DESC
             LIMIT 1
         `, [loteId]);
+
+        if (!ultimoCambio) return { aguaUtilDia8: 0, proyeccionCompleta: [] };
 
         // Obtener pronósticos futuros
         const { rows: pronosticos } = await pool.query(`
@@ -450,33 +473,39 @@ async function calcularProyeccionAU(loteId) {
             LIMIT 8
         `, [loteId, ultimoCambio.fecha_cambio]);
 
-        let aguaUtilProyectada = ultimoCambio.agua_util_diaria;
-        let estratoActual = ultimoCambio.estrato_alcanzado;
+        let aguaUtilProyectada = ultimoCambio.agua_util_diaria || 0;
+        let proyeccion = [];
+        let estratoActual = ultimoCambio.estrato_alcanzado || 1;
 
-        // Calcular agua útil día a día
-        for (const dia of pronosticos) {
-            const resultado = calcularAguaUtilPorEstratos(
-                ultimoCambio.dias + pronosticos.indexOf(dia) + 1,
-                ultimoCambio.valores_estratos,
-                ultimoCambio.agua_util_total,
-                ultimoCambio.porcentaje_agua_util_umbral,
-                ultimoCambio.indice_crecimiento_radicular,
-                dia.evapotranspiracion,
-                dia.etc,
-                dia.lluvia_efectiva,
-                0, // sin riego
-                aguaUtilProyectada,
-                estratoActual
+        // Calcular proyección día por día
+        for (const pronostico of pronosticos) {
+            const diasProyectados = Math.floor(
+                (new Date(pronostico.fecha_pronostico) - new Date(ultimoCambio.fecha_cambio)) / (1000 * 60 * 60 * 24)
             );
-            
-            aguaUtilProyectada = resultado.aguaUtilDiaria;
-            estratoActual = resultado.estratosDisponibles;
+
+            // Calcular pérdidas y ganancias del día
+            const perdidaAgua = pronostico.evapotranspiracion || 0;
+            const gananciaAgua = (pronostico.lluvia_efectiva || 0);
+
+            // Calcular agua útil del día
+            aguaUtilProyectada = Math.max(0, aguaUtilProyectada - perdidaAgua + gananciaAgua);
+
+            proyeccion.push({
+                fecha: pronostico.fecha_pronostico,
+                aguaUtil: aguaUtilProyectada,
+                evapotranspiracion: pronostico.evapotranspiracion,
+                lluviaEfectiva: pronostico.lluvia_efectiva
+            });
         }
 
-        return Math.max(0, aguaUtilProyectada);
+        // Retornar tanto el valor del día 8 como la proyección completa
+        return {
+            aguaUtilDia8: proyeccion.length >= 8 ? proyeccion[7].aguaUtil : aguaUtilProyectada,
+            proyeccionCompleta: proyeccion
+        };
     } catch (error) {
         console.error('Error en calcularProyeccionAU:', error);
-        return 0;
+        return { aguaUtilDia8: 0, proyeccionCompleta: [] };
     }
 
 }

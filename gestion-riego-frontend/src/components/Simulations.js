@@ -423,6 +423,20 @@ function Simulations() {
             },
             {
                 type: 'line',
+                label: 'Agua Útil Proyectada',
+                data: new Array(simulationData.fechas.length - simulationData.fechasProyeccion.length).fill(null).concat(
+                    simulationData.aguaUtilProyectada
+                ),
+                borderColor: 'rgba(255, 99, 132, 0.5)',
+                borderWidth: 2,
+                borderDash: [5, 5],
+                fill: false,
+                tension: 0.1,
+                order: 0,
+                yAxisID: 'y1'
+            },
+            {
+                type: 'line',
                 label: `Agua Útil Umbral`,
                 data: simulationData.aguaUtilUmbral,
                 borderColor: 'rgb(255, 159, 64)',
