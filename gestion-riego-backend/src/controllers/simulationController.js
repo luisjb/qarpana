@@ -271,10 +271,7 @@ exports.getSimulationData = async (req, res) => {
             auInicial: aguaUtilTotal,
             lluviasEfectivasAcumuladas: parseFloat(lluviasEfectivasAcumuladas.toFixed(2)),
             riegoAcumulado: parseFloat(riegoAcumulado.toFixed(2)),
-            porcentajeAguaUtil: calcularPorcentajeAguaUtil(
-                datosSimulacion[datosSimulacion.length - 1]?.aguaUtilDiaria || 0,
-                lote.agua_util_total
-            ),
+            porcentajeAguaUtil: datosSimulacion.length > 0 ? datosSimulacion[datosSimulacion.length - 1].porcentajeAguaUtil : 0,
             cultivo: lote.nombre_cultivo,
             variedad: lote.variedad,
             proyeccionAU10Dias: await calcularProyeccionAU(loteId),
@@ -295,10 +292,15 @@ exports.getSimulationData = async (req, res) => {
 
 async function getEstadoFenologico(loteId, diasDesdeSiembra) {
     try {
-        const result = await pool.query(
-            'SELECT fenologia FROM estado_fenologico WHERE lote_id = $1 AND dias <= $2 ORDER BY dias DESC LIMIT 1',
-            [loteId, diasDesdeSiembra]
-        );
+        const result = await pool.query(`
+            SELECT ef.fenologia 
+            FROM estado_fenologico ef
+            WHERE ef.lote_id = $1 
+            AND ef.dias <= $2
+            ORDER BY ef.dias DESC 
+            LIMIT 1
+        `, [loteId, diasDesdeSiembra]);
+
         return result.rows[0]?.fenologia || 'Desconocido';
     } catch (error) {
         console.error('Error al obtener estado fenológico:', error);
