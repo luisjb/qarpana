@@ -314,41 +314,87 @@ async function getEstadoFenologico(loteId, diasDesdeSiembra) {
     try {
         console.log('Calculando estado fenológico para lote:', loteId, 'días:', diasDesdeSiembra);
         
-        // Asegurarse de que diasDesdeSiembra sea un número
-        if (typeof diasDesdeSiembra !== 'number' || isNaN(diasDesdeSiembra)) {
-            console.error('Días desde siembra inválidos:', diasDesdeSiembra);
-            return 'Desconocidoooo';
+        // Primero verificamos si hay estados fenológicos para este lote
+        const { rows: [count] } = await pool.query(
+            'SELECT COUNT(*) FROM estado_fenologico WHERE lote_id = $1',
+            [loteId]
+        );
+        
+        if (count.count === '0') {
+            console.log('No hay estados fenológicos registrados para el lote:', loteId);
+            // Aquí podrías insertar estados fenológicos por defecto si lo deseas
+            await insertarEstadosFenologicosDefault(loteId);
         }
 
         const result = await pool.query(`
-            SELECT ef.fenologia 
+            SELECT ef.fenologia, ef.dias
             FROM estado_fenologico ef
             WHERE ef.lote_id = $1 
-            AND ef.dias <= $2 
-            ORDER BY ef.dias DESC 
-            LIMIT 1
-        `, [loteId, diasDesdeSiembra]);
+            ORDER BY ef.dias ASC`,
+            [loteId]
+        );
 
+        // Si no hay estados fenológicos después de intentar insertar los default
         if (result.rows.length === 0) {
-            console.log('No se encontró estado fenológico para el lote:', loteId, 'días:', diasDesdeSiembra);
-            
-            // Verificar si hay estados fenológicos para este lote
-            const { rows: [count] } = await pool.query(
-                'SELECT COUNT(*) FROM estado_fenologico WHERE lote_id = $1',
-                [loteId]
-            );
-            
-            if (count.count === '0') {
-                console.log('No hay estados fenológicos registrados para el lote:', loteId);
-            }
-        } else {
-            console.log('Estado fenológico encontrado:', result.rows[0].fenologia);
+            return 'Desconocido';
         }
 
-        return result.rows[0]?.fenologia || 'Desconocidoo';
+        // Encontrar el estado fenológico correspondiente a los días actuales
+        let estadoActual = result.rows[0].fenologia; // Estado inicial por defecto
+        for (const estado of result.rows) {
+            if (diasDesdeSiembra <= estado.dias) {
+                estadoActual = estado.fenologia;
+                break;
+            }
+        }
+
+        console.log('Estado fenológico encontrado para días', diasDesdeSiembra, ':', estadoActual);
+        return estadoActual;
+
     } catch (error) {
         console.error('Error en getEstadoFenologico:', error);
-        return 'Desconocidooo';
+        return 'Desconocido';
+    }
+}
+
+async function insertarEstadosFenologicosDefault(loteId) {
+    try {
+        // Obtener información del cultivo
+        const { rows: [lote] } = await pool.query(`
+            SELECT l.cultivo_id, c.nombre_cultivo 
+            FROM lotes l 
+            JOIN cultivos c ON l.cultivo_id = c.id 
+            WHERE l.id = $1`, 
+            [loteId]
+        );
+
+        if (!lote) return;
+
+        // Estados fenológicos por defecto para soja (ajusta según tus necesidades)
+        const estadosDefault = lote.nombre_cultivo.toLowerCase() === 'soja' ? [
+            { fenologia: 'Siembra', dias: 0 },
+            { fenologia: 'Vegetativo', dias: 20 },
+            { fenologia: 'Floración', dias: 45 },
+            { fenologia: 'Llenado', dias: 75 },
+            { fenologia: 'Madurez', dias: 120 }
+        ] : [
+            { fenologia: 'Siembra', dias: 0 },
+            { fenologia: 'Vegetativo', dias: 30 },
+            { fenologia: 'Desarrollo', dias: 60 },
+            { fenologia: 'Madurez', dias: 90 }
+        ];
+
+        // Insertar estados fenológicos por defecto
+        for (const estado of estadosDefault) {
+            await pool.query(
+                'INSERT INTO estado_fenologico (lote_id, fenologia, dias) VALUES ($1, $2, $3)',
+                [loteId, estado.fenologia, estado.dias]
+            );
+        }
+
+        console.log('Estados fenológicos por defecto insertados para lote:', loteId);
+    } catch (error) {
+        console.error('Error al insertar estados fenológicos por defecto:', error);
     }
 }
 
