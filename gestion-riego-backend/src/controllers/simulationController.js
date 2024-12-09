@@ -8,9 +8,10 @@ exports.getSimulationData = async (req, res) => {
         const result = await pool.query(`
             SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
                     cd.fecha_cambio, cd.precipitaciones, cd.riego_cantidad, cd.evapotranspiracion,
-                    cd.agua_util_diaria, cd.lluvia_efectiva, cd.kc, cd.dias, cd.crecimiento_radicular,
+                    cd.agua_util_diaria, cd.lluvia_efectiva, cd.kc, 
+                    FLOOR(EXTRACT(EPOCH FROM (cd.fecha_cambio - l.fecha_siembra)) / 86400) as dias,
+                    cd.crecimiento_radicular,
                     l.porcentaje_agua_util_umbral, l.agua_util_total, l.fecha_siembra,
-                    DATE_PART('day', cd.fecha_cambio::timestamp - l.fecha_siembra::timestamp) as dias_desde_siembra,
                     (SELECT array_agg(valor ORDER BY estratos) 
                         FROM agua_util_inicial 
                         WHERE lote_id = l.id) as valores_estratos
@@ -22,6 +23,7 @@ exports.getSimulationData = async (req, res) => {
                 ORDER BY cd.fecha_cambio`, 
             campaña ? [loteId, campaña] : [loteId]
         );
+
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Lote no encontrado o sin datos' });
@@ -77,10 +79,10 @@ exports.getSimulationData = async (req, res) => {
         const lluviasEficientesAcumuladas = cambios.reduce((sum, c) => sum + (c.lluvia_efectiva || 0), 0);
 
         // Obtener estado fenológico actual
-        const diasDesdeSiembra = Math.floor(
-            (new Date(cambios[cambios.length - 1]?.fecha_cambio) - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24)
-        );
-        const estadoFenologico =  await getEstadoFenologico(loteId, cambios[cambios.length - 1]?.dias_desde_siembra || 0);
+        const diasDesdeSiembra = cambios[cambios.length - 1]?.dias || 
+            Math.floor((new Date() - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24));
+        
+        const estadoFenologico = await getEstadoFenologico(loteId, diasDesdeSiembra);
 
         // Obtener todos los estados fenológicos
         const estadosFenologicos = await getEstadosFenologicos(loteId);
@@ -295,18 +297,39 @@ exports.getSimulationData = async (req, res) => {
 
 async function getEstadoFenologico(loteId, diasDesdeSiembra) {
     try {
-        console.log('Calculando estado fenológico para días:', diasDesdeSiembra);
+        console.log('Calculando estado fenológico para lote:', loteId, 'días:', diasDesdeSiembra);
         
+        // Asegurarse de que diasDesdeSiembra sea un número
+        if (typeof diasDesdeSiembra !== 'number' || isNaN(diasDesdeSiembra)) {
+            console.error('Días desde siembra inválidos:', diasDesdeSiembra);
+            return 'Desconocido';
+        }
+
         const result = await pool.query(`
-            SELECT fenologia 
-            FROM estado_fenologico 
-            WHERE lote_id = $1 
-            AND dias <= $2 
-            ORDER BY dias DESC 
+            SELECT ef.fenologia 
+            FROM estado_fenologico ef
+            WHERE ef.lote_id = $1 
+            AND ef.dias <= $2 
+            ORDER BY ef.dias DESC 
             LIMIT 1
         `, [loteId, diasDesdeSiembra]);
 
-        console.log('Estado fenológico encontrado:', result.rows[0]);
+        if (result.rows.length === 0) {
+            console.log('No se encontró estado fenológico para el lote:', loteId, 'días:', diasDesdeSiembra);
+            
+            // Verificar si hay estados fenológicos para este lote
+            const { rows: [count] } = await pool.query(
+                'SELECT COUNT(*) FROM estado_fenologico WHERE lote_id = $1',
+                [loteId]
+            );
+            
+            if (count.count === '0') {
+                console.log('No hay estados fenológicos registrados para el lote:', loteId);
+            }
+        } else {
+            console.log('Estado fenológico encontrado:', result.rows[0].fenologia);
+        }
+
         return result.rows[0]?.fenologia || 'Desconocido';
     } catch (error) {
         console.error('Error en getEstadoFenologico:', error);
