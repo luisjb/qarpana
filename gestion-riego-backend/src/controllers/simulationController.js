@@ -9,7 +9,7 @@ exports.getSimulationData = async (req, res) => {
             SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
                     cd.fecha_cambio, cd.precipitaciones, cd.riego_cantidad, cd.evapotranspiracion,
                     cd.agua_util_diaria, cd.lluvia_efectiva, cd.kc, 
-                    FLOOR(EXTRACT(EPOCH FROM (cd.fecha_cambio - l.fecha_siembra)) / 86400) as dias,
+                    FLOOR(DATE_PART('day', cd.fecha_cambio::timestamp - l.fecha_siembra::timestamp)) as dias,
                     cd.crecimiento_radicular,
                     l.porcentaje_agua_util_umbral, l.agua_util_total, l.fecha_siembra,
                     (SELECT array_agg(valor ORDER BY estratos) 
@@ -23,6 +23,7 @@ exports.getSimulationData = async (req, res) => {
                 ORDER BY cd.fecha_cambio`, 
             campaña ? [loteId, campaña] : [loteId]
         );
+
 
 
         if (result.rows.length === 0) {
@@ -79,8 +80,9 @@ exports.getSimulationData = async (req, res) => {
         const lluviasEficientesAcumuladas = cambios.reduce((sum, c) => sum + (c.lluvia_efectiva || 0), 0);
 
         // Obtener estado fenológico actual
-        const diasDesdeSiembra = cambios[cambios.length - 1]?.dias || 
-            Math.floor((new Date() - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24));
+        const diasDesdeSiembra = cambios.length > 0 ? 
+        Math.floor((new Date(cambios[cambios.length - 1].fecha_cambio) - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24)) :
+        Math.floor((new Date() - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24));
         
         const estadoFenologico = await getEstadoFenologico(loteId, diasDesdeSiembra);
 
