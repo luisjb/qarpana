@@ -394,7 +394,7 @@ function Simulations() {
     };
 
     const chartData = simulationData ? {
-        labels: simulationData.fechas,
+        labels: [...simulationData.fechas, ...simulationData.fechasProyeccion],
         datasets: [
             {
                 type: 'bar',
@@ -413,7 +413,7 @@ function Simulations() {
             {
                 type: 'line',
                 label: 'Agua Útil',
-                data: simulationData.aguaUtil, // es el agua útil diaria calculada
+                data: simulationData.aguaUtil,
                 borderColor: 'rgb(255, 99, 132)',
                 borderWidth: 2,
                 fill: false,
@@ -424,9 +424,10 @@ function Simulations() {
             {
                 type: 'line',
                 label: 'Agua Útil Proyectada',
-                data: new Array(simulationData.fechas.length - simulationData.fechasProyeccion.length).fill(null).concat(
-                    simulationData.aguaUtilProyectada
-                ),
+                data: [
+                    ...new Array(simulationData.fechas.length).fill(null),
+                    ...simulationData.aguaUtilProyectada
+                ],
                 borderColor: 'rgba(255, 99, 132, 0.5)',
                 borderWidth: 2,
                 borderDash: [5, 5],
@@ -438,7 +439,7 @@ function Simulations() {
             {
                 type: 'line',
                 label: `Agua Útil Umbral`,
-                data: simulationData.aguaUtilUmbral,
+                data: [...simulationData.aguaUtilUmbral, ...new Array(simulationData.fechasProyeccion.length).fill(simulationData.aguaUtilUmbral[0])],
                 borderColor: 'rgb(255, 159, 64)',
                 borderWidth: 2,
                 borderDash: [5, 5],
