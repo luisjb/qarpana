@@ -6,30 +6,19 @@ exports.getSimulationData = async (req, res) => {
 
     try {
         const result = await pool.query(`
-            SELECT 
-                l.*,
-                c.nombre_cultivo,
-                c.indice_crecimiento_radicular,
-                c.indice_capacidad_extraccion,
-                cd.fecha_cambio,
-                cd.precipitaciones,
-                cd.riego_cantidad,
-                cd.evapotranspiracion,
-                cd.agua_util_diaria,
-                cd.lluvia_efectiva,
-                cd.kc,
-                cd.dias,
-                cd.crecimiento_radicular,
-                cd.estrato_alcanzado,
-                (SELECT array_agg(valor ORDER BY estratos) 
-                    FROM agua_util_inicial 
-                    WHERE lote_id = l.id) as valores_estratos
-            FROM lotes l
-            JOIN cultivos c ON l.cultivo_id = c.id
-            LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
-            WHERE l.id = $1
-            ${campaña ? 'AND l.campaña = $2' : ''}
-            ORDER BY cd.fecha_cambio`, 
+            SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
+                    cd.fecha_cambio, cd.precipitaciones, cd.riego_cantidad, cd.evapotranspiracion,
+                    cd.agua_util_diaria, cd.lluvia_efectiva, cd.kc, cd.dias, cd.crecimiento_radicular,
+                    l.porcentaje_agua_util_umbral, l.agua_util_total, l.fecha_siembra,
+                    (SELECT array_agg(valor ORDER BY estratos) 
+                        FROM agua_util_inicial 
+                        WHERE lote_id = l.id) as valores_estratos
+                FROM lotes l
+                JOIN cultivos c ON l.cultivo_id = c.id
+                LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
+                WHERE l.id = $1
+                ${campaña ? 'AND l.campaña = $2' : ''}
+                ORDER BY cd.fecha_cambio`, 
             campaña ? [loteId, campaña] : [loteId]
         );
 
@@ -288,7 +277,7 @@ exports.getSimulationData = async (req, res) => {
             riego: cambios.map(c => c.riego_cantidad || 0),
             aguaUtil: cambios.map(c => c.agua_util_diaria || 0),
             aguaUtilUmbral: cambios.map(() => (parseFloat(lote.agua_util_total || 0) * parseFloat(lote.porcentaje_agua_util_umbral || 0)) / 100),
-            estadoFenologico: estadoFenologico,
+            estadoFenologico: await getEstadoFenologico(loteId, diasDesdeSiembra),
             estadosFenologicos: await getEstadosFenologicos(loteId),
             fechaSiembra: lote.fecha_siembra,
             auInicial: parseFloat(lote.agua_util_total || 0),
@@ -301,10 +290,10 @@ exports.getSimulationData = async (req, res) => {
                 (parseFloat(cambios[cambios.length - 1].agua_util_diaria || 0) / parseFloat(lote.agua_util_total || 1)) * 100 : 0,
             valores_estratos: lote.valores_estratos,
             estratosDisponibles: cambios.map(c => c.estrato_alcanzado || 0),
-            // Agregamos los datos de proyección
-            fechasProyeccion: proyeccionResult.rows.map(p => p.fecha_pronostico),
-            aguaUtilProyectada: proyeccionResult.rows.map(p => p.agua_util_diaria || 0),
-            proyeccionAU10Dias: proyeccionResult.rows[7]?.agua_util_diaria || 0,
+            // Datos de proyección
+            fechasProyeccion: proyeccion.proyeccionCompleta.map(p => p.fecha_pronostico),
+            aguaUtilProyectada: proyeccion.proyeccionCompleta.map(p => p.agua_util_diaria || 0),
+            proyeccionAU10Dias: proyeccion.aguaUtilDia8,
             fechaActualizacion: new Date().toISOString().split('T')[0]
         };
 
@@ -443,11 +432,7 @@ async function calcularProyeccionAU(loteId) {
     try {
         // Obtener último estado
         const { rows: [ultimoCambio] } = await pool.query(`
-            SELECT cd.*, l.agua_util_total, l.porcentaje_agua_util_umbral, 
-                   l.indice_crecimiento_radicular,
-                   (SELECT array_agg(valor ORDER BY estratos) 
-                    FROM agua_util_inicial 
-                    WHERE lote_id = l.id) as valores_estratos
+            SELECT cd.*, l.agua_util_total, l.porcentaje_agua_util_umbral
             FROM cambios_diarios cd
             JOIN lotes l ON cd.lote_id = l.id
             WHERE cd.lote_id = $1
@@ -455,50 +440,34 @@ async function calcularProyeccionAU(loteId) {
             LIMIT 1
         `, [loteId]);
 
-        if (!ultimoCambio) return { aguaUtilDia8: 0, proyeccionCompleta: [] };
+        if (!ultimoCambio) return 0;
 
         // Obtener pronósticos futuros
         const { rows: pronosticos } = await pool.query(`
-            SELECT * FROM pronostico 
+            SELECT 
+                fecha_pronostico,
+                evapotranspiracion,
+                lluvia_efectiva,
+                agua_util_diaria
+            FROM pronostico 
             WHERE lote_id = $1 
             AND fecha_pronostico > $2
             ORDER BY fecha_pronostico ASC 
             LIMIT 8
         `, [loteId, ultimoCambio.fecha_cambio]);
 
-        let aguaUtilProyectada = ultimoCambio.agua_util_diaria || 0;
-        let proyeccion = [];
-        let estratoActual = ultimoCambio.estrato_alcanzado || 1;
-
-        // Calcular proyección día por día
-        for (const pronostico of pronosticos) {
-            const diasProyectados = Math.floor(
-                (new Date(pronostico.fecha_pronostico) - new Date(ultimoCambio.fecha_cambio)) / (1000 * 60 * 60 * 24)
-            );
-
-            // Calcular pérdidas y ganancias del día
-            const perdidaAgua = pronostico.evapotranspiracion || 0;
-            const gananciaAgua = (pronostico.lluvia_efectiva || 0);
-
-            // Calcular agua útil del día
-            aguaUtilProyectada = Math.max(0, aguaUtilProyectada - perdidaAgua + gananciaAgua);
-
-            proyeccion.push({
-                fecha: pronostico.fecha_pronostico,
-                aguaUtil: aguaUtilProyectada,
-                evapotranspiracion: pronostico.evapotranspiracion,
-                lluviaEfectiva: pronostico.lluvia_efectiva
-            });
-        }
-
-        // Retornar tanto el valor del día 8 como la proyección completa
+        // Retornamos un objeto con la proyección y el valor del día 8
         return {
-            aguaUtilDia8: proyeccion.length >= 8 ? proyeccion[7].aguaUtil : aguaUtilProyectada,
-            proyeccionCompleta: proyeccion
+            proyeccionCompleta: pronosticos,
+            aguaUtilDia8: pronosticos[7]?.agua_util_diaria || 0
         };
     } catch (error) {
         console.error('Error en calcularProyeccionAU:', error);
-        return { aguaUtilDia8: 0, proyeccionCompleta: [] };
+        return {
+            proyeccionCompleta: [],
+            aguaUtilDia8: 0
+        };
     }
+
 
 }
