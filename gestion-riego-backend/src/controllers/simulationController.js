@@ -321,11 +321,11 @@ exports.getSimulationData = async (req, res) => {
             fechaActualizacion: new Date().toISOString().split('T')[0]
         };
 
-        console.log('Datos de simulación finales:', {
+        /*console.log('Datos de simulación finales:', {
             aguaUtilMuestra: simulationData.aguaUtil.slice(0, 3),
             porcentajeAguaUtil: simulationData.porcentajeAguaUtil,
             estratosDisponibles: simulationData.estratosDisponibles.slice(0, 3)
-        });
+        });*/
         
 
 
@@ -333,6 +333,11 @@ exports.getSimulationData = async (req, res) => {
             aguaUtil: simulationData.aguaUtil,
             porcentajeAguaUtil: simulationData.porcentajeAguaUtil
         });*/
+        console.log('Datos de simulación enviados:', {
+            fechasProyeccion: simulationData.fechasProyeccion,
+            aguaUtilProyectada: simulationData.aguaUtilProyectada,
+            proyeccionAU10Dias: simulationData.proyeccionAU10Dias
+        });
 
         res.json(simulationData);
     } catch (error) {
@@ -476,6 +481,13 @@ async function calcularProyeccionAU(loteId) {
             LIMIT 1
         `, [loteId]);
 
+        console.log('Último cambio diario:', {
+            fecha: ultimoCambio?.fecha_cambio,
+            aguaUtilDiaria: ultimoCambio?.agua_util_diaria,
+            estratoAlcanzado: ultimoCambio?.estrato_alcanzado,
+            valoresEstratos: ultimoCambio?.valores_estratos
+        });
+
         if (!ultimoCambio) return {
             proyeccionCompleta: [],
             aguaUtilDia8: 0
@@ -559,6 +571,11 @@ async function calcularProyeccionAU(loteId) {
                 etc: pronostico.etc,
                 precipitaciones: pronostico.precipitaciones
             });
+
+            console.log('Proyección completa calculada:', proyeccionCompleta.map(p => ({
+                fecha: p.fecha,
+                aguaUtil: p.agua_util_diaria
+            })));
 
             aguaUtilAnterior = aguaUtilDiaria;
             estratoAnterior = estratosDisponiblesFinales;
