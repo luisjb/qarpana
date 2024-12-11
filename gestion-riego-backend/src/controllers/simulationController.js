@@ -493,6 +493,7 @@ async function calcularProyeccionAU(loteId) {
             JOIN lotes l ON cd.lote_id = l.id
             JOIN cultivos c ON l.cultivo_id = c.id
             WHERE cd.lote_id = $1
+            AND cd.agua_util_diaria IS NOT NULL
             ORDER BY cd.fecha_cambio DESC
             LIMIT 1
         `, [loteId]);
@@ -516,12 +517,6 @@ async function calcularProyeccionAU(loteId) {
             SELECT 
                 fecha_pronostico,
                 prono_dias,
-                temperatura_media,
-                temperatura_max,
-                temperatura_min,
-                humedad,
-                presion,
-                velocidad_viento,
                 precipitaciones,
                 evapotranspiracion,
                 etc,
@@ -533,6 +528,7 @@ async function calcularProyeccionAU(loteId) {
             LIMIT 8
         `, [loteId, ultimoCambio.fecha_cambio]);
 
+
         let aguaUtilAnterior = ultimoCambio.agua_util_diaria;
         let estratoAnterior = ultimoCambio.estrato_alcanzado;
         let proyeccionCompleta = [];
@@ -540,64 +536,37 @@ async function calcularProyeccionAU(loteId) {
 
         // Calcular agua útil día por día
         for (const pronostico of pronosticos) {
-            const diasDesdeSiembra = Math.floor(
-                (new Date(pronostico.fecha_pronostico) - new Date(ultimoCambio.fecha_siembra)) / (1000 * 60 * 60 * 24)
-            );
-
-            // Calcular profundidad de raíces y estratos disponibles
-            const profundidadRaices = Math.min(
-                diasDesdeSiembra * ultimoCambio.indice_crecimiento_radicular,
-                (ultimoCambio.valores_estratos?.length || 1) * PROFUNDIDAD_POR_ESTRATO
-            );
-            
-            const estratosDisponibles = Math.min(
-                Math.floor(profundidadRaices / PROFUNDIDAD_POR_ESTRATO) + 1,
-                ultimoCambio.valores_estratos?.length || 1
-            );
-
-            // Asegurar no más de un estrato nuevo por día
-            const estratosDisponiblesFinales = estratoAnterior ? 
-                Math.min(estratosDisponibles, estratoAnterior + 1) : 
-                estratosDisponibles;
-
-            // Calcular agua útil disponible para los estratos actuales
-            const aguaUtilDisponible = ultimoCambio.valores_estratos
-                ?.slice(0, estratosDisponiblesFinales)
-                .reduce((sum, valor) => sum + parseFloat(valor), 0) || 0;
-
             // Calcular pérdidas y ganancias
-            const perdidaAgua = pronostico.etc || 0;
-            const gananciaAgua = pronostico.lluvia_efectiva || 0;
+            const perdidaAgua = parseFloat(pronostico.etc || 0);
+            const gananciaAgua = parseFloat(pronostico.lluvia_efectiva || 0);
 
             // Calcular nueva agua útil
-            let aguaUtilDiaria = aguaUtilAnterior;
-            
-            if (estratosDisponiblesFinales > estratoAnterior) {
-                // Si hay nuevo estrato, agregar su agua útil
-                const valorNuevoEstrato = ultimoCambio.valores_estratos?.[estratosDisponiblesFinales - 1] || 0;
-                aguaUtilDiaria += parseFloat(valorNuevoEstrato);
-            }
+            let aguaUtilDiaria = Math.max(0, aguaUtilAnterior - perdidaAgua + gananciaAgua);
 
-            aguaUtilDiaria = Math.max(0, aguaUtilDiaria - perdidaAgua + gananciaAgua);
-            aguaUtilDiaria = Math.min(aguaUtilDiaria, aguaUtilDisponible);
+            console.log('Cálculo proyección diaria:', {
+                fecha: pronostico.fecha_pronostico,
+                perdidaAgua,
+                gananciaAgua,
+                aguaUtilAnterior,
+                aguaUtilCalculada: aguaUtilDiaria
+            });
 
             proyeccionCompleta.push({
                 fecha: pronostico.fecha_pronostico,
                 agua_util_diaria: aguaUtilDiaria,
-                estratos_disponibles: estratosDisponiblesFinales,
+                estratos_disponibles: estratoAnterior,
                 lluvia_efectiva: pronostico.lluvia_efectiva,
                 etc: pronostico.etc,
                 precipitaciones: pronostico.precipitaciones
             });
 
-            console.log('Proyección completa calculada:', proyeccionCompleta.map(p => ({
-                fecha: p.fecha,
-                aguaUtil: p.agua_util_diaria
-            })));
-
             aguaUtilAnterior = aguaUtilDiaria;
-            estratoAnterior = estratosDisponiblesFinales;
         }
+
+        console.log('Proyección completa calculada:', proyeccionCompleta.map(p => ({
+            fecha: p.fecha,
+            aguaUtil: p.agua_util_diaria
+        })));
 
         return {
             proyeccionCompleta,
