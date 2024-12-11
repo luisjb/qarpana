@@ -318,9 +318,11 @@ exports.getSimulationData = async (req, res) => {
             valores_estratos: lote.valores_estratos,
             estratosDisponibles: datosSimulacion.map(d => d.estratosDisponibles),
             fechasProyeccion: proyeccion.proyeccionCompleta.map(p => p.fecha),
+            fechasProyeccion: proyeccion.proyeccionCompleta.map(p => p.fecha),
             aguaUtilProyectada: proyeccion.proyeccionCompleta.map(p => p.agua_util_diaria),
             proyeccionAU10Dias: proyeccion.aguaUtilDia8,
-            fechaActualizacion: new Date().toISOString().split('T')[0],
+            // Para el widget de proyección
+            porcentajeProyectado: proyeccion.porcentajeProyectado,
             aguaUtilUmbral: [
                 ...datosSimulacion.map(d => d.aguaUtilUmbral),
                 ...new Array(proyeccion.proyeccionCompleta.length).fill(
@@ -481,48 +483,50 @@ function calcularPorcentajeAguaUtil(aguaUtilActual, aguaUtilTotal) {
 
 async function calcularProyeccionAU(loteId) {
     try {
-        // Obtener último cambio diario real con datos del cultivo
+        // Obtener último cambio diario real con datos válidos
         const { rows: [ultimoCambio] } = await pool.query(`
+            WITH UltimoValorValido AS (
+                SELECT cd.agua_util_diaria, cd.fecha_cambio
+                FROM cambios_diarios cd
+                WHERE cd.lote_id = $1 
+                AND cd.agua_util_diaria IS NOT NULL
+                ORDER BY cd.fecha_cambio DESC
+                LIMIT 1
+            )
             SELECT 
                 cd.*,
                 l.agua_util_total,
                 l.porcentaje_agua_util_umbral,
                 c.indice_crecimiento_radicular,
                 l.fecha_siembra,
+                uvv.agua_util_diaria as ultimo_valor_valido,
                 (SELECT array_agg(valor ORDER BY estratos) 
                     FROM agua_util_inicial 
                     WHERE lote_id = l.id) as valores_estratos
             FROM cambios_diarios cd
             JOIN lotes l ON cd.lote_id = l.id
             JOIN cultivos c ON l.cultivo_id = c.id
+            CROSS JOIN UltimoValorValido uvv
             WHERE cd.lote_id = $1
             ORDER BY cd.fecha_cambio DESC
             LIMIT 1
         `, [loteId]);
 
-        console.log('Último cambio diario:', {
-            fecha: ultimoCambio?.fecha_cambio,
-            aguaUtilDiaria: ultimoCambio?.agua_util_diaria,
+        console.log('Datos para proyección:', {
+            ultimoValorValido: ultimoCambio?.ultimo_valor_valido,
             estratoAlcanzado: ultimoCambio?.estrato_alcanzado,
-            valoresEstratos: ultimoCambio?.valores_estratos,
-            indiceCrecimiento: ultimoCambio?.indice_crecimiento_radicular
+            valoresEstratos: ultimoCambio?.valores_estratos
         });
 
         if (!ultimoCambio) return { proyeccionCompleta: [], aguaUtilDia8: 0 };
 
+        // Calcular agua útil disponible total según estratos alcanzados
         const estratosAlcanzados = ultimoCambio.estrato_alcanzado || 1;
         const aguaUtilDisponible = ultimoCambio.valores_estratos
             ?.slice(0, estratosAlcanzados)
             .reduce((sum, valor) => sum + parseFloat(valor), 0) || 0;
 
-        console.log('Agua útil disponible total:', {
-            estratosAlcanzados,
-            aguaUtilDisponible,
-            valoresEstratos: ultimoCambio.valores_estratos
-        });
-
-
-        // Obtener pronósticos futuros con todos los datos necesarios
+        // Obtener pronósticos futuros
         const { rows: pronosticos } = await pool.query(`
             SELECT 
                 fecha_pronostico,
@@ -538,10 +542,15 @@ async function calcularProyeccionAU(loteId) {
             LIMIT 8
         `, [loteId, ultimoCambio.fecha_cambio]);
 
-
-
-        let aguaUtilAnterior = parseFloat(ultimoCambio.agua_util_diaria || aguaUtilDisponible);
+        // Usar el último valor válido como punto de partida
+        let aguaUtilAnterior = parseFloat(ultimoCambio.ultimo_valor_valido || aguaUtilDisponible);
         let proyeccionCompleta = [];
+
+        console.log('Punto de partida proyección:', {
+            aguaUtilAnterior,
+            aguaUtilDisponible,
+            fecha: ultimoCambio.fecha_cambio
+        });
 
         // Calcular agua útil día por día
         for (const pronostico of pronosticos) {
@@ -555,15 +564,6 @@ async function calcularProyeccionAU(loteId) {
                 Math.max(0, aguaUtilAnterior - perdidaAgua + gananciaAgua)
             );
 
-            console.log('Cálculo proyección diaria:', {
-                fecha: pronostico.fecha_pronostico,
-                aguaUtilAnterior,
-                perdidaAgua,
-                gananciaAgua,
-                aguaUtilCalculada: aguaUtilDiaria,
-                aguaUtilDisponible
-            });
-
             proyeccionCompleta.push({
                 fecha: pronostico.fecha_pronostico,
                 agua_util_diaria: aguaUtilDiaria,
@@ -576,20 +576,25 @@ async function calcularProyeccionAU(loteId) {
             aguaUtilAnterior = aguaUtilDiaria;
         }
 
-        console.log('Proyección completa calculada:', proyeccionCompleta.map(p => ({
-            fecha: p.fecha,
-            aguaUtil: p.agua_util_diaria
-        })));
-
-        return {
+        const proyeccionFinal = {
             proyeccionCompleta,
-            aguaUtilDia8: proyeccionCompleta[7]?.agua_util_diaria || 0
+            aguaUtilDia8: proyeccionCompleta[7]?.agua_util_diaria || 0,
+            porcentajeProyectado: ((proyeccionCompleta[7]?.agua_util_diaria || 0) / aguaUtilDisponible) * 100
         };
+
+        console.log('Proyección calculada:', {
+            valorInicial: aguaUtilAnterior,
+            valorFinal: proyeccionFinal.aguaUtilDia8,
+            porcentaje: proyeccionFinal.porcentajeProyectado
+        });
+
+        return proyeccionFinal;
     } catch (error) {
         console.error('Error en calcularProyeccionAU:', error);
         return {
             proyeccionCompleta: [],
-            aguaUtilDia8: 0
+            aguaUtilDia8: 0,
+            porcentajeProyectado: 0
         };
     }
 }

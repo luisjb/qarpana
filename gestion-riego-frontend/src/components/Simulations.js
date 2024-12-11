@@ -646,33 +646,33 @@ function Simulations() {
                     </Grid>
                     
                     <Grid item xs={12} md={4}>
-                        <Widget 
-                            title="Proyección AU 10 días" 
-                            value={
-                                <Box sx={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    gap: 2,
-                                    '& .gauge': { flexShrink: 0 },
-                                    '& .value': { 
-                                        fontSize: '1.2rem',
-                                        opacity: 0.7,
-                                        marginLeft: 2
-                                    }
-                                }}>
-                                    <div className="gauge">
-                                        <GaugeIndicator 
-                                            percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial) * 100)}
-                                            size={80}
-                                        />
-                                    </div>
-                                    <span className="value">
-                                        {formatNumber(simulationData.proyeccionAU10Dias)}mm
-                                    </span>
-                                </Box>
-                            }
-                            icon="waterDrop"
-                        />
+                    <Widget 
+                        title="Proyección AU 10 días" 
+                        value={
+                            <Box sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: 2,
+                                '& .gauge': { flexShrink: 0 },
+                                '& .value': { 
+                                    fontSize: '1.2rem',
+                                    opacity: 0.7,
+                                    marginLeft: 2
+                                }
+                            }}>
+                                <div className="gauge">
+                                    <GaugeIndicator 
+                                        percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial) * 100)}
+                                        size={80}
+                                    />
+                                </div>
+                                <span className="value">
+                                    {formatNumber(simulationData.proyeccionAU10Dias)}mm
+                                </span>
+                            </Box>
+                        }
+                        icon="waterDrop"
+                    />
                     </Grid>
                 </Grid>
 
