@@ -242,7 +242,7 @@ exports.getSimulationData = async (req, res) => {
                 porcentajeAguaUtil
             });
 
-             console.log('Salida función:', {
+            /* console.log('Salida función:', {
                 aguaUtilDiaria,
                 aguaUtilUmbral,
                 estratosDisponibles,
@@ -250,7 +250,7 @@ exports.getSimulationData = async (req, res) => {
                 profundidadRaices,
                 gananciaAgua,
                 perdidaAgua
-            });
+            });*/
         
             return {
                 aguaUtilDiaria,
@@ -298,8 +298,9 @@ exports.getSimulationData = async (req, res) => {
             fechas: cambios.map(c => c.fecha_cambio),
             lluvias: cambios.map(c => c.precipitaciones || 0),
             riego: cambios.map(c => c.riego_cantidad || 0),
-            aguaUtil: cambios.map(c => c.agua_util_diaria || 0),
-            aguaUtilUmbral: cambios.map(() => (parseFloat(lote.agua_util_total || 0) * parseFloat(lote.porcentaje_agua_util_umbral || 0)) / 100),
+            // Usar los datos calculados en vez de los valores de la base de datos
+            aguaUtil: datosSimulacion.map(d => d.aguaUtilDiaria),
+            aguaUtilUmbral: datosSimulacion.map(d => d.aguaUtilUmbral),
             estadoFenologico: await getEstadoFenologico(loteId, diasDesdeSiembra),
             estadosFenologicos: await getEstadosFenologicos(loteId),
             fechaSiembra: lote.fecha_siembra,
@@ -309,16 +310,23 @@ exports.getSimulationData = async (req, res) => {
             cultivo: lote.nombre_cultivo,
             variedad: lote.variedad,
             porcentajeAguaUtilUmbral: parseFloat(lote.porcentaje_agua_util_umbral || 0),
-            porcentajeAguaUtil: cambios.length > 0 ? 
-                (parseFloat(cambios[cambios.length - 1].agua_util_diaria || 0) / parseFloat(lote.agua_util_total || 1)) * 100 : 0,
+            // Usar el último valor calculado para el porcentaje
+            porcentajeAguaUtil: datosSimulacion.length > 0 ? 
+                datosSimulacion[datosSimulacion.length - 1].porcentajeAguaUtil : 0,
             valores_estratos: lote.valores_estratos,
-            estratosDisponibles: cambios.map(c => c.estrato_alcanzado || 0),
-            // Datos de proyección
+            estratosDisponibles: datosSimulacion.map(d => d.estratosDisponibles),
             fechasProyeccion: pronosticos.map(p => p.fecha_pronostico),
             aguaUtilProyectada: pronosticos.map(p => p.agua_util_diaria || 0),
             proyeccionAU10Dias: pronosticos[7]?.agua_util_diaria || 0,
             fechaActualizacion: new Date().toISOString().split('T')[0]
         };
+
+        console.log('Datos de simulación finales:', {
+            aguaUtilMuestra: simulationData.aguaUtil.slice(0, 3),
+            porcentajeAguaUtil: simulationData.porcentajeAguaUtil,
+            estratosDisponibles: simulationData.estratosDisponibles.slice(0, 3)
+        });
+        
 
 
         /*console.log('Datos de simulación procesados:', {
