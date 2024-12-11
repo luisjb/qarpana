@@ -31,6 +31,11 @@ exports.getSimulationData = async (req, res) => {
         }
 
         
+        
+        const lote = result.rows[0];
+        const cambios = result.rows;
+        
+        
         console.log('Datos del lote:', {
             agua_util_total: lote.agua_util_total,
             porcentaje_agua_util_umbral: lote.porcentaje_agua_util_umbral
@@ -42,12 +47,7 @@ exports.getSimulationData = async (req, res) => {
             precipitaciones: c.precipitaciones,
             riego: c.riego_cantidad
         })));
-
-        const lote = result.rows[0];
-        const cambios = result.rows;
-
         
-
         // Función auxiliar para sumar valores numéricos con manejo de nulos
         const sumarValores = (array, propiedad) => {
             return array.reduce((sum, item) => {
@@ -320,7 +320,7 @@ exports.getSimulationData = async (req, res) => {
             fechaActualizacion: new Date().toISOString().split('T')[0]
         };
 
-        
+
         /*console.log('Datos de simulación procesados:', {
             aguaUtil: simulationData.aguaUtil,
             porcentajeAguaUtil: simulationData.porcentajeAguaUtil
@@ -452,7 +452,7 @@ function calcularPorcentajeAguaUtil(aguaUtilActual, aguaUtilTotal) {
     return aguaUtilTotal > 0 ? Math.round((aguaUtilActual / aguaUtilTotal) * 100) : 0;
 }
 
-async function calcularProyeccionAU(loteId) {
+async function calcularProyeccionAU(loteId, fechaUltimoCambio) {
     try {
         // Obtener último estado
         const { rows: [ultimoCambio] } = await pool.query(`
@@ -464,7 +464,10 @@ async function calcularProyeccionAU(loteId) {
             LIMIT 1
         `, [loteId]);
 
-        if (!ultimoCambio) return 0;
+        if (!ultimoCambio) return {
+            proyeccionCompleta: [],
+            aguaUtilDia8: 0
+        };
 
         // Obtener pronósticos futuros
         const { rows: pronosticos } = await pool.query(`
@@ -474,10 +477,8 @@ async function calcularProyeccionAU(loteId) {
             AND fecha_pronostico > $2
             ORDER BY fecha_pronostico ASC 
             LIMIT 8
-        `, [loteId, cambios[cambios.length - 1]?.fecha_cambio || new Date()]);
+        `, [loteId, ultimoCambio.fecha_cambio]);
 
-
-        // Retornamos un objeto con la proyección y el valor del día 8
         return {
             proyeccionCompleta: pronosticos,
             aguaUtilDia8: pronosticos[7]?.agua_util_diaria || 0
@@ -489,6 +490,4 @@ async function calcularProyeccionAU(loteId) {
             aguaUtilDia8: 0
         };
     }
-
-
 }
