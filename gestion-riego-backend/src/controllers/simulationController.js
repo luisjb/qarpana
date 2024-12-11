@@ -25,11 +25,24 @@ exports.getSimulationData = async (req, res) => {
 
 
 
+
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Lote no encontrado o sin datos' });
         }
 
         
+        console.log('Datos del lote:', {
+            agua_util_total: lote.agua_util_total,
+            porcentaje_agua_util_umbral: lote.porcentaje_agua_util_umbral
+        });
+
+        console.log('Muestra de cambios diarios:', cambios.slice(0, 3).map(c => ({
+            fecha: c.fecha_cambio,
+            agua_util_diaria: c.agua_util_diaria,
+            precipitaciones: c.precipitaciones,
+            riego: c.riego_cantidad
+        })));
+
         const lote = result.rows[0];
         const cambios = result.rows;
 
@@ -79,9 +92,9 @@ exports.getSimulationData = async (req, res) => {
         const lluviasEficientesAcumuladas = cambios.reduce((sum, c) => sum + (c.lluvia_efectiva || 0), 0);
 
         // Obtener estado fenológico actual
-        const diasDesdeSiembra = cambios.length > 0 ? 
-        Math.floor((new Date(cambios[cambios.length - 1].fecha_cambio) - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24)) :
-        Math.floor((new Date() - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24));
+        const diasDesdeSiembra = Math.floor(
+            (new Date() - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24)
+        );
         
         const estadoFenologico = await getEstadoFenologico(loteId, diasDesdeSiembra);
 
@@ -290,10 +303,10 @@ exports.getSimulationData = async (req, res) => {
                 (parseFloat(cambios[cambios.length - 1].agua_util_diaria || 0) / parseFloat(lote.agua_util_total || 1)) * 100 : 0,
             valores_estratos: lote.valores_estratos,
             estratosDisponibles: cambios.map(c => c.estrato_alcanzado || 0),
-            // Datos de proyección
-            fechasProyeccion: proyeccion.proyeccionCompleta.map(p => p.fecha_pronostico),
-            aguaUtilProyectada: proyeccion.proyeccionCompleta.map(p => p.agua_util_diaria || 0),
-            proyeccionAU10Dias: proyeccion.aguaUtilDia8,
+            // Agregar datos de proyección
+            fechasProyeccion: pronosticos.map(p => p.fecha_pronostico),
+            aguaUtilProyectada: pronosticos.map(p => p.agua_util_diaria || 0),
+            proyeccionAU10Dias: pronosticos[7]?.agua_util_diaria || 0,
             fechaActualizacion: new Date().toISOString().split('T')[0]
         };
 
@@ -444,17 +457,14 @@ async function calcularProyeccionAU(loteId) {
 
         // Obtener pronósticos futuros
         const { rows: pronosticos } = await pool.query(`
-            SELECT 
-                fecha_pronostico,
-                evapotranspiracion,
-                lluvia_efectiva,
-                agua_util_diaria
+            SELECT fecha_pronostico, agua_util_diaria
             FROM pronostico 
             WHERE lote_id = $1 
             AND fecha_pronostico > $2
             ORDER BY fecha_pronostico ASC 
             LIMIT 8
-        `, [loteId, ultimoCambio.fecha_cambio]);
+        `, [loteId, cambios[cambios.length - 1]?.fecha_cambio || new Date()]);
+
 
         // Retornamos un objeto con la proyección y el valor del día 8
         return {

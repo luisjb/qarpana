@@ -413,7 +413,7 @@ function Simulations() {
             {
                 type: 'line',
                 label: 'Agua Útil',
-                data: simulationData.aguaUtil,
+                data: [...simulationData.aguaUtil, ...new Array(simulationData.fechasProyeccion.length).fill(null)],
                 borderColor: 'rgb(255, 99, 132)',
                 borderWidth: 2,
                 fill: false,
@@ -424,10 +424,7 @@ function Simulations() {
             {
                 type: 'line',
                 label: 'Agua Útil Proyectada',
-                data: [
-                    ...new Array(simulationData.fechas.length).fill(null),
-                    ...simulationData.aguaUtilProyectada
-                ],
+                data: [...new Array(simulationData.fechas.length).fill(null), ...simulationData.aguaUtilProyectada],
                 borderColor: 'rgba(255, 99, 132, 0.5)',
                 borderWidth: 2,
                 borderDash: [5, 5],
