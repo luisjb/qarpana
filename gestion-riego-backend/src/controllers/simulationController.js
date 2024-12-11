@@ -95,6 +95,16 @@ exports.getSimulationData = async (req, res) => {
         const diasDesdeSiembra = Math.floor(
             (new Date() - new Date(lote.fecha_siembra)) / (1000 * 60 * 60 * 24)
         );
+
+        const { rows: pronosticos } = await pool.query(`
+            SELECT fecha_pronostico, agua_util_diaria
+            FROM pronostico 
+            WHERE lote_id = $1 
+            AND fecha_pronostico > $2
+            ORDER BY fecha_pronostico ASC 
+            LIMIT 8
+        `, [loteId, cambios[cambios.length - 1]?.fecha_cambio || new Date()]);
+
         
         const estadoFenologico = await getEstadoFenologico(loteId, diasDesdeSiembra);
 
@@ -303,13 +313,14 @@ exports.getSimulationData = async (req, res) => {
                 (parseFloat(cambios[cambios.length - 1].agua_util_diaria || 0) / parseFloat(lote.agua_util_total || 1)) * 100 : 0,
             valores_estratos: lote.valores_estratos,
             estratosDisponibles: cambios.map(c => c.estrato_alcanzado || 0),
-            // Agregar datos de proyección
+            // Datos de proyección
             fechasProyeccion: pronosticos.map(p => p.fecha_pronostico),
             aguaUtilProyectada: pronosticos.map(p => p.agua_util_diaria || 0),
             proyeccionAU10Dias: pronosticos[7]?.agua_util_diaria || 0,
             fechaActualizacion: new Date().toISOString().split('T')[0]
         };
 
+        
         /*console.log('Datos de simulación procesados:', {
             aguaUtil: simulationData.aguaUtil,
             porcentajeAguaUtil: simulationData.porcentajeAguaUtil
