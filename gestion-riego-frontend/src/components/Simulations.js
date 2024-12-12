@@ -277,9 +277,30 @@ function Simulations() {
             alert('Por favor, seleccione un lote y una campaña antes de abrir la corrección de días.');
         }
     };
+    // Función auxiliar para verificar si una fecha es válida
+    const isValidDate = (dateString) => {
+        const date = new Date(dateString);
+        return date instanceof Date && !isNaN(date);
+    };
 
-    const formatDate = (dateString) => format(new Date(dateString), 'dd/MM/yyyy');
-    const formatShortDate = (dateString) => format(new Date(dateString), 'dd/MM');
+    const formatDate = (dateString) => {
+        if (!dateString || !isValidDate(dateString)) return '';
+        try {
+            return format(new Date(dateString), 'dd/MM/yyyy');
+        } catch (error) {
+            console.error('Error formatting date:', error);
+            return '';
+        }
+    };
+    const formatShortDate = (dateString) => {
+        if (!dateString || !isValidDate(dateString)) return '';
+        try {
+            return format(new Date(dateString), 'dd/MM');
+        } catch (error) {
+            console.error('Error formatting short date:', error);
+            return '';
+        }
+    };
     const formatNumber = (value) => {
         if (value === null || value === undefined || isNaN(value)) {
             return 0;
@@ -394,12 +415,15 @@ function Simulations() {
     };
 
     const chartData = simulationData ? {
-        labels: [...simulationData.fechas, ...simulationData.fechasProyeccion],
+        labels: [
+            ...(simulationData.fechas || []).filter(date => isValidDate(date)),
+            ...(simulationData.fechasProyeccion || []).filter(date => isValidDate(date))
+        ],
         datasets: [
             {
                 type: 'bar',
                 label: 'Lluvias',
-                data: simulationData.lluvias,
+                data: simulationData.lluvias || [],
                 backgroundColor: 'rgba(54, 162, 235, 0.6)',
                 order: 1
             },

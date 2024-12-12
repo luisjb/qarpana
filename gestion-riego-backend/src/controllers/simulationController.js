@@ -297,11 +297,11 @@ exports.getSimulationData = async (req, res) => {
         
 
         const simulationData = {
-            fechas: cambios.map(c => c.fecha_cambio),
-            lluvias: cambios.map(c => c.precipitaciones || 0),
-            riego: cambios.map(c => c.riego_cantidad || 0),
+            fechas: cambios.map(c => c.fecha_cambio) || [],
+            lluvias: cambios.map(c => c.precipitaciones || 0) || [],
+            riego: cambios.map(c => c.riego_cantidad || 0) || [],
             // Usar los datos calculados en vez de los valores de la base de datos
-            aguaUtil: datosSimulacion.map(d => d.aguaUtilDiaria),
+            aguaUtil: datosSimulacion.map(d => d.aguaUtilDiaria || 0) || [],
             //aguaUtilUmbral: datosSimulacion.map(d => d.aguaUtilUmbral),
             estadoFenologico: await getEstadoFenologico(loteId, diasDesdeSiembra),
             estadosFenologicos: await getEstadosFenologicos(loteId),
@@ -317,10 +317,9 @@ exports.getSimulationData = async (req, res) => {
                 datosSimulacion[datosSimulacion.length - 1].porcentajeAguaUtil : 0,
             valores_estratos: lote.valores_estratos,
             estratosDisponibles: datosSimulacion.map(d => d.estratosDisponibles),
-            fechasProyeccion: proyeccion.proyeccionCompleta.map(p => p.fecha),
-            fechasProyeccion: proyeccion.proyeccionCompleta.map(p => p.fecha),
-            aguaUtilProyectada: proyeccion.proyeccionCompleta.map(p => p.agua_util_diaria),
-            proyeccionAU10Dias: proyeccion.aguaUtilDia8,
+            fechasProyeccion: (proyeccion.proyeccionCompleta || []).map(p => p.fecha),
+            aguaUtilProyectada: (proyeccion.proyeccionCompleta || []).map(p => p.agua_util_diaria || 0),
+            proyeccionAU10Dias: proyeccion.aguaUtilDia8 || 0,
             // Para el widget de proyección
             porcentajeProyectado: proyeccion.porcentajeProyectado,
             aguaUtilUmbral: [
