@@ -620,7 +620,7 @@ function Simulations() {
                     </Grid>
                     <Grid item xs={12} md={4}>
                     <Widget 
-                        title="AU Total" 
+                        title="AU Inicial" 
                         value={formatNumber(simulationData.auInicial)} 
                         unit="mm" 
                         icon="waterDrop"
