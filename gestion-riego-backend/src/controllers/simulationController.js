@@ -277,16 +277,17 @@ exports.getSimulationData = async (req, res) => {
             const resultados = calcularAguaUtilPorEstratos(
                 cambio.dias,
                 lote.valores_estratos,
-                lote.aguaUtilTotal,
+                lote.agua_util_total,
                 lote.porcentaje_agua_util_umbral,
                 lote.indice_crecimiento_radicular,
-                lote.indice_capacidad_extraccion, // Agregamos este parámetro
                 cambio.evapotranspiracion,
                 cambio.etc,
                 cambio.lluvia_efectiva,
                 cambio.riego_cantidad,
                 index > 0 ? datosSimulacion[index - 1]?.aguaUtilDiaria : undefined,
-                index > 0 ? datosSimulacion[index - 1]?.estratosDisponibles : undefined
+                index > 0 ? datosSimulacion[index - 1]?.estratosDisponibles : undefined,
+                lote.indice_capacidad_extraccion // Agregamos este parámetro
+
             );
 
             /*console.log('Día', cambio.dias, {
