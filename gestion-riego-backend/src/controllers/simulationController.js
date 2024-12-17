@@ -278,7 +278,7 @@ exports.getSimulationData = async (req, res) => {
                 cambio.dias,
                 lote.valores_estratos,
                 lote.aguaUtilTotal,
-                lote.porcentajeAguaUtil,
+                lote.porcentaje_agua_util_umbral,
                 lote.indice_crecimiento_radicular,
                 lote.indice_capacidad_extraccion, // Agregamos este parámetro
                 cambio.evapotranspiracion,
@@ -314,12 +314,12 @@ exports.getSimulationData = async (req, res) => {
             estadoFenologico: await getEstadoFenologico(loteId, diasDesdeSiembra),
             estadosFenologicos: await getEstadosFenologicos(loteId),
             fechaSiembra: lote.fecha_siembra,
-            auInicial: parseFloat(lote.aguaUtilTotal || 0),
+            auInicial: aguaUtilTotal,
             lluviasEfectivasAcumuladas: cambios.reduce((sum, c) => sum + (parseFloat(c.lluvia_efectiva) || 0), 0),
             riegoAcumulado: cambios.reduce((sum, c) => sum + (parseFloat(c.riego_cantidad) || 0), 0),
             cultivo: lote.nombre_cultivo,
             variedad: lote.variedad,
-            porcentajeAguaUtilUmbral: parseFloat(lote.porcentajeAguaUtil || 0),
+            porcentajeAguaUtilUmbral: parseFloat(lote.porcentaje_agua_util_umbral || 0),
             // Usar el último valor calculado para el porcentaje
             porcentajeAguaUtil: datosSimulacion.length > 0 ? 
                 datosSimulacion[datosSimulacion.length - 1].porcentajeAguaUtil : 0,
