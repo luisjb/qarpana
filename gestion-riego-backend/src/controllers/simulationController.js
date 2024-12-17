@@ -238,7 +238,7 @@ exports.getSimulationData = async (req, res) => {
             .reduce((sum, valor) => sum + parseFloat(valor), 0);            
             
             // Calculamos el porcentaje de agua útil
-            const porcentajeAguaUtil = (aguaUtilDiaria / aguaUtilDisponibleActual) * 100;
+            const porcentajeAguaUtil = (aguaUtilDiaria / aguaUtilMaximaActual) * 100;
 
         
             // Calculamos el agua útil umbral
