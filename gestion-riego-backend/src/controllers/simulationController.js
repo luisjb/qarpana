@@ -274,6 +274,13 @@ exports.getSimulationData = async (req, res) => {
         // Procesamos los datos día a día
         let datosSimulacion = [];
         cambios.forEach((cambio, index) => {
+            console.log('Datos cambio diario:', {
+                fecha: cambio.fecha_cambio,
+                evapotranspiracion: cambio.evapotranspiracion,
+                etc: cambio.etc,
+                kc: cambio.kc,
+                perdidaAgua: Math.max(cambio.evapotranspiracion || 0, cambio.etc || 0)
+            });
             const resultados = calcularAguaUtilPorEstratos(
                 cambio.dias,
                 lote.valores_estratos,
