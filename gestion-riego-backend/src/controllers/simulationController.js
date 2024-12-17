@@ -142,7 +142,7 @@ exports.getSimulationData = async (req, res) => {
           // Función para calcular el agua útil acumulada por estratos
         const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, 
             indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, 
-            aguaUtilAnterior, estratoAnterior, indice_capacidad_extraccion) => {
+            aguaUtilAnterior, estratoAnterior, indice_capacidad_extraccion, kc) => {
             /*console.log('Entrada función:', {
                 dia,
                 valoresEstratos,
@@ -167,6 +167,8 @@ exports.getSimulationData = async (req, res) => {
                 };
             }
             
+            
+
             const numEstratos = valoresEstratos.length;
             const PROFUNDIDAD_POR_ESTRATO = 20; // 20 cm por estrato
             
@@ -190,13 +192,15 @@ exports.getSimulationData = async (req, res) => {
             // Valor por estrato (agua útil total dividida por número de estratos)
             const valorPorEstrato = parseFloat(aguaUtilTotal) / numEstratos;
 
+            const etcCalculado = parseFloat(evapotranspiracion || 0) * parseFloat(kc || 0);
+
             // Calculamos la capacidad de extracción como porcentaje del agua útil anterior
             const capacidadExtraccion = aguaUtilAnterior ? 
             (parseFloat(aguaUtilAnterior) * parseFloat(indice_capacidad_extraccion)) / 100 : 0;
 
             // Aplicamos los cambios diarios
             const perdidaAgua = Math.min(
-                parseFloat(etc || 0),
+                etcCalculado,
                 capacidadExtraccion
             );
             const gananciaAgua = parseFloat(lluvia_efectiva || 0) + parseFloat(riego_cantidad || 0);
@@ -293,7 +297,8 @@ exports.getSimulationData = async (req, res) => {
                 cambio.riego_cantidad,
                 index > 0 ? datosSimulacion[index - 1]?.aguaUtilDiaria : undefined,
                 index > 0 ? datosSimulacion[index - 1]?.estratosDisponibles : undefined,
-                lote.indice_capacidad_extraccion // Agregamos este parámetro
+                lote.indice_capacidad_extraccion, 
+                cambio.kc  
 
             );
 
