@@ -210,14 +210,15 @@ exports.getSimulationData = async (req, res) => {
 
             if (aguaUtilAnterior === undefined) {
                 // Primer día: consideramos el primer estrato
-                aguaUtilDiaria = valorPorEstrato - perdidaAgua + gananciaAgua;
+                aguaUtilDiaria = parseFloat(valoresEstratos[0]) - perdidaAgua + gananciaAgua;
             } else {
                 // Días subsiguientes: siempre sumamos el agua útil anterior
                 aguaUtilDiaria = aguaUtilAnterior;
                 
                 if (estratosDisponiblesFinales > estratoAnterior) {
                     // Si alcanzamos un nuevo estrato, sumamos su valor
-                    aguaUtilDiaria += valorPorEstrato;
+                    const nuevoEstrato = estratoAnterior || 0;
+                    aguaUtilDiaria += parseFloat(valoresEstratos[nuevoEstrato]);
                 }
                 
                 // Aplicamos pérdidas y ganancias
@@ -252,7 +253,9 @@ exports.getSimulationData = async (req, res) => {
                 porcentajeAguaUtil,
                 capacidadExtraccion,
                 etc: parseFloat(etc || 0),
-                perdidaAguaUsada: perdidaAgua
+                perdidaAguaUsada: perdidaAgua,
+                nuevoEstratoValor: estratosDisponiblesFinales > estratoAnterior ? 
+                    valoresEstratos[estratoAnterior || 0] : 'No hay nuevo estrato'
             });
 
             /* console.log('Salida función:', {
