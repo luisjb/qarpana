@@ -511,38 +511,20 @@ async function calcularProyeccionAU(loteId) {
     try {
         // Obtener último cambio diario real con datos válidos
         const { rows: [ultimoCambio] } = await pool.query(`
-            WITH UltimoValorValido AS (
-                SELECT cd.agua_util_diaria, cd.fecha_cambio
-                FROM cambios_diarios cd
-                WHERE cd.lote_id = $1 
-                AND cd.agua_util_diaria IS NOT NULL
-                ORDER BY cd.fecha_cambio DESC
-                LIMIT 1
-            )
-            SELECT 
-                cd.*,
-                l.agua_util_total,
-                l.porcentaje_agua_util_umbral,
-                c.indice_crecimiento_radicular,
-                l.fecha_siembra,
-                uvv.agua_util_diaria as ultimo_valor_valido,
+            SELECT cd.*, l.fecha_siembra, l.porcentaje_agua_util_umbral,
+                c.indice_capacidad_extraccion,
                 (SELECT array_agg(valor ORDER BY estratos) 
                     FROM agua_util_inicial 
                     WHERE lote_id = l.id) as valores_estratos
             FROM cambios_diarios cd
             JOIN lotes l ON cd.lote_id = l.id
             JOIN cultivos c ON l.cultivo_id = c.id
-            CROSS JOIN UltimoValorValido uvv
-            WHERE cd.lote_id = $1
+            WHERE cd.lote_id = $1 
             ORDER BY cd.fecha_cambio DESC
             LIMIT 1
         `, [loteId]);
 
-        console.log('Datos para proyección:', {
-            ultimoValorValido: ultimoCambio?.ultimo_valor_valido,
-            estratoAlcanzado: ultimoCambio?.estrato_alcanzado,
-            valoresEstratos: ultimoCambio?.valores_estratos
-        });
+        
 
         if (!ultimoCambio) return { proyeccionCompleta: [], aguaUtilDia8: 0 };
 
@@ -569,7 +551,7 @@ async function calcularProyeccionAU(loteId) {
         `, [loteId, ultimoCambio.fecha_cambio]);
 
         // Usar el último valor válido como punto de partida
-        let aguaUtilAnterior = parseFloat(ultimoCambio.ultimo_valor_valido || aguaUtilDisponible);
+        let aguaUtilAnterior = ultimoCambio.agua_util_diaria;
         let proyeccionCompleta = [];
 
         console.log('Punto de partida proyección:', {
@@ -580,41 +562,36 @@ async function calcularProyeccionAU(loteId) {
 
         // Calcular agua útil día por día
         for (const pronostico of pronosticos) {
+             // Calcular capacidad de extracción del día
+             const capacidadExtraccion = (aguaUtilAnterior * parseFloat(ultimoCambio.indice_capacidad_extraccion)) / 100;
+            
             // Calcular pérdidas y ganancias
-            const perdidaAgua = parseFloat(pronostico.etc || 0);
+            const perdidaAgua = Math.min(
+                parseFloat(pronostico.etc || 0),
+                capacidadExtraccion
+            );
             const gananciaAgua = parseFloat(pronostico.lluvia_efectiva || 0);
 
             // Calcular nueva agua útil considerando los límites
-            let aguaUtilDiaria = Math.min(
-                aguaUtilDisponible,
-                Math.max(0, aguaUtilAnterior - perdidaAgua + gananciaAgua)
-            );
+            aguaUtilAnterior = Math.max(0, aguaUtilAnterior - perdidaAgua + gananciaAgua);
+
 
             proyeccionCompleta.push({
                 fecha: pronostico.fecha_pronostico,
-                agua_util_diaria: aguaUtilDiaria,
+                agua_util_diaria: aguaUtilAnterior,
                 estratos_disponibles: estratosAlcanzados,
                 lluvia_efectiva: pronostico.lluvia_efectiva,
                 etc: pronostico.etc,
                 precipitaciones: pronostico.precipitaciones
             });
 
-            aguaUtilAnterior = aguaUtilDiaria;
         }
 
-        const proyeccionFinal = {
+        return {
             proyeccionCompleta,
             aguaUtilDia8: proyeccionCompleta[7]?.agua_util_diaria || 0,
             porcentajeProyectado: ((proyeccionCompleta[7]?.agua_util_diaria || 0) / aguaUtilDisponible) * 100
         };
-
-        console.log('Proyección calculada:', {
-            valorInicial: aguaUtilAnterior,
-            valorFinal: proyeccionFinal.aguaUtilDia8,
-            porcentaje: proyeccionFinal.porcentajeProyectado
-        });
-
-        return proyeccionFinal;
     } catch (error) {
         console.error('Error en calcularProyeccionAU:', error);
         return {
