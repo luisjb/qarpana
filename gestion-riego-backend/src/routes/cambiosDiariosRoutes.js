@@ -334,4 +334,80 @@ router.delete('/:id', verifyToken, async (req, res) => {
     }
 });
 
+router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const { datos, tipo, ids } = req.body;
+
+        // Obtener todos los lotes afectados
+        let lotes = [];
+        if (tipo === 'campo') {
+            const lotesQuery = await client.query(
+                'SELECT id FROM lotes WHERE campo_id = ANY($1)',
+                [ids]
+            );
+            lotes = lotesQuery.rows.map(row => row.id);
+        } else {
+            lotes = ids;
+        }
+
+        // Procesar cada fecha y valor de evapotranspiración
+        for (const { fecha, evapotranspiracion } of datos) {
+            for (const loteId of lotes) {
+                // Verificar si existe un registro para esa fecha
+                const { rows: [existingRecord] } = await client.query(
+                    'SELECT id FROM cambios_diarios WHERE lote_id = $1 AND fecha_cambio = $2',
+                    [loteId, fecha]
+                );
+
+                // Obtener datos necesarios del lote
+                const { rows: [loteInfo] } = await client.query(
+                    'SELECT fecha_siembra FROM lotes WHERE id = $1',
+                    [loteId]
+                );
+
+                // Calcular días desde siembra
+                const diasDesdeSiembra = Math.floor(
+                    (new Date(fecha) - new Date(loteInfo.fecha_siembra)) / (1000 * 60 * 60 * 24)
+                );
+
+                // Calcular KC y ETC
+                const kc = await calcularKCPorPendiente(client, loteId, diasDesdeSiembra);
+                const etc = evapotranspiracion * kc;
+
+                if (existingRecord) {
+                    // Actualizar registro existente
+                    await client.query(
+                        `UPDATE cambios_diarios 
+                        SET evapotranspiracion = $1, etc = $2, kc = $3
+                        WHERE id = $4`,
+                        [evapotranspiracion, etc, kc, existingRecord.id]
+                    );
+                } else {
+                    // Crear nuevo registro
+                    await client.query(
+                        `INSERT INTO cambios_diarios 
+                        (lote_id, fecha_cambio, evapotranspiracion, etc, kc, dias)
+                        VALUES ($1, $2, $3, $4, $5, $6)`,
+                        [loteId, fecha, evapotranspiracion, etc, kc, diasDesdeSiembra]
+                    );
+                }
+            }
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: 'Actualización masiva completada con éxito' });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Error en actualización masiva:', err);
+        res.status(500).json({ 
+            error: 'Error del servidor',
+            details: err.message 
+        });
+    } finally {
+        client.release();
+    }
+});
+
 module.exports = router;
