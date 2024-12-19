@@ -18,6 +18,7 @@ exports.getSimulationData = async (req, res) => {
                 LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
                 WHERE l.id = $1
                 ${campaña ? 'AND l.campaña = $2' : ''}
+                AND (cd.fecha_cambio >= l.fecha_siembra OR cd.fecha_cambio IS NULL)
                 ORDER BY cd.fecha_cambio`, 
             campaña ? [loteId, campaña] : [loteId]
         );
@@ -344,6 +345,8 @@ exports.getSimulationData = async (req, res) => {
             fechasProyeccion: (proyeccion.proyeccionCompleta || []).map(p => p.fecha),
             aguaUtilProyectada: (proyeccion.proyeccionCompleta || []).map(p => p.agua_util_diaria || 0),
             proyeccionAU10Dias: proyeccion.aguaUtilDia8 || 0,
+            fechaActualizacion: new Date().toISOString().split('T')[0],
+
             // Para el widget de proyección
             porcentajeProyectado: proyeccion.porcentajeProyectado,
             aguaUtilUmbral: [
