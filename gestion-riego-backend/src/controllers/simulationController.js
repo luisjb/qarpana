@@ -577,7 +577,6 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
             });
         }
 
-        console.log('Perdida de agua: ', perdidaAgua);
         const proyeccionFinal = {
             proyeccionCompleta,
             aguaUtilDia8: proyeccionCompleta[6]?.agua_util_diaria || 0, // Cambiado de 7 a 6 (índice)
