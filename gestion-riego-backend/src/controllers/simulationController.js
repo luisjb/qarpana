@@ -512,34 +512,32 @@ function calcularPorcentajeAguaUtil(aguaUtilActual, aguaUtilTotal) {
 
 async function calcularProyeccionAU(loteId) {
     try {
-        // Obtener último cambio diario real con datos válidos
-        const { rows: [ultimoValorReal] } = await pool.query(`
-            SELECT cd.agua_util_diaria
+        const { rows: [ultimoCambio] } = await pool.query(`
+            SELECT cd.*, l.agua_util_total, l.porcentaje_agua_util_umbral,
+                   l.fecha_siembra, c.indice_capacidad_extraccion,
+                   (SELECT array_agg(valor ORDER BY estratos) 
+                    FROM agua_util_inicial 
+                    WHERE lote_id = l.id) as valores_estratos
             FROM cambios_diarios cd
             JOIN lotes l ON cd.lote_id = l.id
+            JOIN cultivos c ON l.cultivo_id = c.id
             WHERE cd.lote_id = $1 
             AND cd.agua_util_diaria IS NOT NULL
             ORDER BY cd.fecha_cambio DESC
             LIMIT 1
         `, [loteId]);
-        
-
-        
 
         if (!ultimoCambio) return { proyeccionCompleta: [], aguaUtilDia8: 0 };
 
-        // Calcular agua útil disponible total según estratos alcanzados
+        let aguaUtilAnterior = parseFloat(ultimoCambio.agua_util_diaria || 0);
         const estratosAlcanzados = ultimoCambio.estrato_alcanzado || 1;
         const aguaUtilDisponible = ultimoCambio.valores_estratos
             ?.slice(0, estratosAlcanzados)
             .reduce((sum, valor) => sum + parseFloat(valor), 0) || 0;
 
-        // Obtener pronósticos futuros
         const { rows: pronosticos } = await pool.query(`
             SELECT 
                 fecha_pronostico,
-                prono_dias,
-                precipitaciones,
                 evapotranspiracion,
                 etc,
                 lluvia_efectiva
@@ -550,41 +548,20 @@ async function calcularProyeccionAU(loteId) {
             LIMIT 8
         `, [loteId, ultimoCambio.fecha_cambio]);
 
-        // Usar el último valor válido como punto de partida
-        let aguaUtilAnterior = parseFloat(ultimoValorReal.agua_util_diaria);
         let proyeccionCompleta = [];
-
-        console.log('Punto de partida proyección:', {
-            aguaUtilAnterior,
-            aguaUtilDisponible,
-            fecha: ultimoCambio.fecha_cambio
-        });
-
-        // Calcular agua útil día por día
         for (const pronostico of pronosticos) {
-             // Calcular capacidad de extracción del día
-             const capacidadExtraccion = (aguaUtilAnterior * parseFloat(ultimoCambio.indice_capacidad_extraccion)) / 100;
-            
-            // Calcular pérdidas y ganancias
-            const perdidaAgua = Math.min(
-                parseFloat(pronostico.etc || 0),
-                capacidadExtraccion
-            );
+            const capacidadExtraccion = (aguaUtilAnterior * parseFloat(ultimoCambio.indice_capacidad_extraccion)) / 100;
+            const perdidaAgua = Math.min(parseFloat(pronostico.etc || 0), capacidadExtraccion);
             const gananciaAgua = parseFloat(pronostico.lluvia_efectiva || 0);
-
-            // Calcular nueva agua útil considerando los límites
             aguaUtilAnterior = Math.max(0, aguaUtilAnterior - perdidaAgua + gananciaAgua);
-
 
             proyeccionCompleta.push({
                 fecha: pronostico.fecha_pronostico,
                 agua_util_diaria: aguaUtilAnterior,
                 estratos_disponibles: estratosAlcanzados,
                 lluvia_efectiva: pronostico.lluvia_efectiva,
-                etc: pronostico.etc,
-                precipitaciones: pronostico.precipitaciones
+                etc: pronostico.etc
             });
-
         }
 
         return {
@@ -603,9 +580,3 @@ async function calcularProyeccionAU(loteId) {
 }
 
 
-function calcularLluviaEfectiva(precipitaciones) {
-    const pp = Number(precipitaciones) || 0;
-    if (pp === 0) return 0;
-    if (pp < 15) return pp;
-    return parseFloat((2.43 * Math.pow(pp, 0.667)).toFixed(2));
-}
