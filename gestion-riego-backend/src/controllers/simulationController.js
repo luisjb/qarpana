@@ -115,10 +115,6 @@ exports.getSimulationData = async (req, res) => {
         // Obtener todos los estados fenológicos
         const estadosFenologicos = await getEstadosFenologicos(loteId);
 
-        const ultimaAguaUtil = datosSimulacion[datosSimulacion.length - 1]?.aguaUtilDiaria || 0;
-        const proyeccion = await calcularProyeccionAU(loteId, ultimaAguaUtil);
-        console.log('Proyección calculada:', proyeccion);
-
         const todasLasFechas = [
             ...cambios.map(c => c.fecha_cambio),
             ...proyeccion.proyeccionCompleta.map(p => p.fecha)
@@ -318,6 +314,9 @@ exports.getSimulationData = async (req, res) => {
             });
         });
         
+        const ultimaAguaUtil = datosSimulacion[datosSimulacion.length - 1]?.aguaUtilDiaria || 0;
+        const proyeccion = await calcularProyeccionAU(loteId, ultimaAguaUtil);
+        console.log('Proyección calculada:', proyeccion);
 
         const simulationData = {
             fechas: cambios.map(c => c.fecha_cambio) || [],
