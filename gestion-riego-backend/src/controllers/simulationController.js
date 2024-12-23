@@ -562,20 +562,26 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
  
             aguaUtilAnterior = Math.max(0, aguaUtilAnterior - perdidaAgua + gananciaAgua);
  
+            const aguaUtilMaximaActual = ultimoCambio.valores_estratos
+                .slice(0, estratosAlcanzados)
+                .reduce((sum, valor) => sum + parseFloat(valor), 0);
+            
             proyeccionCompleta.push({
                 fecha: pronostico.fecha_pronostico,
                 agua_util_diaria: aguaUtilAnterior,
                 estratos_disponibles: estratosAlcanzados,
                 lluvia_efectiva: pronostico.lluvia_efectiva,
                 etc: pronostico.etc,
-                precipitaciones: pronostico.precipitaciones
+                aguaUtilMaximaActual,
+                porcentajeAguaUtil: (aguaUtilAnterior / aguaUtilMaximaActual) * 100
             });
         }
- 
+
+        console.log('Perdida de agua: ', perdidaAgua);
         const proyeccionFinal = {
             proyeccionCompleta,
             aguaUtilDia8: proyeccionCompleta[6]?.agua_util_diaria || 0, // Cambiado de 7 a 6 (índice)
-            porcentajeProyectado: ((proyeccionCompleta[6]?.agua_util_diaria || 0) / aguaUtilDisponible) * 100
+            porcentajeProyectado: proyeccionCompleta[6]?.porcentajeAguaUtil || 0
         };
  
         console.log('Proyección calculada:', {
