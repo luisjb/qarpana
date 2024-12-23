@@ -115,10 +115,8 @@ exports.getSimulationData = async (req, res) => {
         // Obtener todos los estados fenológicos
         const estadosFenologicos = await getEstadosFenologicos(loteId);
 
-        // Cálculo de proyección a 10 días
-        const proyeccionAU10Dias = await calcularProyeccionAU(loteId);
-
-        const proyeccion = await calcularProyeccionAU(loteId);
+        const ultimaAguaUtil = datosSimulacion[datosSimulacion.length - 1]?.aguaUtilDiaria || 0;
+        const proyeccion = await calcularProyeccionAU(loteId, ultimaAguaUtil);
         console.log('Proyección calculada:', proyeccion);
 
         const todasLasFechas = [
@@ -510,7 +508,7 @@ function calcularPorcentajeAguaUtil(aguaUtilActual, aguaUtilTotal) {
     return aguaUtilTotal > 0 ? Math.round((aguaUtilActual / aguaUtilTotal) * 100) : 0;
 }
 
-async function calcularProyeccionAU(loteId) {
+async function calcularProyeccionAU(loteId, aguaUtilInicial) {
     try {
         const { rows: [ultimoCambio] } = await pool.query(`
             SELECT cd.*, l.agua_util_total, l.porcentaje_agua_util_umbral,
@@ -522,22 +520,29 @@ async function calcularProyeccionAU(loteId) {
             JOIN lotes l ON cd.lote_id = l.id
             JOIN cultivos c ON l.cultivo_id = c.id
             WHERE cd.lote_id = $1 
-            AND cd.agua_util_diaria IS NOT NULL
             ORDER BY cd.fecha_cambio DESC
             LIMIT 1
         `, [loteId]);
-
+ 
         if (!ultimoCambio) return { proyeccionCompleta: [], aguaUtilDia8: 0 };
-
-        let aguaUtilAnterior = parseFloat(ultimoCambio.agua_util_diaria || 0);
+ 
+        let aguaUtilAnterior = parseFloat(aguaUtilInicial);
         const estratosAlcanzados = ultimoCambio.estrato_alcanzado || 1;
         const aguaUtilDisponible = ultimoCambio.valores_estratos
             ?.slice(0, estratosAlcanzados)
             .reduce((sum, valor) => sum + parseFloat(valor), 0) || 0;
-
+ 
+        console.log('Punto de partida proyección:', {
+            aguaUtilAnterior,
+            aguaUtilDisponible,
+            fecha: ultimoCambio.fecha_cambio
+        });
+ 
         const { rows: pronosticos } = await pool.query(`
             SELECT 
                 fecha_pronostico,
+                prono_dias,
+                precipitaciones,
                 evapotranspiracion,
                 etc,
                 lluvia_efectiva
@@ -547,28 +552,44 @@ async function calcularProyeccionAU(loteId) {
             ORDER BY fecha_pronostico ASC 
             LIMIT 8
         `, [loteId, ultimoCambio.fecha_cambio]);
-
+ 
         let proyeccionCompleta = [];
+ 
         for (const pronostico of pronosticos) {
             const capacidadExtraccion = (aguaUtilAnterior * parseFloat(ultimoCambio.indice_capacidad_extraccion)) / 100;
-            const perdidaAgua = Math.min(parseFloat(pronostico.etc || 0), capacidadExtraccion);
+            
+            const perdidaAgua = Math.min(
+                parseFloat(pronostico.etc || 0),
+                capacidadExtraccion
+            );
             const gananciaAgua = parseFloat(pronostico.lluvia_efectiva || 0);
+ 
             aguaUtilAnterior = Math.max(0, aguaUtilAnterior - perdidaAgua + gananciaAgua);
-
+ 
             proyeccionCompleta.push({
                 fecha: pronostico.fecha_pronostico,
                 agua_util_diaria: aguaUtilAnterior,
                 estratos_disponibles: estratosAlcanzados,
                 lluvia_efectiva: pronostico.lluvia_efectiva,
-                etc: pronostico.etc
+                etc: pronostico.etc,
+                precipitaciones: pronostico.precipitaciones
             });
         }
-
-        return {
+ 
+        const proyeccionFinal = {
             proyeccionCompleta,
             aguaUtilDia8: proyeccionCompleta[7]?.agua_util_diaria || 0,
             porcentajeProyectado: ((proyeccionCompleta[7]?.agua_util_diaria || 0) / aguaUtilDisponible) * 100
         };
+ 
+        console.log('Proyección calculada:', {
+            valorInicial: aguaUtilInicial,
+            valorFinal: proyeccionFinal.aguaUtilDia8,
+            porcentaje: proyeccionFinal.porcentajeProyectado
+        });
+ 
+        return proyeccionFinal;
+ 
     } catch (error) {
         console.error('Error en calcularProyeccionAU:', error);
         return {
@@ -577,6 +598,5 @@ async function calcularProyeccionAU(loteId) {
             porcentajeProyectado: 0
         };
     }
-}
-
+ }
 
