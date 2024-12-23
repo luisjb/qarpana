@@ -18,7 +18,7 @@ function CambiosDiarios() {
     const [openDialog, setOpenDialog] = useState(false);
     const [editing, setEditing] = useState(false);
     const [openEvapDialog, setOpenEvapDialog] = useState(false);
-    const [evapMasiva, setEvapMasiva] = useState([{ fecha: '', evapotranspiracion: '' }]);
+    const [evapMasiva, setEvapMasiva] = useState([{ fecha: '', evapotranspiracion: '', precipitaciones: '' }]);
     const [tipoEvapMasiva, setTipoEvapMasiva] = useState('campo');
     const [selectedItems, setSelectedItems] = useState([]);
     const [availableItems, setAvailableItems] = useState([]);
@@ -414,6 +414,16 @@ function CambiosDiarios() {
                                     label="Evapotranspiración"
                                     type="number"
                                     value={item.evapotranspiracion}
+                                    onChange={(e) => handleEvapInputChange(index, e)}
+                                />
+                            </Grid>
+                            <Grid item xs={3}>
+                                <TextField
+                                    fullWidth
+                                    name="precipitaciones"
+                                    label="Precipitaciones"
+                                    type="number"
+                                    value={item.precipitaciones || ''}
                                     onChange={(e) => handleEvapInputChange(index, e)}
                                 />
                             </Grid>

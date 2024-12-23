@@ -353,7 +353,7 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
         }
 
         // Procesar cada fecha y valor de evapotranspiración
-        for (const { fecha, evapotranspiracion } of datos) {
+        for (const { fecha, evapotranspiracion, precipitaciones  } of datos) {
             for (const loteId of lotes) {
                 // Verificar si existe un registro para esa fecha
                 const { rows: [existingRecord] } = await client.query(
@@ -375,22 +375,26 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
                 // Calcular KC y ETC
                 const kc = await calcularKCPorPendiente(client, loteId, diasDesdeSiembra);
                 const etc = evapotranspiracion * kc;
+                const lluvia_efectiva = precipitaciones ? calcularLluviaEfectiva(precipitaciones) : 0;
 
                 if (existingRecord) {
                     // Actualizar registro existente
                     await client.query(
                         `UPDATE cambios_diarios 
-                        SET evapotranspiracion = $1, etc = $2, kc = $3
-                        WHERE id = $4`,
-                        [evapotranspiracion, etc, kc, existingRecord.id]
+                        SET evapotranspiracion = $1, etc = $2, kc = $3, 
+                            precipitaciones = $4, lluvia_efectiva = $5
+                        WHERE id = $6`,
+                        [evapotranspiracion, etc, kc, precipitaciones || 0, lluvia_efectiva, existingRecord.id]
                     );
                 } else {
                     // Crear nuevo registro
                     await client.query(
                         `INSERT INTO cambios_diarios 
-                        (lote_id, fecha_cambio, evapotranspiracion, etc, kc, dias)
-                        VALUES ($1, $2, $3, $4, $5, $6)`,
-                        [loteId, fecha, evapotranspiracion, etc, kc, diasDesdeSiembra]
+                        (lote_id, fecha_cambio, evapotranspiracion, etc, kc, dias,
+                            precipitaciones, lluvia_efectiva)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                        [loteId, fecha, evapotranspiracion, etc, kc, diasDesdeSiembra, 
+                            precipitaciones || 0, lluvia_efectiva]
                     );
                 }
             }
