@@ -546,7 +546,7 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
             WHERE lote_id = $1 
             AND fecha_pronostico > $2
             ORDER BY fecha_pronostico ASC 
-            LIMIT 8
+            LIMIT 7
         `, [loteId, ultimoCambio.fecha_cambio]);
  
         let proyeccionCompleta = [];
@@ -574,8 +574,8 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
  
         const proyeccionFinal = {
             proyeccionCompleta,
-            aguaUtilDia8: proyeccionCompleta[7]?.agua_util_diaria || 0,
-            porcentajeProyectado: ((proyeccionCompleta[7]?.agua_util_diaria || 0) / aguaUtilDisponible) * 100
+            aguaUtilDia8: proyeccionCompleta[6]?.agua_util_diaria || 0, // Cambiado de 7 a 6 (índice)
+            porcentajeProyectado: ((proyeccionCompleta[6]?.agua_util_diaria || 0) / aguaUtilDisponible) * 100
         };
  
         console.log('Proyección calculada:', {
