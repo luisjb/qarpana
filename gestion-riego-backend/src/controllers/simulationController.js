@@ -343,7 +343,10 @@ exports.getSimulationData = async (req, res) => {
             valores_estratos: lote.valores_estratos,
             estratosDisponibles: datosSimulacion.map(d => d.estratosDisponibles),
             fechasProyeccion: (proyeccion.proyeccionCompleta || []).map(p => p.fecha),
-            aguaUtilProyectada: (proyeccion.proyeccionCompleta || []).map(p => p.agua_util_diaria || 0),
+            aguaUtilProyectada: (() => {
+                const ultimoValorReal = datosSimulacion[datosSimulacion.length - 1]?.aguaUtilDiaria || 0;
+                return proyeccion.proyeccionCompleta.map(p => p.agua_util_diaria)
+            })(),
             proyeccionAU10Dias: proyeccion.aguaUtilDia8 || 0,
             fechaActualizacion: new Date().toISOString().split('T')[0],
 
@@ -510,19 +513,16 @@ function calcularPorcentajeAguaUtil(aguaUtilActual, aguaUtilTotal) {
 async function calcularProyeccionAU(loteId) {
     try {
         // Obtener último cambio diario real con datos válidos
-        const { rows: [ultimoCambio] } = await pool.query(`
-            SELECT cd.*, l.fecha_siembra, l.porcentaje_agua_util_umbral,
-                c.indice_capacidad_extraccion,
-                (SELECT array_agg(valor ORDER BY estratos) 
-                    FROM agua_util_inicial 
-                    WHERE lote_id = l.id) as valores_estratos
+        const { rows: [ultimoValorReal] } = await pool.query(`
+            SELECT cd.agua_util_diaria
             FROM cambios_diarios cd
             JOIN lotes l ON cd.lote_id = l.id
-            JOIN cultivos c ON l.cultivo_id = c.id
             WHERE cd.lote_id = $1 
+            AND cd.agua_util_diaria IS NOT NULL
             ORDER BY cd.fecha_cambio DESC
             LIMIT 1
         `, [loteId]);
+        
 
         
 
@@ -551,7 +551,7 @@ async function calcularProyeccionAU(loteId) {
         `, [loteId, ultimoCambio.fecha_cambio]);
 
         // Usar el último valor válido como punto de partida
-        let aguaUtilAnterior = ultimoCambio.agua_util_diaria;
+        let aguaUtilAnterior = parseFloat(ultimoValorReal.agua_util_diaria);
         let proyeccionCompleta = [];
 
         console.log('Punto de partida proyección:', {
