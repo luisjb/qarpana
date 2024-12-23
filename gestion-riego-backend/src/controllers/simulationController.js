@@ -115,10 +115,7 @@ exports.getSimulationData = async (req, res) => {
         // Obtener todos los estados fenológicos
         const estadosFenologicos = await getEstadosFenologicos(loteId);
 
-        const todasLasFechas = [
-            ...cambios.map(c => c.fecha_cambio),
-            ...proyeccion.proyeccionCompleta.map(p => p.fecha)
-        ];
+        
 
         const ensureNumber = (value) => {
             const num = Number(value);
