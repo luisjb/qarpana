@@ -346,24 +346,31 @@ exports.getSimulationData = async (req, res) => {
 
             // Para el widget de proyección
             porcentajeProyectado: proyeccion.porcentajeProyectado,
-            aguaUtilUmbral: [
-                // Para los datos históricos
-                ...cambios.map(cambio => 
-                    calcularUmbralPorEstrato(
-                        lote.valores_estratos,
-                        cambio.estrato_alcanzado || 1,
-                        lote.porcentaje_agua_util_umbral
-                    )
-                ),
-                // Para los datos proyectados
-                ...proyeccion.proyeccionCompleta.map(dia =>
-                    calcularUmbralPorEstrato(
-                        lote.valores_estratos,
-                        dia.estratos_disponibles,
-                        lote.porcentaje_agua_util_umbral
-                    )
-                )
-            ]
+            aguaUtilUmbral: (() => {
+                
+                
+                // Para datos históricos
+                const umbralesHistoricos = datosSimulacion.map(d => {
+                    // Tomamos los valores de los estratos hasta el estrato actual y los sumamos
+                    const aguaUtilAcumulada = lote.valores_estratos
+                        .slice(0, d.estratosDisponibles)
+                        .reduce((sum, valor) => sum + parseFloat(valor), 0);
+                        
+                    // Aplicamos el porcentaje de umbral al total acumulado
+                    return aguaUtilAcumulada * porcentajeAguaUtilUmbral;
+                });
+        
+                // Para datos proyectados
+                const umbralesProyectados = proyeccion.proyeccionCompleta.map(p => {
+                    const aguaUtilAcumulada = lote.valores_estratos
+                        .slice(0, p.estratos_disponibles)
+                        .reduce((sum, valor) => sum + parseFloat(valor), 0);
+                        
+                    return aguaUtilAcumulada * porcentajeAguaUtilUmbral;
+                });
+        
+                return [...umbralesHistoricos, ...umbralesProyectados];
+            })(),
         };
 
         /*console.log('Datos de simulación finales:', {
