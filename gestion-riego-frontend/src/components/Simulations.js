@@ -460,7 +460,8 @@ function Simulations() {
             {
                 type: 'line',
                 label: `Agua Útil Umbral`,
-                data: [...simulationData.aguaUtilUmbral, ...new Array(simulationData.fechasProyeccion.length).fill(simulationData.aguaUtilUmbral[0])],
+                // Ahora usamos directamente el array completo de umbrales
+                data: simulationData.aguaUtilUmbral,
                 borderColor: 'rgb(255, 159, 64)',
                 borderWidth: 2,
                 borderDash: [5, 5],
