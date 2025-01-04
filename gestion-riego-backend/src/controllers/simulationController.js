@@ -347,9 +347,21 @@ exports.getSimulationData = async (req, res) => {
             // Para el widget de proyección
             porcentajeProyectado: proyeccion.porcentajeProyectado,
             aguaUtilUmbral: [
-                ...datosSimulacion.map(d => d.aguaUtilUmbral),
-                ...new Array(proyeccion.proyeccionCompleta.length).fill(
-                    (parseFloat(lote.agua_util_total || 0) * parseFloat(lote.porcentaje_agua_util_umbral || 0)) / 100
+                // Para los datos históricos
+                ...cambios.map(cambio => 
+                    calcularUmbralPorEstrato(
+                        lote.valores_estratos,
+                        cambio.estrato_alcanzado || 1,
+                        lote.porcentaje_agua_util_umbral
+                    )
+                ),
+                // Para los datos proyectados
+                ...proyeccion.proyeccionCompleta.map(dia =>
+                    calcularUmbralPorEstrato(
+                        lote.valores_estratos,
+                        dia.estratos_disponibles,
+                        lote.porcentaje_agua_util_umbral
+                    )
                 )
             ]
         };
@@ -433,6 +445,13 @@ async function getEstadoFenologico(loteId, diasDesdeSiembra) {
     }
 }
 
+const calcularUmbralPorEstrato = (valores_estratos, estrato, porcentajeUmbral) => {
+    const aguaUtilTotal = valores_estratos
+        .slice(0, estrato)
+        .reduce((sum, valor) => parseFloat(sum) + parseFloat(valor), 0);
+    return (aguaUtilTotal * porcentajeUmbral) / 100;
+};
+
 async function insertarEstadosFenologicosDefault(loteId) {
     try {
         // Obtener información del cultivo
@@ -508,7 +527,8 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
     try {
         const { rows: [ultimoCambio] } = await pool.query(`
             SELECT cd.*, l.agua_util_total, l.porcentaje_agua_util_umbral,
-                   l.fecha_siembra, c.indice_capacidad_extraccion,
+                   l.fecha_siembra, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
+                   cd.dias as ultimo_dia,
                    (SELECT array_agg(valor ORDER BY estratos) 
                     FROM agua_util_inicial 
                     WHERE lote_id = l.id) as valores_estratos
@@ -523,6 +543,10 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
         if (!ultimoCambio) return { proyeccionCompleta: [], aguaUtilDia8: 0 };
  
         let aguaUtilAnterior = parseFloat(aguaUtilInicial);
+
+        let diasAcumulados = parseInt(ultimoCambio.ultimo_dia);
+        const indiceCrecimientoRadicular = parseFloat(ultimoCambio.indice_crecimiento_radicular);
+
         const estratosAlcanzados = ultimoCambio.estrato_alcanzado || 1;
         const aguaUtilDisponible = ultimoCambio.valores_estratos
             ?.slice(0, estratosAlcanzados)
@@ -550,8 +574,22 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
         `, [loteId, ultimoCambio.fecha_cambio]);
  
         let proyeccionCompleta = [];
+
+         // Función auxiliar para calcular estrato basado en profundidad
+         const calcularEstrato = (profundidadRaiz) => {
+            return Math.min(
+                Math.floor(profundidadRaiz / 20) + 1,
+                ultimoCambio.valores_estratos.length
+            );
+        };
  
         for (const pronostico of pronosticos) {
+
+            diasAcumulados++;
+
+            const profundidadRaiz = diasAcumulados * indiceCrecimientoRadicular;
+            const nuevoEstrato = calcularEstrato(profundidadRaiz);
+
             const capacidadExtraccion = (aguaUtilAnterior * parseFloat(ultimoCambio.indice_capacidad_extraccion)) / 100;
             
             const perdidaAgua = Math.min(
