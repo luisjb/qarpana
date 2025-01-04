@@ -349,24 +349,38 @@ exports.getSimulationData = async (req, res) => {
             aguaUtilUmbral: (() => {
                 const porcentajeUmbral = parseFloat(lote.porcentaje_agua_util_umbral) / 100;
                 
-                // Para datos históricos
+                // Calculamos umbrales históricos
                 const umbralesHistoricos = datosSimulacion.map(d => {
-                    // Tomamos los valores de los estratos hasta el estrato actual y los sumamos
                     const aguaUtilAcumulada = lote.valores_estratos
                         .slice(0, d.estratosDisponibles)
                         .reduce((sum, valor) => sum + parseFloat(valor), 0);
-                        
-                    // Aplicamos el porcentaje de umbral al total acumulado
                     return aguaUtilAcumulada * porcentajeUmbral;
                 });
         
-                // Para datos proyectados
-                const umbralesProyectados = proyeccion.proyeccionCompleta.map(p => {
-                    const aguaUtilAcumulada = lote.valores_estratos
-                        .slice(0, p.estratos_disponibles)
-                        .reduce((sum, valor) => sum + parseFloat(valor), 0);
-                        
-                    return aguaUtilAcumulada * porcentajeUmbral;
+                // Obtenemos el último valor histórico calculado
+                const ultimoValorHistorico = umbralesHistoricos[umbralesHistoricos.length - 1];
+                
+                // Para la proyección, continuamos desde el último valor histórico
+                const umbralesProyectados = proyeccion.proyeccionCompleta.map((p, index) => {
+                    // Si los estratos son los mismos, mantenemos el mismo valor
+                    if (index === 0) {
+                        return ultimoValorHistorico;
+                    }
+        
+                    const estratoAnterior = index === 0 ? 
+                        datosSimulacion[datosSimulacion.length - 1].estratosDisponibles : 
+                        proyeccion.proyeccionCompleta[index - 1].estratos_disponibles;
+        
+                    // Solo calculamos nuevo valor si hay cambio de estrato
+                    if (p.estratos_disponibles !== estratoAnterior) {
+                        const aguaUtilAcumulada = lote.valores_estratos
+                            .slice(0, p.estratos_disponibles)
+                            .reduce((sum, valor) => sum + parseFloat(valor), 0);
+                        return aguaUtilAcumulada * porcentajeUmbral;
+                    } else {
+                        // Si no hay cambio de estrato, mantenemos el valor anterior
+                        return index === 0 ? ultimoValorHistorico : umbralesProyectados[index - 1];
+                    }
                 });
         
                 return [...umbralesHistoricos, ...umbralesProyectados];
