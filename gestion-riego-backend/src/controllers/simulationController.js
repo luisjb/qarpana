@@ -387,6 +387,22 @@ exports.getSimulationData = async (req, res) => {
         
                 return [...umbralesHistoricos, ...umbralesProyectados];
             })(),
+            etc: [
+                ...cambios.map(c => c.etc || 0),
+                ...proyeccion.proyeccionCompleta.map(p => p.etc || 0)
+            ],
+            kc: [
+                ...cambios.map(c => c.kc || 0),
+                ...proyeccion.proyeccionCompleta.map(p => p.kc || 0)
+            ],
+            evapotranspiracion: [
+                ...cambios.map(c => c.evapotranspiracion || 0),
+                ...proyeccion.proyeccionCompleta.map(p => p.evapotranspiracion || 0)
+            ],
+            lluviasEfectivas: [
+                ...cambios.map(c => c.lluvia_efectiva || 0),
+                ...proyeccion.proyeccionCompleta.map(p => p.lluvia_efectiva || 0)
+            ],
         };
 
         /*console.log('Datos de simulación finales:', {

@@ -12,6 +12,9 @@ import CorreccionDiasDialog from './CorreccionDiasDialog';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { Circle } from 'lucide-react';
+import DownloadIcon from '@mui/icons-material/Download';
+
+
 
 
 
@@ -105,6 +108,7 @@ function Simulations() {
             </div>
         );
     };
+
 
     useEffect(() => {
         fetchCampos();
@@ -306,6 +310,61 @@ function Simulations() {
             return 0;
         }
         return Math.round(Number(value));
+    };
+
+    const prepareCSVData = (simulationData) => {
+        // Combinar fechas históricas y proyectadas
+        const allDates = [
+            ...(simulationData.fechas || []),
+            ...(simulationData.fechasProyeccion || [])
+        ].filter(date => isValidDate(date));
+    
+        // Preparar los datos fila por fila
+        const csvData = allDates.map((date, index) => {
+            // Determinar si es dato histórico o proyectado
+            const isHistorical = index < simulationData.fechas.length;
+            
+            return {
+                Fecha: formatDate(date),
+                'Agua Útil (mm)': isHistorical ? 
+                    formatNumber(simulationData.aguaUtil[index]) : 
+                    formatNumber(simulationData.aguaUtilProyectada[index - simulationData.fechas.length]),
+                'Agua Útil Umbral (mm)': formatNumber(simulationData.aguaUtilUmbral[index]),
+                'Lluvias (mm)': formatNumber(simulationData.lluvias[index] || 0),
+                'Riego (mm)': formatNumber(simulationData.riego[index] || 0),
+                'Estrato': simulationData.estratosDisponibles[index],
+                'ETC (mm)': simulationData.etc?.[index] || 0,
+                'KC': simulationData.kc?.[index] || 0,
+                'Evapotranspiración (mm)': simulationData.evapotranspiracion?.[index] || 0,
+                'Lluvia Efectiva (mm)': simulationData.lluviasEfectivas?.[index] || 0
+            };
+        });
+    
+        return csvData;
+    };
+
+    const downloadCSV = (simulationData) => {
+        const csvData = prepareCSVData(simulationData);
+        
+        // Crear las cabeceras del CSV
+        const headers = Object.keys(csvData[0]);
+        
+        // Convertir los datos a formato CSV
+        const csvContent = [
+            headers.join(','),
+            ...csvData.map(row => headers.map(header => row[header]).join(','))
+        ].join('\n');
+    
+        // Crear el blob y descargar
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `balance_hidrico_${selectedLote}_${formatDate(new Date())}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const getEstadosFenologicosAnnotations = () => {
@@ -554,6 +613,15 @@ function Simulations() {
                 </Grid>
                 {isAdmin && (
                     <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                onClick={() => downloadCSV(simulationData)}
+                                startIcon={<DownloadIcon />}
+                                size="small"
+                            >
+                                Descargar CSV
+                            </Button>
                             <Button 
                                 variant="contained" 
                                 color="primary" 
