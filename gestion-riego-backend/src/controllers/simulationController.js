@@ -347,7 +347,7 @@ exports.getSimulationData = async (req, res) => {
             // Para el widget de proyección
             porcentajeProyectado: proyeccion.porcentajeProyectado,
             aguaUtilUmbral: (() => {
-                
+                const porcentajeUmbral = parseFloat(lote.porcentaje_agua_util_umbral) / 100;
                 
                 // Para datos históricos
                 const umbralesHistoricos = datosSimulacion.map(d => {
@@ -357,7 +357,7 @@ exports.getSimulationData = async (req, res) => {
                         .reduce((sum, valor) => sum + parseFloat(valor), 0);
                         
                     // Aplicamos el porcentaje de umbral al total acumulado
-                    return aguaUtilAcumulada * porcentajeAguaUtilUmbral;
+                    return aguaUtilAcumulada * porcentajeUmbral;
                 });
         
                 // Para datos proyectados
@@ -366,7 +366,7 @@ exports.getSimulationData = async (req, res) => {
                         .slice(0, p.estratos_disponibles)
                         .reduce((sum, valor) => sum + parseFloat(valor), 0);
                         
-                    return aguaUtilAcumulada * porcentajeAguaUtilUmbral;
+                    return aguaUtilAcumulada * porcentajeUmbral;
                 });
         
                 return [...umbralesHistoricos, ...umbralesProyectados];
