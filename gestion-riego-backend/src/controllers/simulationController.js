@@ -360,11 +360,14 @@ exports.getSimulationData = async (req, res) => {
                 // Obtenemos el último valor histórico calculado
                 const ultimoValorHistorico = umbralesHistoricos[umbralesHistoricos.length - 1];
                 
-                // Para la proyección, continuamos desde el último valor histórico
-                const umbralesProyectados = proyeccion.proyeccionCompleta.map((p, index) => {
-                    // Si los estratos son los mismos, mantenemos el mismo valor
+                // Para la proyección, usamos un array temporal y lo vamos llenando
+                let valorAnterior = ultimoValorHistorico;
+                const umbralesProyectados = [];
+                
+                proyeccion.proyeccionCompleta.forEach((p, index) => {
                     if (index === 0) {
-                        return ultimoValorHistorico;
+                        umbralesProyectados.push(valorAnterior);
+                        return;
                     }
         
                     const estratoAnterior = index === 0 ? 
@@ -376,11 +379,10 @@ exports.getSimulationData = async (req, res) => {
                         const aguaUtilAcumulada = lote.valores_estratos
                             .slice(0, p.estratos_disponibles)
                             .reduce((sum, valor) => sum + parseFloat(valor), 0);
-                        return aguaUtilAcumulada * porcentajeUmbral;
-                    } else {
-                        // Si no hay cambio de estrato, mantenemos el valor anterior
-                        return index === 0 ? ultimoValorHistorico : umbralesProyectados[index - 1];
+                        valorAnterior = aguaUtilAcumulada * porcentajeUmbral;
                     }
+                    
+                    umbralesProyectados.push(valorAnterior);
                 });
         
                 return [...umbralesHistoricos, ...umbralesProyectados];
