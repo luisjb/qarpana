@@ -163,10 +163,14 @@ exports.getSimulationData = async (req, res) => {
 
             const numEstratos = valoresEstratos.length;
             const PROFUNDIDAD_POR_ESTRATO = 20; // 20 cm por estrato
+            const DIAS_SIN_CRECIMIENTO = 6; // Días iniciales sin crecimiento radicular
+
             
             // Calculamos la profundidad alcanzada por las raíces usando el índice específico del cultivo
+            // Calculamos la profundidad alcanzada por las raíces considerando los días sin crecimiento
+            const diasEfectivos = dia <= DIAS_SIN_CRECIMIENTO ? 0 : dia - DIAS_SIN_CRECIMIENTO;
             const profundidadRaices = Math.min(
-                parseFloat(dia) * parseFloat(indice_crecimiento_radicular),
+                diasEfectivos * parseFloat(indice_crecimiento_radicular),
                 numEstratos * PROFUNDIDAD_POR_ESTRATO // máximo total
             );
             
@@ -244,7 +248,7 @@ exports.getSimulationData = async (req, res) => {
                 aguaUtilDiaria,
                 porcentajeAguaUtil,
                 capacidadExtraccion,
-                etc: parseFloat(etc || 0),
+                etcCalculado: parseFloat(etcCalculado || 0),
                 perdidaAguaUsada: perdidaAgua,
                 nuevoEstratoValor: estratosDisponiblesFinales > estratoAnterior ? 
                     valoresEstratos[estratoAnterior || 0] : 'No hay nuevo estrato'
@@ -388,8 +392,21 @@ exports.getSimulationData = async (req, res) => {
                 return [...umbralesHistoricos, ...umbralesProyectados];
             })(),
             etc: [
-                ...cambios.map(c => c.etc || 0),
+                // Para datos históricos usamos el etcCalculado que ya teníamos
+                ...datosSimulacion.map(d => {
+                    // etcCalculado ya fue calculado y está disponible en el cambio
+                    const cambio = cambios.find(c => c.fecha_cambio === d.fecha);
+                    return cambio?.etc || 0;
+                }),
+                // Para la proyección usamos el etc que ya calculamos
                 ...proyeccion.proyeccionCompleta.map(p => p.etc || 0)
+            ],
+            capacidadExtraccion: [
+                ...datosSimulacion.map(d => {
+                    const cambio = cambios.find(c => c.fecha_cambio === d.fecha);
+                    return cambio?.capacidad_extraccion || 0;
+                }),
+                ...proyeccion.proyeccionCompleta.map(p => p.capacidad_extraccion || 0)
             ],
             kc: [
                 ...cambios.map(c => c.kc || 0),

@@ -331,12 +331,13 @@ function Simulations() {
                     formatNumber(simulationData.aguaUtilProyectada[index - simulationData.fechas.length]),
                 'Agua Útil Umbral (mm)': formatNumber(simulationData.aguaUtilUmbral[index]),
                 'Lluvias (mm)': formatNumber(simulationData.lluvias[index] || 0),
+                'Lluvia Efectiva (mm)': simulationData.lluviasEfectivas[index] || 0,
                 'Riego (mm)': formatNumber(simulationData.riego[index] || 0),
                 'Estrato': simulationData.estratosDisponibles[index],
-                'ETC (mm)': simulationData.etc?.[index] || 0,
-                'KC': simulationData.kc?.[index] || 0,
-                'Evapotranspiración (mm)': simulationData.evapotranspiracion?.[index] || 0,
-                'Lluvia Efectiva (mm)': simulationData.lluviasEfectivas?.[index] || 0
+                'KC': simulationData.kc[index] || 0,
+                'Evapotranspiración (mm)': simulationData.evapotranspiracion[index] || 0,
+                'ETC': simulationData.etc[index] || 0,
+                'Capacidad Extracción (mm)': simulationData.capacidadExtraccion[index] || 0
             };
         });
     
@@ -612,7 +613,7 @@ function Simulations() {
                 </Grid>
                 </Grid>
                 {isAdmin && (
-                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
                             <Button
                                 variant="contained"
                                 color="primary"
