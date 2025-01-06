@@ -392,14 +392,16 @@ exports.getSimulationData = async (req, res) => {
                 return [...umbralesHistoricos, ...umbralesProyectados];
             })(),
             etc: [
-                // Para datos históricos usamos el etcCalculado que ya teníamos
-                ...datosSimulacion.map(d => {
-                    // etcCalculado ya fue calculado y está disponible en el cambio
-                    const cambio = cambios.find(c => c.fecha_cambio === d.fecha);
-                    return cambio?.etc || 0;
+                // Para datos históricos
+                ...cambios.map(c => {
+                    const etcValor = parseFloat(c.evapotranspiracion || 0) * parseFloat(c.kc || 0);
+                    return etcValor;
                 }),
-                // Para la proyección usamos el etc que ya calculamos
-                ...proyeccion.proyeccionCompleta.map(p => p.etc || 0)
+                // Para proyección
+                ...proyeccion.proyeccionCompleta.map(p => {
+                    const etcValor = parseFloat(p.evapotranspiracion || 0) * parseFloat(p.kc || 0);
+                    return etcValor;
+                })
             ],
             capacidadExtraccion: [
                 ...datosSimulacion.map(d => {
@@ -421,6 +423,10 @@ exports.getSimulationData = async (req, res) => {
                 ...proyeccion.proyeccionCompleta.map(p => p.lluvia_efectiva || 0)
             ],
         };
+
+        // También vamos a agregar un console.log para verificar los valores
+        console.log('ETC valores:', simulationData.etc.slice(0, 5)); // Ver primeros 5 valores
+        console.log('Evapotranspiracion valores:', simulationData.evapotranspiracion.slice(0, 5));
 
         /*console.log('Datos de simulación finales:', {
             aguaUtilMuestra: simulationData.aguaUtil.slice(0, 3),

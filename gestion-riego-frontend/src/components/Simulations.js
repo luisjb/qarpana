@@ -331,13 +331,13 @@ function Simulations() {
                     formatNumber(simulationData.aguaUtilProyectada[index - simulationData.fechas.length]),
                 'Agua Útil Umbral (mm)': formatNumber(simulationData.aguaUtilUmbral[index]),
                 'Lluvias (mm)': formatNumber(simulationData.lluvias[index] || 0),
-                'Lluvia Efectiva (mm)': simulationData.lluviasEfectivas[index] || 0,
+                'Lluvia Efectiva (mm)': formatNumber(simulationData.lluviasEfectivas[index] || 0),
                 'Riego (mm)': formatNumber(simulationData.riego[index] || 0),
                 'Estrato': simulationData.estratosDisponibles[index],
-                'KC': simulationData.kc[index] || 0,
-                'Evapotranspiración (mm)': simulationData.evapotranspiracion[index] || 0,
-                'ETC': simulationData.etc[index] || 0,
-                'Capacidad Extracción (mm)': simulationData.capacidadExtraccion[index] || 0
+                'KC': simulationData.kc[index] ? parseFloat(simulationData.kc[index]).toFixed(2) : '0.00',
+                'Evapotranspiración': parseFloat(simulationData.evapotranspiracion[index] || 0).toFixed(2),
+                'ETC': etcValue,
+                'Capacidad Extracción': formatNumber(simulationData.capacidadExtraccion[index] || 0)
             };
         });
     
