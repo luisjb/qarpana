@@ -321,8 +321,8 @@ function Simulations() {
     
         // Preparar los datos fila por fila
         const csvData = allDates.map((date, index) => {
-            // Determinar si es dato histórico o proyectado
             const isHistorical = index < simulationData.fechas.length;
+            const etcValue = parseFloat(simulationData.etc[index] || 0).toFixed(2);
             
             return {
                 Fecha: formatDate(date),
