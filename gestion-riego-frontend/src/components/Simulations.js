@@ -318,6 +318,10 @@ function Simulations() {
             ...(simulationData.fechas || []),
             ...(simulationData.fechasProyeccion || [])
         ].filter(date => isValidDate(date));
+        
+        const formatDecimal = (value) => {
+            return parseFloat(value || 0).toFixed(2);
+        };
     
         // Preparar los datos fila por fila
         const csvData = allDates.map((date, index) => {
@@ -337,7 +341,7 @@ function Simulations() {
                 'KC': simulationData.kc[index] ? parseFloat(simulationData.kc[index]).toFixed(2) : '0.00',
                 'Evapotranspiración': parseFloat(simulationData.evapotranspiracion[index] || 0).toFixed(2),
                 'ETC': etcValue,
-                'Capacidad Extracción': formatNumber(simulationData.capacidadExtraccion[index] || 0)
+                'Capacidad Extracción': formatDecimal(simulationData.capacidadExtraccion[index] || 0)
             };
         });
     
