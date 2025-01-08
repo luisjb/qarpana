@@ -404,11 +404,18 @@ exports.getSimulationData = async (req, res) => {
                 })
             ],
             capacidadExtraccion: [
-                ...datosSimulacion.map(d => {
-                    const cambio = cambios.find(c => c.fecha_cambio === d.fecha);
-                    return cambio?.capacidad_extraccion || 0;
+                // Para datos históricos
+                ...datosSimulacion.map((d, index) => {
+                    const aguaUtilAnterior = index === 0 ? d.aguaUtilDiaria : datosSimulacion[index - 1].aguaUtilDiaria;
+                    return (aguaUtilAnterior * parseFloat(lote.indice_capacidad_extraccion)) / 100;
                 }),
-                ...proyeccion.proyeccionCompleta.map(p => p.capacidad_extraccion || 0)
+                // Para proyección
+                ...proyeccion.proyeccionCompleta.map((p, index) => {
+                    const aguaUtilAnterior = index === 0 ? 
+                        datosSimulacion[datosSimulacion.length - 1].aguaUtilDiaria : 
+                        proyeccion.proyeccionCompleta[index - 1].agua_util_diaria;
+                    return (aguaUtilAnterior * parseFloat(lote.indice_capacidad_extraccion)) / 100;
+                })
             ],
             kc: [
                 ...cambios.map(c => c.kc || 0),
