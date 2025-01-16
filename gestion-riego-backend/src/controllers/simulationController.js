@@ -379,13 +379,33 @@ exports.getSimulationData = async (req, res) => {
                     const aguaUtilMaximaActual = valorPorEstrato * d.estratosDisponibles;
                     return aguaUtilMaximaActual * porcentajeUmbral;
                 });
-        
-                // Para la proyección, usamos un array temporal y lo vamos llenando
-                const umbralesProyectados = proyeccion.proyeccionCompleta.map(p => {
-                    const aguaUtilMaximaActual = valorPorEstrato * p.estratos_disponibles;
-                    return aguaUtilMaximaActual * porcentajeUmbral;
+            
+                // Obtenemos el último estrato histórico
+                const ultimoEstratoHistorico = datosSimulacion[datosSimulacion.length - 1]?.estratosDisponibles || 1;
+                
+                // Para la proyección, continuamos desde el último valor histórico
+                const umbralesProyectados = proyeccion.proyeccionCompleta.map((p, index) => {
+                    // Si es el primer día de proyección, usar el último estrato histórico
+                    if (index === 0) {
+                        const aguaUtilMaximaActual = valorPorEstrato * ultimoEstratoHistorico;
+                        return aguaUtilMaximaActual * porcentajeUmbral;
+                    }
+                    
+                    // Para los siguientes días, verificar si hay cambio de estrato
+                    const estratoAnterior = index === 0 ? 
+                        ultimoEstratoHistorico : 
+                        proyeccion.proyeccionCompleta[index - 1].estratos_disponibles;
+                        
+                    // Si el estrato actual es mayor, sumar el nuevo valor
+                    if (p.estratos_disponibles > estratoAnterior) {
+                        const aguaUtilMaximaActual = valorPorEstrato * p.estratos_disponibles;
+                        return aguaUtilMaximaActual * porcentajeUmbral;
+                    }
+                    
+                    // Si no hay cambio de estrato, mantener el valor anterior
+                    return umbralesProyectados[index - 1];
                 });
-        
+            
                 return [...umbralesHistoricos, ...umbralesProyectados];
             })(),
             etc: [
