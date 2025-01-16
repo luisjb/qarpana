@@ -383,27 +383,25 @@ exports.getSimulationData = async (req, res) => {
                 // Obtenemos el último estrato histórico
                 const ultimoEstratoHistorico = datosSimulacion[datosSimulacion.length - 1]?.estratosDisponibles || 1;
                 
-                // Para la proyección, continuamos desde el último valor histórico
-                const umbralesProyectados = proyeccion.proyeccionCompleta.map((p, index) => {
-                    // Si es el primer día de proyección, usar el último estrato histórico
+                // Para la proyección, usamos un array temporal y forEach en lugar de map
+                const umbralesProyectados = [];
+                let valorAnterior = umbralesHistoricos[umbralesHistoricos.length - 1];
+                
+                proyeccion.proyeccionCompleta.forEach((p, index) => {
                     if (index === 0) {
-                        const aguaUtilMaximaActual = valorPorEstrato * ultimoEstratoHistorico;
-                        return aguaUtilMaximaActual * porcentajeUmbral;
+                        // Para el primer día, usamos el último valor histórico
+                        umbralesProyectados.push(valorAnterior);
+                        return;
                     }
                     
-                    // Para los siguientes días, verificar si hay cambio de estrato
-                    const estratoAnterior = index === 0 ? 
-                        ultimoEstratoHistorico : 
-                        proyeccion.proyeccionCompleta[index - 1].estratos_disponibles;
-                        
-                    // Si el estrato actual es mayor, sumar el nuevo valor
+                    const estratoAnterior = proyeccion.proyeccionCompleta[index - 1].estratos_disponibles;
+                    
+                    // Si hay cambio de estrato, calculamos nuevo valor
                     if (p.estratos_disponibles > estratoAnterior) {
-                        const aguaUtilMaximaActual = valorPorEstrato * p.estratos_disponibles;
-                        return aguaUtilMaximaActual * porcentajeUmbral;
+                        valorAnterior = (valorPorEstrato * p.estratos_disponibles) * porcentajeUmbral;
                     }
                     
-                    // Si no hay cambio de estrato, mantener el valor anterior
-                    return umbralesProyectados[index - 1];
+                    umbralesProyectados.push(valorAnterior);
                 });
             
                 return [...umbralesHistoricos, ...umbralesProyectados];
