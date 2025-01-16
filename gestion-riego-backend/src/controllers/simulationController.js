@@ -14,9 +14,6 @@ exports.getSimulationData = async (req, res) => {
         
         const maxDiasSimulacion = maxDays.max_dias;
 
-        const cambiosFiltrados = cambios.filter(cambio => {
-            return cambio.dias <= maxDiasSimulacion;
-        });
         
         const result = await pool.query(`
             SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
@@ -48,6 +45,11 @@ exports.getSimulationData = async (req, res) => {
         
         const lote = result.rows[0];
         const cambios = result.rows;
+
+        const cambiosFiltrados = cambios.filter(cambio => {
+            return cambio.dias <= maxDiasSimulacion;
+        });
+        
         
         
         console.log('Datos del lote:', {
@@ -289,7 +291,7 @@ exports.getSimulationData = async (req, res) => {
 
         // Procesamos los datos día a día
         let datosSimulacion = [];
-        cambios.forEach((cambio, index) => {
+        cambiosFiltrados.forEach((cambio, index) => {
             console.log('Datos cambio diario:', {
                 fecha: cambio.fecha_cambio,
                 evapotranspiracion: cambio.evapotranspiracion,
