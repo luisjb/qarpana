@@ -5,6 +5,19 @@ exports.getSimulationData = async (req, res) => {
     const { campaña } = req.query;
 
     try {
+        const { rows: [maxDays] } = await pool.query(`
+            SELECT MAX(GREATEST(indice_dias, COALESCE(dias_correccion, 0))) as max_dias
+            FROM coeficiente_cultivo cc
+            JOIN lotes l ON l.cultivo_id = cc.cultivo_id
+            WHERE l.id = $1
+        `, [loteId]);
+        
+        const maxDiasSimulacion = maxDays.max_dias;
+
+        const cambiosFiltrados = cambios.filter(cambio => {
+            return cambio.dias <= maxDiasSimulacion;
+        });
+        
         const result = await pool.query(`
             SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
                     cd.fecha_cambio, cd.precipitaciones, cd.riego_cantidad, cd.evapotranspiracion,
@@ -317,7 +330,11 @@ exports.getSimulationData = async (req, res) => {
         
         const ultimaAguaUtil = datosSimulacion[datosSimulacion.length - 1]?.aguaUtilDiaria || 0;
         const proyeccion = await calcularProyeccionAU(loteId, ultimaAguaUtil);
-        console.log('Proyección calculada:', proyeccion);
+        const ultimoDiaHistorico = cambios[cambios.length - 1]?.dias || 0;
+        proyeccion.proyeccionCompleta = proyeccion.proyeccionCompleta.filter((p, index) => {
+            const diasTotales = ultimoDiaHistorico + index + 1;
+            return diasTotales <= maxDiasSimulacion;
+        });
 
         const simulationData = {
             fechas: cambios.map(c => c.fecha_cambio) || [],
