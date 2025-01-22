@@ -255,12 +255,16 @@ function LotesManagement() {
                         >
                             <WaterDrop />
                         </IconButton>
-                        <IconButton onClick={() => handleEdit(lote)} color="primary">
-                            <Edit />
-                        </IconButton>
-                        <IconButton onClick={() => handleDelete(lote.id)} color="error">
-                            <Delete />
-                        </IconButton>
+                        {isAdmin && (    
+                            <>
+                                <IconButton onClick={() => handleEdit(lote)} color="primary">
+                                    <Edit />
+                                </IconButton>
+                                <IconButton onClick={() => handleDelete(lote.id)} color="error">
+                                    <Delete />
+                                </IconButton>
+                            </>
+                        )}
                     </ListItem>
                 ))}
             </List>

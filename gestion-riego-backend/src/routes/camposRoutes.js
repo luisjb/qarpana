@@ -31,23 +31,37 @@ router.get('/user/:userId', verifyToken, isAdmin, async (req, res) => {
 
 // Obtener campos del usuario autenticado
 router.get('/', verifyToken, async (req, res) => {
+    const client = await pool.connect();
     try {
         let query;
-        let values;
+        let values = [];
 
-        if (req.user.role === 'Admin') {
-            query = 'SELECT * FROM campos';
-            values = [];
+        if (req.user.tipo_usuario === 'Admin') {
+            // Si es admin, obtiene todos los campos
+            query = `
+                SELECT c.*, u.nombre_usuario as usuario_asignado
+                FROM campos c
+                LEFT JOIN usuarios u ON u.id = c.usuario_id
+                ORDER BY c.nombre_campo
+            `;
         } else {
-            query = 'SELECT * FROM campos WHERE usuario_id = $1';
-            values = [req.userId];
+            // Si es usuario normal, solo obtiene sus campos asignados
+            query = `
+                SELECT c.* 
+                FROM campos c
+                WHERE c.usuario_id = $1
+                ORDER BY c.nombre_campo
+            `;
+            values = [req.user.id];
         }
 
-        const { rows } = await pool.query(query, values);
+        const { rows } = await client.query(query, values);
         res.json(rows);
     } catch (err) {
         console.error('Error al obtener campos:', err);
         res.status(500).json({ error: 'Error del servidor' });
+    } finally {
+        client.release();
     }
 });
 
@@ -83,7 +97,7 @@ router.post('/', verifyToken, async (req, res) => {
 });
 
 // Actualizar un campo
-router.put('/:id', verifyToken, async (req, res) => {
+router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     const { id } = req.params;
     const { nombre_campo, ubicacion, usuario_id } = req.body;
     try {
@@ -102,7 +116,7 @@ router.put('/:id', verifyToken, async (req, res) => {
 });
 
 // Eliminar un campo
-router.delete('/:id', verifyToken, async (req, res) => {
+router.delete('/:id', verifyToken, isAdmin, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');

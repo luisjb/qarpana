@@ -11,7 +11,7 @@ import { Edit, Delete, Add } from '@mui/icons-material';
 function CamposManagement() {
     const [campos, setCampos] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
-    const [nuevoCampo, setNuevoCampo] = useState({ nombre_campo: '', ubicacion: '', usuario_id: '' });
+    const [nuevoCampo, setNuevoCampo] = useState({ nombre_campo: '', ubicación: '', usuario_id: '' });
     const [editingCampo, setEditingCampo] = useState(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -44,9 +44,15 @@ function CamposManagement() {
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         if (editingCampo) {
-            setEditingCampo({ ...editingCampo, [name]: value });
+            setEditingCampo(prev => ({
+                ...prev,
+                [name]: value
+            }));
         } else {
-            setNuevoCampo({ ...nuevoCampo, [name]: value });
+            setNuevoCampo(prev => ({
+                ...prev,
+                [name]: value
+            }));
         }
     };
 
@@ -97,18 +103,27 @@ function CamposManagement() {
                         <IconButton onClick={() => handleAddLotes(campo.id)}>
                             <Add />
                         </IconButton>
-                        <IconButton onClick={() => {
-                            setEditingCampo(campo);
-                            setOpenDialog(true);
-                        }}color="primary"> 
-                            <Edit />
-                        </IconButton>
-                        <IconButton onClick={() => {
-                            setCampoToDelete(campo);
-                            setOpenDeleteDialog(true);
-                        }} color="error">
-                            <Delete />
-                        </IconButton>
+                        {isAdmin && (
+                            <>
+                                <IconButton onClick={() => {
+                                        setEditingCampo({
+                                            ...campo,
+                                            usuario_id: campo.usuario_id || '',  // Asegurar que no sea null
+                                            ubicación: campo.ubicación || ''     // Asegurar que no sea null
+                                        });
+                                        setOpenDialog(true);
+                                    }} color="primary">
+                                        <Edit />
+                                </IconButton>
+                                <IconButton onClick={() => {
+                                    setCampoToDelete(campo);
+                                    setOpenDeleteDialog(true);
+                                }} color="error">
+                                    <Delete />
+                                
+                                </IconButton>
+                            </>
+                        )}
                     </ListItem>
                 ))}
             </List>
@@ -132,9 +147,9 @@ function CamposManagement() {
                         <TextField
                             fullWidth
                             margin="normal"
-                            name="ubicacion"
+                            name="ubicación"
                             label="Ubicación"
-                            value={editingCampo ? editingCampo.ubicacion : nuevoCampo.ubicacion}
+                            value={editingCampo ? editingCampo.ubicación : nuevoCampo.ubicación}
                             onChange={handleInputChange}
                             required
                         />
@@ -142,7 +157,7 @@ function CamposManagement() {
                             <InputLabel>Usuario</InputLabel>
                             <Select
                                 name="usuario_id"
-                                value={editingCampo ? editingCampo.usuario_id : nuevoCampo.usuario_id}
+                                value={editingCampo ? editingCampo.usuario_id || '' : nuevoCampo.usuario_id}
                                 onChange={handleInputChange}
                                 required
                             >

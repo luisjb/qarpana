@@ -123,11 +123,15 @@ function Simulations() {
 
     const fetchCampos = async () => {
         try {
-        const response = await axios.get('/campos');
-        setCampos(response.data || []);
+            const userRole = localStorage.getItem('role');
+            // Si es Admin, obtener todos los campos, si no, solo los asociados al usuario
+            const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
+            const response = await axios.get(endpoint);
+            console.log('Campos fetched:', response.data);
+            setCampos(response.data);
         } catch (error) {
-        console.error('Error fetching campos:', error);
-        setCampos([]);
+            console.error('Error al obtener campos:', error);
+            setCampos([]);
         }
     };
 
