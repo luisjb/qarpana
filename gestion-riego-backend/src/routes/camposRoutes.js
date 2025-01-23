@@ -37,7 +37,6 @@ router.get('/', verifyToken, async (req, res) => {
         let values = [];
 
         if (req.user.tipo_usuario === 'Admin') {
-            // Si es admin, obtiene todos los campos
             query = `
                 SELECT c.*, u.nombre_usuario as usuario_asignado
                 FROM campos c
@@ -45,7 +44,6 @@ router.get('/', verifyToken, async (req, res) => {
                 ORDER BY c.nombre_campo
             `;
         } else {
-            // Si es usuario normal, solo obtiene sus campos asignados
             query = `
                 SELECT c.* 
                 FROM campos c
@@ -56,6 +54,8 @@ router.get('/', verifyToken, async (req, res) => {
         }
 
         const { rows } = await client.query(query, values);
+        // Para debugging
+        console.log('Usuario ID:', req.user.id, 'Tipo:', req.user.tipo_usuario, 'Campos:', rows);
         res.json(rows);
     } catch (err) {
         console.error('Error al obtener campos:', err);

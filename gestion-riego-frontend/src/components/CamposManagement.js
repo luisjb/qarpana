@@ -33,7 +33,10 @@ function CamposManagement() {
 
     const fetchCampos = async () => {
         try {
-            const response = await axios.get('/campos/all');
+            const userRole = localStorage.getItem('role');
+            // Si es Admin, obtener todos los campos, si no, solo los asociados al usuario
+            const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
+            const response = await axios.get(endpoint);
             setCampos(response.data);
         } catch (error) {
             console.error('Error al obtener campos:', error);
