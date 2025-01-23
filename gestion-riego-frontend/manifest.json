@@ -1,20 +1,37 @@
 {
     "name": "Gestión de Riego",
     "short_name": "Riego",
+    "description": "Sistema de gestión de riego para campos agrícolas",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",
-    "theme_color": "#3b82f6",
+    "theme_color": "#00434b",
+    "orientation": "any",
+    "categories": ["business", "productivity"],
     "icons": [
         {
-            "src": "/icon-192x192.png",
+            "src": "/logoChico.png",
             "type": "image/png",
-            "sizes": "192x192"
+            "sizes": "192x192",
+            "purpose": "any maskable"
         },
         {
-            "src": "/icon-512x512.png",
+            "src": "/logoChico.png",
             "type": "image/png",
-            "sizes": "512x512"
+            "sizes": "512x512",
+            "purpose": "any maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Ver Campos",
+            "url": "/campos",
+            "icons": [{ "src": "/logoChico.png", "sizes": "192x192" }]
+        },
+        {
+            "name": "Cambios Diarios",
+            "url": "/cambios-diarios",
+            "icons": [{ "src": "/logoChico.png", "sizes": "192x192" }]
         }
     ]
 }
