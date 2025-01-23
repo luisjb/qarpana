@@ -35,14 +35,22 @@ function LotesManagement() {
     const [openEstadoFenologicoDialog, setOpenEstadoFenologicoDialog] = useState(false);
     const [selectedLoteId, setSelectedLoteId] = useState(null);
     const [selectedLote, setSelectedLote] = useState(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+    
 
     useEffect(() => {
         if (campoId) {
             fetchLotes();
             fetchCultivos(); // Cargar cultivos al inicio
+            checkAdminStatus();
         }
     }, [campoId]);
     
+    const checkAdminStatus = () => {
+        const userRole = localStorage.getItem('role');
+        setIsAdmin(userRole && userRole.toLowerCase() === 'admin');
+    };
+
     useEffect(() => {
         if (openDialog) {
             fetchCultivos(); // Recargar cultivos cuando se abre el diálogo

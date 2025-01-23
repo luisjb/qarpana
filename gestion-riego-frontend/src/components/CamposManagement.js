@@ -16,11 +16,19 @@ function CamposManagement() {
     const [openDialog, setOpenDialog] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [campoToDelete, setCampoToDelete] = useState(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+    
     const navigate = useNavigate();
+
+    const checkAdminStatus = () => {
+        const userRole = localStorage.getItem('role');
+        setIsAdmin(userRole && userRole.toLowerCase() === 'admin');
+    };
 
     useEffect(() => {
         fetchCampos();
         fetchUsuarios();
+        checkAdminStatus();
     }, []);
 
     const fetchCampos = async () => {
