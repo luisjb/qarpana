@@ -36,7 +36,9 @@ router.get('/', verifyToken, async (req, res) => {
         let query;
         let values = [];
 
-        if (req.user.tipo_usuario === 'Admin') {
+        console.log('User data from token:', req.user); // Debug log
+
+        if (req.user.role?.toLowerCase() === 'admin') {
             query = `
                 SELECT c.*, u.nombre_usuario as usuario_asignado
                 FROM campos c
@@ -50,12 +52,13 @@ router.get('/', verifyToken, async (req, res) => {
                 WHERE c.usuario_id = $1
                 ORDER BY c.nombre_campo
             `;
-            values = [req.user.id];
+            values = [req.user.userId]; // Usando userId en lugar de id
         }
 
+        console.log('Query:', query, 'Values:', values); // Debug log
         const { rows } = await client.query(query, values);
-        // Para debugging
-        console.log('Usuario ID:', req.user.id, 'Tipo:', req.user.tipo_usuario, 'Campos:', rows);
+        console.log('Rows returned:', rows.length); // Debug log
+
         res.json(rows);
     } catch (err) {
         console.error('Error al obtener campos:', err);
