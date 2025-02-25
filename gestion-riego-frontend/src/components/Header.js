@@ -19,7 +19,6 @@ import LandscapeIcon from '@mui/icons-material/Landscape';
 import ChangeCircleIcon from '@mui/icons-material/ChangeCircle';
 import PeopleIcon from '@mui/icons-material/People';
 
-// Asegúrate de que la ruta de importación del logo sea correcta
 import logo from '../assets/logo.jpeg';
 
 const Header = () => {
@@ -56,7 +55,7 @@ const Header = () => {
         <Toolbar>
             <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
             <img src={logo} alt="Logo" style={{ height: 40, marginRight: 10 }} />
-            <Typography variant="h6" component="div">
+            <Typography variant="h6" component="div" sx={{ fontFamily: 'Poppins, Arial, sans-serif', color: 'white' }}>
                 Qarpana
             </Typography>
             </Box>
@@ -91,14 +90,14 @@ const Header = () => {
                     <MenuItem key={item.text} onClick={() => { handleClose(); navigate(item.link); }}>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         {item.icon}
-                        <Typography sx={{ ml: 1 }}>{item.text}</Typography>
+                        <Typography sx={{ ml: 1, fontFamily: 'Poppins, Arial, sans-serif' }}>{item.text}</Typography>
                     </Box>
                     </MenuItem>
                 ))}
                 <MenuItem onClick={handleLogout}>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <LogoutIcon />
-                    <Typography sx={{ ml: 1 }}>Cerrar Sesión</Typography>
+                    <Typography sx={{ ml: 1, fontFamily: 'Poppins, Arial, sans-serif' }}>Cerrar Sesión</Typography>
                     </Box>
                 </MenuItem>
                 </Menu>
@@ -112,7 +111,7 @@ const Header = () => {
                     component={Link} 
                     to={item.link}
                     startIcon={item.icon}
-                    sx={{ mr: 1 }}
+                    sx={{ mr: 1, fontFamily: 'Poppins, Arial, sans-serif' }}
                 >
                     {item.text}
                 </Button>
@@ -121,6 +120,7 @@ const Header = () => {
                 color="inherit" 
                 onClick={handleLogout} 
                 startIcon={<LogoutIcon />}
+                sx={{ fontFamily: 'Poppins, Arial, sans-serif' }}
                 >
                 Cerrar Sesión
                 </Button>

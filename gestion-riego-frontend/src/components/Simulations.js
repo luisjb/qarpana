@@ -9,16 +9,8 @@ import axios from '../axiosConfig';
 import { format } from 'date-fns';
 import Widget from './Widget';
 import CorreccionDiasDialog from './CorreccionDiasDialog';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import annotationPlugin from 'chartjs-plugin-annotation';
-import { Circle } from 'lucide-react';
 import DownloadIcon from '@mui/icons-material/Download';
-
-
-
-
-
-
 
 ChartJS.register(
     CategoryScale, LinearScale, BarElement, PointElement, LineElement,
@@ -40,24 +32,7 @@ function Simulations() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [openCorreccionDialog, setOpenCorreccionDialog] = useState(false);
 
-    const theme = createTheme({
-        palette: {
-            primary: {
-                main: '#000000', // Negro
-            },
-            secondary: {
-                main: '#dc004e', // Rosa
-            },
-            water:{
-                main: '#3498db',
-            },
-            text: {
-                primary: '#333333', // Gris oscuro
-                secondary: '#666666', // Gris medio
-            },
-        },
-    });
-
+    const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     const GaugeIndicator = ({ percentage, size = 60 }) => {
@@ -108,7 +83,6 @@ function Simulations() {
             </div>
         );
     };
-
 
     useEffect(() => {
         fetchCampos();
@@ -381,7 +355,7 @@ function Simulations() {
 
         let annotations = [];
         let startDay = 0;
-        const colors = ['rgba(255, 99, 132, 0.2)', 'rgba(54, 162, 235, 0.2)', 'rgba(255, 206, 86, 0.2)', 'rgba(75, 192, 192, 0.2)'];
+        const colors = ['rgba(110, 243, 110, 0.2)', 'rgba(233, 146, 48, 0.2)', 'rgba(255, 238, 86, 0.2)', 'rgba(75, 192, 192, 0.2)'];
 
         simulationData.estadosFenologicos.forEach((estado, index) => {
             annotations.push({
@@ -394,7 +368,19 @@ function Simulations() {
                 borderColor: 'transparent',
                 drawTime: 'beforeDatasetsDraw',
             });
-            annotations.push({
+annotations.push({
+                type: 'label',
+                xMin: startDay,
+                xMax: estado.dias,
+                yMin: 0,
+                yMax: 'max',
+                content: estado.fenologia,
+                font: {
+                    size: 14
+                },
+                color: 'rgba(0, 0, 0, 0.7)',
+            });
+annotations.push({
                 type: 'label',
                 xMin: startDay,
                 xMax: estado.dias,
@@ -433,7 +419,7 @@ function Simulations() {
                 position: 'left',
                 title: {
                     display: true,
-                    text: 'mm (Lluvia y Riego)'
+                    text: 'Lluvia y Riego (mm)'
                 },
                 grid: {
                     drawOnChartArea: false
@@ -443,7 +429,7 @@ function Simulations() {
                 position: 'right',
                 title: {
                     display: true,
-                    text: 'mm (Agua Útil)'
+                    text: 'Agua Útil (mm)'
                 },
                 grid: {
                     drawOnChartArea: false
@@ -478,6 +464,9 @@ function Simulations() {
             title: {
                 display: true,
                 text: 'Balance Hídrico',
+            },
+            annotation: {
+                annotations: getEstadosFenologicosAnnotations()
             }
         },
     };
@@ -492,21 +481,21 @@ function Simulations() {
                 type: 'bar',
                 label: 'Lluvias',
                 data: simulationData.lluvias || [],
-                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                backgroundColor: 'rgb(81, 175, 238)',
                 order: 1
             },
             {
                 type: 'bar',
                 label: 'Riego',
                 data: simulationData.riego,
-                backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                backgroundColor: 'rgb(76, 0, 255)',
                 order: 2
             },
             {
                 type: 'line',
                 label: 'Agua Útil',
                 data: [...simulationData.aguaUtil, ...new Array(simulationData.fechasProyeccion.length).fill(null)],
-                borderColor: 'rgb(255, 99, 132)',
+                borderColor: 'rgb(15, 18, 139)',
                 borderWidth: 2,
                 fill: false,
                 tension: 0.1,
@@ -517,7 +506,7 @@ function Simulations() {
                 type: 'line',
                 label: 'Agua Útil Proyectada',
                 data: [...new Array(simulationData.fechas.length).fill(null), ...simulationData.aguaUtilProyectada],
-                borderColor: 'rgba(255, 99, 132, 0.5)',
+                borderColor: 'rgba(15, 17, 139, 0.5)',
                 borderWidth: 2,
                 borderDash: [5, 5],
                 fill: false,
@@ -530,7 +519,7 @@ function Simulations() {
                 label: `Agua Útil Umbral`,
                 // Ahora usamos directamente el array completo de umbrales
                 data: simulationData.aguaUtilUmbral,
-                borderColor: 'rgb(255, 159, 64)',
+                borderColor: 'rgb(214, 0, 0)',
                 borderWidth: 2,
                 borderDash: [5, 5],
                 fill: false,
@@ -568,8 +557,7 @@ function Simulations() {
     }
 
     return (
-        <ThemeProvider theme={theme}>
-            <Container maxWidth="lg">
+        <Container maxWidth="lg">
             <Typography variant="h4" gutterBottom sx={{ my: 4, fontWeight: 'bold', color: theme.palette.primary.main }}>
                 Balance Hídrico
             </Typography>
@@ -578,8 +566,13 @@ function Simulations() {
                 <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
                     <FormControl fullWidth>
-                    <InputLabel>Campo</InputLabel>
-                    <Select value={selectedCampo} onChange={handleCampoChange}>
+                        
+                    <InputLabel label="Outlined" variant="outlined">Campo</InputLabel>
+                    <Select
+                        value={selectedCampo}
+                        onChange={handleCampoChange}
+                        label="Campo"
+                        >
                         <MenuItem value=""><em>Seleccione un campo</em></MenuItem>
                         {campos.map(campo => (
                             <MenuItem key={campo.id} value={campo.id}>{campo.nombre_campo}</MenuItem>
@@ -590,7 +583,10 @@ function Simulations() {
                 <Grid item xs={'auto'} md={3}>
                     <FormControl fullWidth>
                     <InputLabel>Lote</InputLabel>
-                    <Select value={selectedLote} onChange={handleLoteChange} disabled={!selectedCampo}>
+                    <Select 
+                        value={selectedLote} 
+                        onChange={handleLoteChange} disabled={!selectedCampo}
+                        label="Lote">
                         <MenuItem value=""><em>Seleccione un lote</em></MenuItem>
                         {lotes.map(lote => (
                             <MenuItem key={lote.id} value={lote.id}>{lote.nombre_lote}</MenuItem>
@@ -601,7 +597,10 @@ function Simulations() {
                 <Grid item xs={'auto'} md={2}>
                     <FormControl fullWidth>
                     <InputLabel>Campaña</InputLabel>
-                    <Select value={selectedCampaña} onChange={handleCampañaChange} disabled={!selectedLote}>
+                    <Select 
+                        value={selectedCampaña} 
+                        onChange={handleCampañaChange} disabled={!selectedLote}
+                        label="Campaña">
                         {campañas.map((campaña) => (
                             <MenuItem key={campaña} value={campaña}>{campaña}</MenuItem>
                         ))}
@@ -611,7 +610,10 @@ function Simulations() {
                 <Grid item xs={12} md={3}>
                     <FormControl fullWidth>
                         <InputLabel>Cultivo</InputLabel>
-                        <Select value={selectedCultivo} onChange={handleCultivoChange} disabled={!selectedCampaña}>
+                        <Select 
+                        value={selectedCultivo} 
+                        onChange={handleCultivoChange} disabled={!selectedLote}
+                        label="Cultivo">
                             <MenuItem value=""><em>Seleccione un cultivo</em></MenuItem>
                             {cultivos.map((cultivo) => (
                                 <MenuItem key={cultivo.id} value={cultivo.especie}>{cultivo.especie}</MenuItem>
@@ -641,7 +643,7 @@ function Simulations() {
                             </Button>
                             <Button 
                                 variant="contained" 
-                                color="secondary" 
+                                color="primary" 
                                 onClick={handleCorreccionDias}
                                 >
                                 Corrección de Días
@@ -698,8 +700,16 @@ function Simulations() {
                     </Grid>
                     <Grid item xs={12} md={4}>
                     <Widget 
-                        title="AU Inicial" 
-                        value={formatNumber(simulationData.auInicial)} 
+                        title="AU Inicial 1m" 
+                        value={formatNumber(simulationData.auInicial1m)} 
+                        unit="mm" 
+                        icon="waterDrop"
+                        />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                    <Widget 
+                        title="AU Inicial 2m" 
+                        value={formatNumber(simulationData.auInicial2m)} 
                         unit="mm" 
                         icon="waterDrop"
                         />
@@ -722,7 +732,7 @@ function Simulations() {
                     </Grid>
                     <Grid item xs={12} md={4}>
                         <Widget 
-                            title="% Agua Útil" 
+                            title="%AU Zona Radicular" 
                             value={
                                 <Box sx={{ 
                                     display: 'flex', 
@@ -788,6 +798,7 @@ function Simulations() {
                 <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
                     {chartData && <Chart type="bar" data={chartData} options={chartOptions} />}
                 </Paper>
+               
                 </>
             )}
             <CorreccionDiasDialog 
@@ -797,7 +808,6 @@ function Simulations() {
                     selectedCampaña={selectedCampaña}
                 />
             </Container>
-        </ThemeProvider>
     );
 }
 

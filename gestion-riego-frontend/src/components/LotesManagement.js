@@ -27,7 +27,8 @@ function LotesManagement() {
         activo: true,
         campaña: '',
         porcentaje_agua_util_umbral: '',
-        agua_util_total: ''
+        agua_util_total: '',
+        capacidad_almacenamiento_2m: '' // Nuevo campo para capacidad de almacenamiento a los 2m
     });
     const [openDialog, setOpenDialog] = useState(false);
     const [openAguaUtilDialog, setOpenAguaUtilDialog] = useState(false);
@@ -150,7 +151,8 @@ function LotesManagement() {
                 fecha_siembra: format(parseISO(loteData.fecha_siembra), 'yyyy-MM-dd'),
                 activo: loteData.activo,
                 porcentaje_agua_util_umbral: parseFloat(loteData.porcentaje_agua_util_umbral),
-                agua_util_total: parseFloat(loteData.agua_util_total)
+                agua_util_total: parseFloat(loteData.agua_util_total),
+                capacidad_almacenamiento_2m: parseFloat(loteData.capacidad_almacenamiento_2m) // Nuevo campo
             };
     
             //console.log('Datos a enviar al backend:', dataToSend);
@@ -173,7 +175,8 @@ function LotesManagement() {
                 activo: true,
                 campaña: '',
                 porcentaje_agua_util_umbral: '',
-                agua_util_total: ''
+                agua_util_total: '',
+                capacidad_almacenamiento_2m: '' // Resetear el nuevo campo
             });
         } catch (error) {
             console.error('Error al guardar lote:', error);
@@ -227,16 +230,19 @@ function LotesManagement() {
             activo: true,
             campaña: '',
             porcentaje_agua_util_umbral: '',
-            agua_util_total: ''
+            agua_util_total: '',
+            capacidad_almacenamiento_2m: '' // Resetear el nuevo campo
         });
     };
 
     return (
         <Container maxWidth="md">
             <Typography variant="h4" gutterBottom>Lotes del Campo: {nombreCampo}</Typography>
-            <Button variant="contained" color="primary" onClick={() => setOpenDialog(true)}>
-                Agregar Nuevo Lote
-            </Button>
+            {isAdmin && (
+                <Button variant="contained" color="primary" onClick={() => setOpenDialog(true)}>
+                    Agregar Nuevo Lote
+                </Button>
+            )}
             <List>
                 {lotes.map((lote) => (
                     <ListItem key={lote.id}>
@@ -396,9 +402,20 @@ function LotesManagement() {
                             fullWidth
                             margin="normal"
                             name="agua_util_total"
-                            label="Agua Útil Total"
+                            label="Capacidad de Almacenamiento (1m)"
                             type="number"
                             value={editingLote ? editingLote.agua_util_total : nuevoLote.agua_util_total}
+                            onChange={handleInputChange}
+                            InputProps={{ inputProps: { min: 0, step: 0.1 } }}
+                            required
+                        />
+                        <TextField
+                            fullWidth
+                            margin="normal"
+                            name="capacidad_almacenamiento_2m"
+                            label="Capacidad de Almacenamiento (2m)"
+                            type="number"
+                            value={editingLote ? editingLote.capacidad_almacenamiento_2m : nuevoLote.capacidad_almacenamiento_2m}
                             onChange={handleInputChange}
                             InputProps={{ inputProps: { min: 0, step: 0.1 } }}
                             required

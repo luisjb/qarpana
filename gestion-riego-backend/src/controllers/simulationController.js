@@ -19,10 +19,11 @@ exports.getSimulationData = async (req, res) => {
             SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
                     cd.fecha_cambio, cd.precipitaciones, cd.riego_cantidad, cd.evapotranspiracion,
                     cd.agua_util_diaria, cd.lluvia_efectiva, cd.kc, cd.dias, cd.crecimiento_radicular,
-                    l.porcentaje_agua_util_umbral, l.agua_util_total, l.fecha_siembra,
+                    l.porcentaje_agua_util_umbral, l.agua_util_total, l.capacidad_almacenamiento_2m, l.fecha_siembra,
                     (SELECT array_agg(valor ORDER BY estratos) 
                         FROM agua_util_inicial 
-                        WHERE lote_id = l.id) as valores_estratos
+                        WHERE lote_id = l.id) as valores_estratos,
+                    l.utilizar_un_metro
                 FROM lotes l
                 JOIN cultivos c ON l.cultivo_id = c.id
                 LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
@@ -33,28 +34,22 @@ exports.getSimulationData = async (req, res) => {
             campaña ? [loteId, campaña] : [loteId]
         );
 
-
-
-
-
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Lote no encontrado o sin datos' });
         }
 
-        
-        
         const lote = result.rows[0];
         const cambios = result.rows;
 
         const cambiosFiltrados = cambios.filter(cambio => {
             return cambio.dias <= maxDiasSimulacion;
         });
-        
-        
-        
+
         console.log('Datos del lote:', {
             agua_util_total: lote.agua_util_total,
-            porcentaje_agua_util_umbral: lote.porcentaje_agua_util_umbral
+            capacidad_almacenamiento_2m: lote.capacidad_almacenamiento_2m,
+            porcentaje_agua_util_umbral: lote.porcentaje_agua_util_umbral,
+            utilizar_un_metro: lote.utilizar_un_metro
         });
 
         console.log('Muestra de cambios diarios:', cambios.slice(0, 3).map(c => ({
@@ -89,16 +84,12 @@ exports.getSimulationData = async (req, res) => {
             riegoAcumulado = sumarValores(cambios, 'riego_cantidad');
         }
 
-        /*console.log('Datos crudos de cambios:', cambios.map(c => ({
-            fecha: c.fecha_cambio,
-            lluvia: c.precipitaciones,
-            lluvia_efectiva: c.lluvia_efectiva,
-            riego: c.riego_cantidad,
-            evap: c.evapotranspiracion,
-            etc: c.etc
-        })));*/
-
-        // Cálculos 
+        // Calcular agua útil inicial a 1m y 2m
+        const auInicial1m = lote.valores_estratos 
+            ? lote.valores_estratos.slice(0, 5).reduce((sum, valor) => sum + parseFloat(valor), 0)
+            : 0;
+        const auInicial2m = aguaUtilTotal;
+         // Cálculos 
         const fechas = cambios.map(c => c.fecha_cambio);
         const lluvias = cambios.map(c => c.precipitaciones || 0);
         const riego = cambios.map(c => c.riego_cantidad || 0);
@@ -137,32 +128,10 @@ exports.getSimulationData = async (req, res) => {
             return isNaN(num) ? null : num;
         };
 
-        /*console.log('Datos crudos:', cambios.map(c => ({
-            fecha: c.fecha_cambio,
-            lluvia: c.precipitaciones,
-            lluviaEfectiva: c.lluvia_efectiva,
-            evapotranspiracion: c.evapotranspiracion,
-            etc: c.etc,
-            aguaUtilDiaria: c.agua_util_diaria
-        })));*/
-
-          // Función para calcular el agua útil acumulada por estratos
+        // Función para calcular el agua útil acumulada por estratos
         const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, 
             indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, 
-            aguaUtilAnterior, estratoAnterior, indice_capacidad_extraccion, kc) => {
-            /*console.log('Entrada función:', {
-                dia,
-                valoresEstratos,
-                aguaUtilTotal,
-                porcentajeUmbral,
-                indice_crecimiento_radicular,
-                evapotranspiracion,
-                etc,
-                lluvia_efectiva,
-                riego_cantidad,
-                aguaUtilAnterior,
-                estratoAnterior
-            });*/
+            aguaUtilAnterior, estratoAnterior, indice_capacidad_extraccion, kc, utilizarUnMetro) => {
 
             if (!valoresEstratos || !dia) {
                 return {
@@ -170,19 +139,17 @@ exports.getSimulationData = async (req, res) => {
                     aguaUtilUmbral: 0,
                     estratosDisponibles: 0,
                     porcentajeAguaUtil: 0,
-                    profundidadRaices: 0
+                    profundidadRaices: 0,
+                    aguaUtil1m: 0,
+                    aguaUtil2m: 0
                 };
             }
             
-            
-
-            const numEstratos = valoresEstratos.length;
+            const numEstratos = utilizarUnMetro ? Math.min(valoresEstratos.length, 5) : valoresEstratos.length;
             const PROFUNDIDAD_POR_ESTRATO = 20; // 20 cm por estrato
             const DIAS_SIN_CRECIMIENTO = 6; // Días iniciales sin crecimiento radicular
 
-            
             // Calculamos la profundidad alcanzada por las raíces usando el índice específico del cultivo
-            // Calculamos la profundidad alcanzada por las raíces considerando los días sin crecimiento
             const diasEfectivos = dia <= DIAS_SIN_CRECIMIENTO ? 0 : dia - DIAS_SIN_CRECIMIENTO;
             const profundidadRaices = Math.min(
                 diasEfectivos * parseFloat(indice_crecimiento_radicular),
@@ -210,7 +177,7 @@ exports.getSimulationData = async (req, res) => {
             (parseFloat(aguaUtilAnterior) * parseFloat(indice_capacidad_extraccion)) / 100 : 0;
 
             // Aplicamos los cambios diarios
-            const perdidaAgua = Math.min(
+            const etr = Math.min(
                 etcCalculado,
                 capacidadExtraccion
             );
@@ -221,7 +188,7 @@ exports.getSimulationData = async (req, res) => {
 
             if (aguaUtilAnterior === undefined) {
                 // Primer día: consideramos el primer estrato
-                aguaUtilDiaria = parseFloat(valoresEstratos[0]) - perdidaAgua + gananciaAgua;
+                aguaUtilDiaria = parseFloat(valoresEstratos[0]) - etr + gananciaAgua;
             } else {
                 // Días subsiguientes: siempre sumamos el agua útil anterior
                 aguaUtilDiaria = aguaUtilAnterior;
@@ -233,14 +200,12 @@ exports.getSimulationData = async (req, res) => {
                 }
                 
                 // Aplicamos pérdidas y ganancias
-                aguaUtilDiaria = aguaUtilDiaria - perdidaAgua + gananciaAgua;
+                aguaUtilDiaria = aguaUtilDiaria - etr + gananciaAgua;
             }
         
             aguaUtilDiaria = Math.max(0, aguaUtilDiaria);
         
-            
-                // Limitamos el agua útil diaria al máximo disponible
-                //aguaUtilDiaria = Math.min(aguaUtilDiaria, aguaUtilMaximaActual);
+            //aguaUtilDiaria = Math.min(aguaUtilDiaria, aguaUtilMaximaActual);
             
             // Calculamos el agua útil máxima disponible actual
             const aguaUtilMaximaActual = valorPorEstrato * estratosDisponiblesFinales;
@@ -252,9 +217,12 @@ exports.getSimulationData = async (req, res) => {
             // Calculamos el porcentaje de agua útil
             const porcentajeAguaUtil = (aguaUtilDiaria / aguaUtilMaximaActual) * 100;
 
-        
             // Calculamos el agua útil umbral
             const aguaUtilUmbral = aguaUtilMaximaActual * (porcentajeUmbral / 100);
+
+            // Calcular agua útil a 1m y 2m
+            const aguaUtil1m = auInicial1m + gananciaAgua - etr;
+            const aguaUtil2m = auInicial2m + gananciaAgua - etr;
         
             // Para debug
             console.log('Cálculos de agua útil:', {
@@ -264,45 +232,32 @@ exports.getSimulationData = async (req, res) => {
                 porcentajeAguaUtil,
                 capacidadExtraccion,
                 etcCalculado: parseFloat(etcCalculado || 0),
-                perdidaAguaUsada: perdidaAgua,
+                perdidaAguaUsada: etr,
                 nuevoEstratoValor: estratosDisponiblesFinales > estratoAnterior ? 
-                    valoresEstratos[estratoAnterior || 0] : 'No hay nuevo estrato'
+                    valoresEstratos[estratoAnterior || 0] : 'No hay nuevo estrato',
+                aguaUtil1m,
+                aguaUtil2m
             });
 
-            /* console.log('Salida función:', {
-                aguaUtilDiaria,
-                aguaUtilUmbral,
-                estratosDisponibles,
-                porcentajeAguaUtil,
-                profundidadRaices,
-                gananciaAgua,
-                perdidaAgua
-            });*/
-        
             return {
                 aguaUtilDiaria,
                 aguaUtilUmbral,
                 estratosDisponibles: estratosDisponiblesFinales,
                 porcentajeAguaUtil,
-                profundidadRaices
+                profundidadRaices,
+                aguaUtil1m,
+                aguaUtil2m
             };
         };
-
 
         // Procesamos los datos día a día
         let datosSimulacion = [];
         cambiosFiltrados.forEach((cambio, index) => {
-            console.log('Datos cambio diario:', {
-                fecha: cambio.fecha_cambio,
-                evapotranspiracion: cambio.evapotranspiracion,
-                etc: cambio.etc,
-                kc: cambio.kc,
-                perdidaAgua: Math.max(cambio.evapotranspiracion || 0, cambio.etc || 0)
-            });
+        
             const resultados = calcularAguaUtilPorEstratos(
                 cambio.dias,
                 lote.valores_estratos,
-                lote.agua_util_total,
+                lote.utilizar_un_metro ? lote.agua_util_total : lote.capacidad_almacenamiento_2m,
                 lote.porcentaje_agua_util_umbral,
                 lote.indice_crecimiento_radicular,
                 cambio.evapotranspiracion,
@@ -312,16 +267,9 @@ exports.getSimulationData = async (req, res) => {
                 index > 0 ? datosSimulacion[index - 1]?.aguaUtilDiaria : undefined,
                 index > 0 ? datosSimulacion[index - 1]?.estratosDisponibles : undefined,
                 lote.indice_capacidad_extraccion, 
-                cambio.kc  
-
+                cambio.kc,
+                lote.utilizar_un_metro
             );
-
-            /*console.log('Día', cambio.dias, {
-                aguaUtilDiaria: resultados.aguaUtilDiaria,
-                estratosDisponibles: resultados.estratosDisponibles,
-                perdidaAgua: Math.max(cambio.evapotranspiracion || 0, cambio.etc || 0),
-                gananciaAgua: (cambio.lluvia_efectiva || 0) + (cambio.riego_cantidad || 0)
-            });*/
 
             datosSimulacion.push({
                 fecha: cambio.fecha_cambio,
@@ -344,11 +292,11 @@ exports.getSimulationData = async (req, res) => {
             riego: cambios.map(c => c.riego_cantidad || 0) || [],
             // Usar los datos calculados en vez de los valores de la base de datos
             aguaUtil: datosSimulacion.map(d => d.aguaUtilDiaria || 0) || [],
-            //aguaUtilUmbral: datosSimulacion.map(d => d.aguaUtilUmbral),
             estadoFenologico: await getEstadoFenologico(loteId, diasDesdeSiembra),
             estadosFenologicos: await getEstadosFenologicos(loteId),
             fechaSiembra: lote.fecha_siembra,
-            auInicial: aguaUtilTotal,
+            auInicial1m: auInicial1m,
+            auInicial2m: auInicial2m,
             lluviasEfectivasAcumuladas: cambios.reduce((sum, c) => sum + (parseFloat(c.lluvia_efectiva) || 0), 0),
             riegoAcumulado: cambios.reduce((sum, c) => sum + (parseFloat(c.riego_cantidad) || 0), 0),
             cultivo: lote.nombre_cultivo,
@@ -371,8 +319,8 @@ exports.getSimulationData = async (req, res) => {
             porcentajeProyectado: proyeccion.porcentajeProyectado,
             aguaUtilUmbral: (() => {
                 const porcentajeUmbral = parseFloat(lote.porcentaje_agua_util_umbral) / 100;
-                const numEstratos = lote.valores_estratos.length;
-                const valorPorEstrato = parseFloat(lote.agua_util_total) / numEstratos;
+                const numEstratos = lote.utilizar_un_metro ? Math.min(lote.valores_estratos.length, 5) : lote.valores_estratos.length;
+                const valorPorEstrato = parseFloat(lote.utilizar_un_metro ? lote.agua_util_total : lote.capacidad_almacenamiento_2m) / numEstratos;
                 
                 // Calculamos umbrales históricos
                 const umbralesHistoricos = datosSimulacion.map(d => {
@@ -444,24 +392,16 @@ exports.getSimulationData = async (req, res) => {
                 ...cambios.map(c => c.lluvia_efectiva || 0),
                 ...proyeccion.proyeccionCompleta.map(p => p.lluvia_efectiva || 0)
             ],
+            aguaUtil1m: datosSimulacion.map(d => d.aguaUtil1m || 0),
+            aguaUtil2m: datosSimulacion.map(d => d.aguaUtil2m || 0),
+            porcentajeAu1m: datosSimulacion.map(d => (d.aguaUtil1m / lote.agua_util_total) * 100 || 0),
+            porcentajeAu2m: datosSimulacion.map(d => (d.aguaUtil2m / lote.capacidad_almacenamiento_2m) * 100 || 0)
         };
 
         // También vamos a agregar un console.log para verificar los valores
         console.log('ETC valores:', simulationData.etc.slice(0, 5)); // Ver primeros 5 valores
         console.log('Evapotranspiracion valores:', simulationData.evapotranspiracion.slice(0, 5));
 
-        /*console.log('Datos de simulación finales:', {
-            aguaUtilMuestra: simulationData.aguaUtil.slice(0, 3),
-            porcentajeAguaUtil: simulationData.porcentajeAguaUtil,
-            estratosDisponibles: simulationData.estratosDisponibles.slice(0, 3)
-        });*/
-        
-
-
-        /*console.log('Datos de simulación procesados:', {
-            aguaUtil: simulationData.aguaUtil,
-            porcentajeAguaUtil: simulationData.porcentajeAguaUtil
-        });*/
         console.log('Datos de simulación enviados:', {
             ultimoCambio: {
                 fecha: cambios[cambios.length - 1]?.fecha_cambio,
@@ -676,13 +616,13 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
 
             const capacidadExtraccion = (aguaUtilAnterior * parseFloat(ultimoCambio.indice_capacidad_extraccion)) / 100;
             
-            const perdidaAgua = Math.min(
+            const etr = Math.min(
                 parseFloat(pronostico.etc || 0),
                 capacidadExtraccion
             );
             const gananciaAgua = parseFloat(pronostico.lluvia_efectiva || 0);
  
-            aguaUtilAnterior = Math.max(0, aguaUtilAnterior - perdidaAgua + gananciaAgua);
+            aguaUtilAnterior = Math.max(0, aguaUtilAnterior - etr + gananciaAgua);
  
             const aguaUtilMaximaActual = ultimoCambio.valores_estratos
                 .slice(0, estratosAlcanzados)
