@@ -31,7 +31,7 @@ services:
       - DB_PASSWORD=BambooAsesores2024
       - DB_PORT=5432
       - JWT_SECRET=tu_clave_secreta_muy_segura
-      - CORS_ORIGIN=*
+      - CORS_ORIGIN=https://qarpana.com.ar  
     depends_on:
       - db
     networks:
@@ -46,6 +46,8 @@ services:
     environment:
       #- REACT_APP_API_URL=http://localhost:5000
       - VIRTUAL_HOST=qarpana.com.ar
+      - VIRTUAL_PORT=3000
+
     networks:
       - app-network
     #volumes:
@@ -61,7 +63,6 @@ services:
       - certs:/etc/nginx/certs
       - vhost:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
-      - ./nginx/local.conf:/etc/nginx/conf.d/local.conf #eliminar antes de subir a producción!!!!!!!
     networks:
       - app-network
   acme-companion:
