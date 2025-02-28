@@ -7,7 +7,7 @@ const pool = require('../db');
 router.get('/all', verifyToken, async (req, res) => {
     try {
         const { rows } = await pool.query(`
-            SELECT c.id, c.nombre_campo, c.ubicación, u.nombre_usuario
+            SELECT c.id, c.nombre_campo, c.ubicacion, u.nombre_usuario
             FROM campos c
             LEFT JOIN usuarios u ON c.usuario_id = u.id
         `);
@@ -89,7 +89,7 @@ router.post('/', verifyToken, async (req, res) => {
     
     try {
         const { rows } = await pool.query(
-            'INSERT INTO campos (usuario_id, nombre_campo, ubicación) VALUES ($1, $2, $3) RETURNING *',
+            'INSERT INTO campos (usuario_id, nombre_campo, ubicacion) VALUES ($1, $2, $3) RETURNING *',
             [usuario_id, nombre_campo, ubicacion]
         );
         res.status(201).json(rows[0]);
@@ -105,7 +105,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     const { nombre_campo, ubicacion, usuario_id } = req.body;
     try {
         const { rows } = await pool.query(
-            'UPDATE campos SET nombre_campo = $1, ubicación = $2, usuario_id = $3 WHERE id = $4 RETURNING *',
+            'UPDATE campos SET nombre_campo = $1, ubicacion = $2, usuario_id = $3 WHERE id = $4 RETURNING *',
             [nombre_campo, ubicacion, usuario_id, id]
         );
         if (rows.length === 0) {

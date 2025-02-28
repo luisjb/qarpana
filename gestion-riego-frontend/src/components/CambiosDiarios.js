@@ -41,9 +41,11 @@ function CambiosDiarios() {
 
     
     const [currentCambio, setCurrentCambio] = useState(initialCambioState);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
         fetchCampos();
+        checkAdminStatus();
     }, []);
 
     useEffect(() => {
@@ -51,6 +53,11 @@ function CambiosDiarios() {
             fetchAvailableItems();
         }
     }, [openEvapDialog, tipoEvapMasiva]);
+
+    const checkAdminStatus = () => {
+        const userRole = localStorage.getItem('role');
+        setIsAdmin(userRole && userRole.toLowerCase() === 'admin');
+    };
 
     const fetchCampos = async () => {
         try {
@@ -281,7 +288,10 @@ function CambiosDiarios() {
             </Typography>
             <FormControl fullWidth margin="normal">
                 <InputLabel>Campo</InputLabel>
-                <Select value={selectedCampo} onChange={handleCampoChange}>
+                <Select 
+                value={selectedCampo} 
+                onChange={handleCampoChange}
+                label="Campo">
                     {campos.map((campo) => (
                         <MenuItem key={campo.id} value={campo.id}>{campo.nombre_campo}</MenuItem>
                     ))}
@@ -293,6 +303,7 @@ function CambiosDiarios() {
                 value={selectedLote} 
                 onChange={handleLoteChange} 
                 disabled={!selectedCampo}
+                label="Lote"
             >
                 {Array.isArray(lotes) && lotes.map((lote) => (
                     <MenuItem key={lote.id} value={lote.id}>
@@ -312,7 +323,7 @@ function CambiosDiarios() {
             </Button>
             <Button
                 variant="contained"
-                color="secondary"
+                color="primary"
                 onClick={() => setOpenEvapDialog(true)}
                 disabled={!selectedCampo && !selectedLote}
                 style={{ marginTop: '20px', marginLeft: '10px' }}
@@ -378,7 +389,7 @@ function CambiosDiarios() {
                                 multiple
                                 value={selectedItems}
                                 onChange={handleItemSelection}
-                                input={<OutlinedInput label="Campos" />}
+                                label="Campo"
                                 renderValue={(selected) => selected.map(id => 
                                     availableItems.find(item => item.id.toString() === id.toString())?.nombre
                                 ).join(', ')}
@@ -510,6 +521,7 @@ function CambiosDiarios() {
                             type="number"
                             value={currentCambio.humedad}
                             onChange={handleInputChange}
+                            disabled={!isAdmin}
                         />
                         <TextField
                             fullWidth
@@ -519,6 +531,7 @@ function CambiosDiarios() {
                             type="number"
                             value={currentCambio.temperatura}
                             onChange={handleInputChange}
+                            disabled={!isAdmin}
                         />
                         <TextField
                             fullWidth
@@ -528,6 +541,7 @@ function CambiosDiarios() {
                             type="number"
                             value={currentCambio.evapotranspiracion}
                             onChange={handleInputChange}
+                            disabled={!isAdmin}
                         />
                     </form>
                 </DialogContent>

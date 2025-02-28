@@ -61,7 +61,7 @@ UNION ALL
 SELECT id, 0.35, 140 FROM cultivos WHERE nombre_cultivo = 'Maiz';
 
 -- Campos de ejemplo
-INSERT INTO campos (usuario_id, nombre_campo, ubicación) VALUES
+INSERT INTO campos (usuario_id, nombre_campo, ubicacion) VALUES
 (1, 'Campo Norte', 'Córdoba, Argentina'),
 (1, 'Campo Sur', 'Santa Fe, Argentina'),
 (2, 'Campo Este', 'Buenos Aires, Argentina'),

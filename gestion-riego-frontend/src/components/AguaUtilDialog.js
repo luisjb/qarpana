@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions,
-    Button, TextField, FormControl, InputLabel, Select, MenuItem, Grid
+    Button, TextField, FormControlLabel, Checkbox, Grid
 } from '@mui/material';
 import axios from '../axiosConfig';
 
-
 function AguaUtilDialog({ open, onClose, loteId, onSave }) {
-    const [profundidad, setProfundidad] = useState('1');
-    const [aguaUtil, setAguaUtil] = useState(Array(5).fill(''));
+    const [aguaUtil, setAguaUtil] = useState(Array(10).fill(''));
+    const [utilizarUnMetro, setUtilizarUnMetro] = useState(false);
 
     useEffect(() => {
         if (loteId && open) {
@@ -16,25 +15,23 @@ function AguaUtilDialog({ open, onClose, loteId, onSave }) {
         }
     }, [loteId, open]);
 
-
     const fetchAguaUtil = async () => {
         try {
             const response = await axios.get(`/agua-util-inicial/${loteId}`);
             if (response.data && response.data.length > 0) {
-                setAguaUtil(response.data.map(au => au.valor));
-                setProfundidad(response.data.length === 10 ? '2' : '1');
+                const newAguaUtil = Array(10).fill('');
+                response.data.forEach((au, index) => {
+                    if (index < 10) {
+                        newAguaUtil[index] = au.valor;
+                    }
+                });
+                setAguaUtil(newAguaUtil);
+                setUtilizarUnMetro(response.data.length === 5);
             }
         } catch (error) {
             console.error('Error al obtener agua útil:', error);
         }
     };
-
-    const handleProfundidadChange = (event) => {
-        const newProfundidad = event.target.value;
-        setProfundidad(newProfundidad);
-        setAguaUtil(Array(newProfundidad === '1' ? 5 : 10).fill(''));
-    };
-
 
     const handleAguaUtilChange = (index, value) => {
         const newAguaUtil = [...aguaUtil];
@@ -46,37 +43,42 @@ function AguaUtilDialog({ open, onClose, loteId, onSave }) {
         try {
             const aguaUtilData = aguaUtil.map((valor, index) => ({
                 estrato: index + 1,
-                valor: parseFloat(valor)
+                valor: parseFloat(valor) || 0 // Convertir a número y manejar valores vacíos
             }));
-            await axios.post(`/agua-util-inicial/${loteId}`, { agua_util_inicial: aguaUtilData });
+            await axios.post(`/agua-util-inicial/${loteId}`, { agua_util_inicial: aguaUtilData, utilizar_un_metro: utilizarUnMetro });
             onSave();
             onClose();
         } catch (error) {
             console.error('Error al guardar agua útil:', error);
         }
     };
+
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
             <DialogTitle>Agua Útil Inicial</DialogTitle>
             <DialogContent>
-                <FormControl fullWidth margin="normal">
-                    <InputLabel>Profundidad</InputLabel>
-                    <Select value={profundidad} onChange={handleProfundidadChange}>
-                        <MenuItem value="1">1 metro (5 estratos)</MenuItem>
-                        <MenuItem value="2">2 metros (10 estratos)</MenuItem>
-                    </Select>
-                </FormControl>
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={utilizarUnMetro}
+                            onChange={(e) => setUtilizarUnMetro(e.target.checked)}
+                        />
+                    }
+                    label="Utilizar agua útil a 1 metro"
+                />
                 <Grid container spacing={2}>
                     {aguaUtil.map((valor, index) => (
                         <Grid item xs={12} sm={6} key={index}>
                             <TextField
-                                fullWidth
-                                label={`Estrato ${index + 1} (${index * 20}-${(index + 1) * 20}cm)`}
-                                type="number"
-                                value={valor}
-                                onChange={(e) => handleAguaUtilChange(index, e.target.value)}
-                                margin="normal"
-                            />
+                                    fullWidth
+                                    label={`Estrato ${index + 1} (${index * 20}-${(index + 1) * 20}cm)`}
+                                    type="number"
+                                    value={valor}
+                                    onChange={(e) => handleAguaUtilChange(index, e.target.value)}
+                                    variant="outlined"
+                                    size="small"
+                                    style={{ marginBottom: '10px' }}
+                            />  
                         </Grid>
                     ))}
                 </Grid>

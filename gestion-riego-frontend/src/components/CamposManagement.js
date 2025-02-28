@@ -11,7 +11,7 @@ import { Edit, Delete, Add } from '@mui/icons-material';
 function CamposManagement() {
     const [campos, setCampos] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
-    const [nuevoCampo, setNuevoCampo] = useState({ nombre_campo: '', ubicación: '', usuario_id: '' });
+    const [nuevoCampo, setNuevoCampo] = useState({ nombre_campo: '', ubicacion: '', usuario_id: '' });
     const [editingCampo, setEditingCampo] = useState(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -101,15 +101,17 @@ function CamposManagement() {
     return (
         <Container maxWidth="md">
             <Typography variant="h4" gutterBottom>Gestión de Campos</Typography>
-            <Button variant="contained" color="primary" onClick={() => setOpenDialog(true)}>
-                Agregar Nuevo Campo
-            </Button>
+            {isAdmin && (
+                <Button variant="contained" color="primary" onClick={() => setOpenDialog(true)}>
+                    Agregar Nuevo Campo
+                </Button>
+            )}
             <List>
                 {campos.map((campo) => (
                     <ListItem key={campo.id}>
                         <ListItemText
                             primary={campo.nombre_campo}
-                            secondary={`Ubicación: ${campo.ubicación || 'No especificada'} | Usuario: ${campo.nombre_usuario || 'No asignado'}`}
+                            secondary={`Ubicación: ${campo.ubicacion || 'No especificada'} | Usuario: ${campo.nombre_usuario || 'No asignado'}`}
                         />
                         <IconButton onClick={() => handleAddLotes(campo.id)}>
                             <Add />
@@ -120,7 +122,7 @@ function CamposManagement() {
                                         setEditingCampo({
                                             ...campo,
                                             usuario_id: campo.usuario_id || '',  // Asegurar que no sea null
-                                            ubicación: campo.ubicación || ''     // Asegurar que no sea null
+                                            ubicacion: campo.ubicacion || ''     // Asegurar que no sea null
                                         });
                                         setOpenDialog(true);
                                     }} color="primary">
@@ -158,9 +160,9 @@ function CamposManagement() {
                         <TextField
                             fullWidth
                             margin="normal"
-                            name="ubicación"
+                            name="ubicacion"
                             label="Ubicación"
-                            value={editingCampo ? editingCampo.ubicación : nuevoCampo.ubicación}
+                            value={editingCampo ? editingCampo.ubicacion : nuevoCampo.ubicacion}
                             onChange={handleInputChange}
                             required
                         />

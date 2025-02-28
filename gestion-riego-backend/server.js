@@ -16,21 +16,22 @@ const cron = require('node-cron');
 const actualizacionDiaria = require('./src/utils/actualizacionDiaria');
 const weatherService = require('./src/utils/weatherService');
 
-
-
-
-
-
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors());
-app.use(express.json());
-
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'https://qarpana.com.ar:3000',
-    credentials: true
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+app.use((req, res, next) => {
+    console.log('CORS_ORIGIN:', process.env.CORS_ORIGIN);
+    next();
+});
+
+app.use(express.json());
 
 // Función para ejecutar todas las actualizaciones diarias
 async function ejecutarActualizacionesDiarias() {
@@ -78,7 +79,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(port, '0.0.0.0', () => {
-    console.log(`Servidor corriendo en https://qarpana.com.ar:${port}`);
+    console.log(`Servidor corriendo en http://localhost:${port}`);
 });
 
 app.post('/api/forzar-actualizacion', async (req, res) => {

@@ -11,6 +11,10 @@ import Widget from './Widget';
 import CorreccionDiasDialog from './CorreccionDiasDialog';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import DownloadIcon from '@mui/icons-material/Download';
+import { WaterDrop } from '@mui/icons-material';
+import { useLocation } from 'react-router-dom';
+
+
 
 ChartJS.register(
     CategoryScale, LinearScale, BarElement, PointElement, LineElement,
@@ -31,6 +35,8 @@ function Simulations() {
     const [error, setError] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [openCorreccionDialog, setOpenCorreccionDialog] = useState(false);
+    const location = useLocation();
+
 
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -87,7 +93,38 @@ function Simulations() {
     useEffect(() => {
         fetchCampos();
         checkAdminStatus();
-    }, []);
+        
+        // Procesar parámetros de URL, si existen
+        const params = new URLSearchParams(window.location.search);
+        const loteId = params.get('lote');
+        const campana = params.get('campana');
+        console.log("Parámetros URL detectados:", { loteId, campana });
+
+        if (loteId) {
+            // Primero necesitamos encontrar a qué campo pertenece este lote
+            const findCampoForLote = async () => {
+                try {
+                    const response = await axios.get(`/lotes/${loteId}`);
+                    if (response.data && response.data.campo_id) {
+                        setSelectedCampo(response.data.campo_id);
+                        await fetchLotes(response.data.campo_id);
+                        setSelectedLote(loteId);
+                        
+                        if (campana) {
+                            setSelectedCampaña(campana);
+                            await fetchCultivos(loteId, campana);
+                        } else {
+                            await fetchCampañas(loteId);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error al obtener información del lote:', error);
+                }
+            };
+            
+            findCampoForLote();
+        }
+    }, [location.search]);
 
     const checkAdminStatus = () => {
         const userRole = localStorage.getItem('role');
@@ -151,6 +188,15 @@ function Simulations() {
                 if (response.data.length === 1) {
                     setSelectedCultivo(response.data[0].especie);
                     fetchSimulationData(loteId, campaña, response.data[0].especie);
+                } else if (response.data.length > 0) {
+                    // Si venimos de una URL con parámetros, seleccionamos el primer cultivo
+                    const urlParams = new URLSearchParams(location.search);
+                    if (urlParams.get('lote') && urlParams.get('campana')) {
+                        setSelectedCultivo(response.data[0].especie);
+                        fetchSimulationData(loteId, campaña, response.data[0].especie);
+                    } else {
+                        setSelectedCultivo('');
+                    }
                 } else {
                     setSelectedCultivo('');
                 }
@@ -224,7 +270,17 @@ function Simulations() {
             if (!response.data || !Array.isArray(response.data.fechas) || response.data.fechas.length === 0) {
                 throw new Error('Datos de simulación inválidos o vacíos');
             }
-            
+            const lastIndex = response.data.aguaUtil.length - 1;
+            console.log(`Datos de simulación para lote ${loteId}:`, {
+                auZonaRadicular: response.data.aguaUtil[lastIndex],
+                porcentajeAu: response.data.porcentajeAguaUtil,
+                porcentaje1m: response.data.porcentajeAu1m,
+                porcentaje2m: response.data.porcentajeAu2m,
+                valor1m: response.data.aguaUtil1m,
+                valor2m: response.data.aguaUtil2m,
+                fecha: response.data.fechas[lastIndex]
+            });
+
             setSimulationData(response.data);
         } catch (error) {
             console.error('Error fetching simulation data:', error);
@@ -350,14 +406,19 @@ function Simulations() {
         document.body.removeChild(link);
     };
 
+    
     const getEstadosFenologicosAnnotations = () => {
         if (!simulationData || !simulationData.estadosFenologicos) return [];
 
         let annotations = [];
         let startDay = 0;
-        const colors = ['rgba(110, 243, 110, 0.2)', 'rgba(233, 146, 48, 0.2)', 'rgba(255, 238, 86, 0.2)', 'rgba(75, 192, 192, 0.2)'];
+        const colors = ['rgba(110, 243, 110, 0.2)', 'rgba(156, 105, 46, 0.2)', 'rgba(255, 238, 86, 0.2)', 'rgba(75, 192, 192, 0.2)'];
+
+        const maxAguaUtil = Math.max(...simulationData.aguaUtil, ...simulationData.aguaUtilProyectada.filter(val => val !== null));
+        const labelPosition = maxAguaUtil * 0.85; // 85% del máximo
 
         simulationData.estadosFenologicos.forEach((estado, index) => {
+            // Añadimos la caja de color para cada estado fenológico
             annotations.push({
                 type: 'box',
                 xMin: startDay,
@@ -368,29 +429,26 @@ function Simulations() {
                 borderColor: 'transparent',
                 drawTime: 'beforeDatasetsDraw',
             });
-annotations.push({
+            
+            // Añadimos la etiqueta con el nombre del estado fenológico
+            annotations.push({
                 type: 'label',
-                xMin: startDay,
-                xMax: estado.dias,
-                yMin: 0,
-                yMax: 'max',
+                xValue: (startDay + estado.dias) / 2, // Posición x centrada entre inicio y fin
+                yValue: labelPosition,
+                backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                borderRadius: 4,
                 content: estado.fenologia,
                 font: {
-                    size: 14
+                    size: 12,
+                    weight: 'bold'
                 },
-                color: 'rgba(0, 0, 0, 0.7)',
-            });
-annotations.push({
-                type: 'label',
-                xMin: startDay,
-                xMax: estado.dias,
-                yMin: 0,
-                yMax: 'max',
-                content: estado.fenologia,
-                font: {
-                    size: 14
-                },
-                color: 'rgba(0, 0, 0, 0.7)',
+                color: 'rgba(0, 0, 0, 0.8)',
+                padding: {
+                    top: 3,
+                    bottom: 3,
+                    left: 5,
+                    right: 5
+                }
             });
             startDay = estado.dias;
         });
@@ -546,6 +604,7 @@ annotations.push({
                 value={simulationData.porcentajeAguaUtilUmbral}
                 unit="%" 
                 icon="waterDrop"
+                color='#3FA9F5'
             />
         </Grid>
     ) : null;
@@ -563,65 +622,73 @@ annotations.push({
             </Typography>
             
             <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-                <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
-                    <FormControl fullWidth>
-                        
-                    <InputLabel label="Outlined" variant="outlined">Campo</InputLabel>
-                    <Select
-                        value={selectedCampo}
-                        onChange={handleCampoChange}
-                        label="Campo"
-                        >
-                        <MenuItem value=""><em>Seleccione un campo</em></MenuItem>
-                        {campos.map(campo => (
-                            <MenuItem key={campo.id} value={campo.id}>{campo.nombre_campo}</MenuItem>
-                        ))}
-                    </Select>
-                    </FormControl>
-                </Grid>
-                <Grid item xs={'auto'} md={3}>
-                    <FormControl fullWidth>
-                    <InputLabel>Lote</InputLabel>
-                    <Select 
-                        value={selectedLote} 
-                        onChange={handleLoteChange} disabled={!selectedCampo}
-                        label="Lote">
-                        <MenuItem value=""><em>Seleccione un lote</em></MenuItem>
-                        {lotes.map(lote => (
-                            <MenuItem key={lote.id} value={lote.id}>{lote.nombre_lote}</MenuItem>
-                        ))}
-                    </Select>
-                    </FormControl>
-                </Grid>
-                <Grid item xs={'auto'} md={2}>
-                    <FormControl fullWidth>
-                    <InputLabel>Campaña</InputLabel>
-                    <Select 
-                        value={selectedCampaña} 
-                        onChange={handleCampañaChange} disabled={!selectedLote}
-                        label="Campaña">
-                        {campañas.map((campaña) => (
-                            <MenuItem key={campaña} value={campaña}>{campaña}</MenuItem>
-                        ))}
-                    </Select>
-                    </FormControl>
-                </Grid>
-                <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
-                        <InputLabel>Cultivo</InputLabel>
-                        <Select 
-                        value={selectedCultivo} 
-                        onChange={handleCultivoChange} disabled={!selectedLote}
-                        label="Cultivo">
-                            <MenuItem value=""><em>Seleccione un cultivo</em></MenuItem>
-                            {cultivos.map((cultivo) => (
-                                <MenuItem key={cultivo.id} value={cultivo.especie}>{cultivo.especie}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                </Grid>
-                </Grid>
+            <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={4} lg={4.5}>
+                <FormControl fullWidth>
+                <InputLabel label="Campo" variant="outlined">Campo</InputLabel>
+                <Select
+                    value={selectedCampo}
+                    onChange={handleCampoChange}
+                    label="Campo"
+                >
+                    <MenuItem value=""><em>Seleccione un campo</em></MenuItem>
+                    {campos.map(campo => (
+                    <MenuItem key={campo.id} value={campo.id}>{campo.nombre_campo}</MenuItem>
+                    ))}
+                </Select>
+                </FormControl>
+            </Grid>
+            
+            <Grid item xs={12} sm={6} md={3} lg={3}>
+                <FormControl fullWidth>
+                <InputLabel>Lote</InputLabel>
+                <Select 
+                    value={selectedLote} 
+                    onChange={handleLoteChange}
+                    disabled={!selectedCampo}
+                    label="Lote"
+                >
+                    <MenuItem value=""><em>Seleccione un lote</em></MenuItem>
+                    {lotes.map(lote => (
+                    <MenuItem key={lote.id} value={lote.id}>{lote.nombre_lote}</MenuItem>
+                    ))}
+                </Select>
+                </FormControl>
+            </Grid>
+            
+            <Grid item xs={12} sm={6} md={2} lg={1.5}>
+                <FormControl fullWidth>
+                <InputLabel>Campaña</InputLabel>
+                <Select 
+                    value={selectedCampaña} 
+                    onChange={handleCampañaChange}
+                    disabled={!selectedLote}
+                    label="Campaña"
+                >
+                    {campañas.map((campaña) => (
+                    <MenuItem key={campaña} value={campaña}>{campaña}</MenuItem>
+                    ))}
+                </Select>
+                </FormControl>
+            </Grid>
+            
+            <Grid item xs={12} sm={6} md={3} lg={3}>
+                <FormControl fullWidth>
+                <InputLabel>Cultivo</InputLabel>
+                <Select 
+                    value={selectedCultivo} 
+                    onChange={handleCultivoChange}
+                    disabled={!selectedCampaña}
+                    label="Cultivo"
+                >
+                    <MenuItem value=""><em>Seleccione un cultivo</em></MenuItem>
+                    {cultivos.map((cultivo) => (
+                    <MenuItem key={cultivo.id} value={cultivo.especie}>{cultivo.especie}</MenuItem>
+                    ))}
+                </Select>
+                </FormControl>
+            </Grid>
+            </Grid>
                 {isAdmin && (
                     <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
                             <Button
@@ -637,7 +704,6 @@ annotations.push({
                                 variant="contained" 
                                 color="primary" 
                                 onClick={handleForzarActualizacion}
-                                sx={{ mr: 2 }}
                                 >
                                 Forzar Actualización Diaria
                             </Button>
@@ -666,57 +732,65 @@ annotations.push({
             {simulationData && (
                 <>
                 <Grid container spacing={2} sx={{ mb: 4 }}>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={6} md={3}>
                     <Widget 
                         title="Cultivo" 
                         value={simulationData.cultivo} 
                         unit="" 
                         icon="grass"
+                        small
                         />
                     </Grid>
-                    <Grid item xs={12} md={4}>
-                    <Widget 
-                        title="Variedad" 
-                        value={simulationData.variedad} 
-                        unit="" 
-                        icon="grass"
-                        />
+                    <Grid item xs={6} md={3}>
+                        <Widget 
+                            title="Variedad" 
+                            value={simulationData.variedad} 
+                            unit="" 
+                            icon="grass"
+                            small
+                            />
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={6} md={3}>
                     <Widget 
                         title="Fecha de Siembra" 
                         value={formatDate(simulationData.fechaSiembra)} 
                         unit="" 
                         icon="calendar"
+                        small
                         />
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={6} md={3}>
                     <Widget 
                         title="Estado Fenológico" 
                         value={simulationData.estadoFenologico} 
                         unit="" 
                         icon="grass"
+                        small
                         />
                     </Grid>
                     <Grid item xs={12} md={4}>
-                    <Widget 
-                        title="AU Inicial 1m" 
-                        value={formatNumber(simulationData.auInicial1m)} 
-                        unit="mm" 
-                        icon="waterDrop"
-                        />
+                        <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
+                            <Box display="flex" alignItems="center" mb={2}>
+                                <WaterDrop style={{ color: '#3FA9F5' }} />
+                                <Typography variant="h6" color="primary" style={{ marginLeft: '10px' }}>
+                                    Agua Útil Inicial
+                                </Typography>
+                            </Box>
+                            <Grid container spacing={2}>
+                                <Grid item xs={6}>
+                                    <Typography variant="body1" color="text.secondary">1 Metro</Typography>
+                                    <Typography variant="h5">{formatNumber(simulationData.auInicial1m)} mm</Typography>
+                                </Grid>
+                                <Grid item xs={6}>
+                                    <Typography variant="body1" color="text.secondary">2 Metros</Typography>
+                                    <Typography variant="h5">{formatNumber(simulationData.auInicial2m)} mm</Typography>
+                                </Grid>
+                            </Grid>
+                        </Paper>
                     </Grid>
                     <Grid item xs={12} md={4}>
                     <Widget 
-                        title="AU Inicial 2m" 
-                        value={formatNumber(simulationData.auInicial2m)} 
-                        unit="mm" 
-                        icon="waterDrop"
-                        />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                    <Widget 
-                        title="Lluvias Efectiva Acumuladas" 
+                        title=" Lluvias Efectiva Acumuladas" 
                         value={formatNumber(simulationData.lluviasEfectivasAcumuladas)} 
                         unit="mm" 
                         icon="cloud"
@@ -736,7 +810,8 @@ annotations.push({
                             value={
                                 <Box sx={{ 
                                     display: 'flex', 
-                                    alignItems: 'center', 
+                                    alignItems: 'center',
+                                    justifyContent: 'center', 
                                     gap: 2,
                                     '& .gauge': { flexShrink: 0 },
                                     '& .value': { 
@@ -754,37 +829,80 @@ annotations.push({
                                 </Box>
                             }
                             icon="waterDrop"
+                            color='#3FA9F5'
                         />
                     </Grid>
-                    
                     <Grid item xs={12} md={4}>
-                    <Widget 
-                        title="Proyección AU 10 días" 
-                        value={
-                            <Box sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: 2,
-                                '& .gauge': { flexShrink: 0 },
-                                '& .value': { 
-                                    fontSize: '1.2rem',
-                                    opacity: 0.7,
-                                    marginLeft: 2
-                                }
-                            }}>
-                                <div className="gauge">
-                                    <GaugeIndicator 
-                                        percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial) * 100)}
-                                        size={80}
-                                    />
-                                </div>
-                                <span className="value">
-                                    {formatNumber(simulationData.proyeccionAU10Dias)}mm
-                                </span>
+                        <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
+                            <Box display="flex" alignItems="center" mb={2}>
+                                <WaterDrop style={{ color: '#3FA9F5' }} />
+                                <Typography variant="h6" color="primary" style={{ marginLeft: '10px' }}>
+                                    % Agua Útil
+                                </Typography>
                             </Box>
-                        }
-                        icon="waterDrop"
-                    />
+                            <Grid container spacing={2} justifyContent="center">
+                                <Grid item xs={6} sx={{ textAlign: 'center' }}>
+                                    <Typography variant="body1" color="text.secondary">1 Metro</Typography>
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
+                                        <GaugeIndicator 
+                                            percentage={formatNumber(simulationData.porcentajeAu1m)} 
+                                            size={60}
+                                        />
+                                    </Box>
+                                    <Typography variant="body1" fontWeight="medium">
+                                    {formatNumber(simulationData.aguaUtil1m[simulationData.aguaUtil1m.length - 1])} mm
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={6} sx={{ textAlign: 'center' }}>
+                                    <Typography variant="body1" color="text.secondary">2 Metros</Typography>
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
+                                        <GaugeIndicator 
+                                            percentage={formatNumber(simulationData.porcentajeAu2m)} 
+                                            size={60}
+                                        />
+                                    </Box>
+                                    <Typography variant="body1" fontWeight="medium">
+                                    {formatNumber(simulationData.aguaUtil2m[simulationData.aguaUtil2m.length - 1])} mm
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+                        </Paper>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                        <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
+                            <Box display="flex" alignItems="center" mb={2}>
+                                <WaterDrop style={{ color: '#3FA9F5' }} />
+                                <Typography variant="h6" color="primary" style={{ marginLeft: '10px' }}>
+                                    Proyección AU 7 días
+                                </Typography>
+                            </Box>
+                            <Grid container spacing={2} justifyContent="center">
+                                <Grid item xs={6} sx={{ textAlign: 'center' }}>
+                                    <Typography variant="body1" color="text.secondary">1 Metro</Typography>
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
+                                        <GaugeIndicator 
+                                            percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial1m) * 100)} 
+                                            size={60}
+                                        />
+                                    </Box>
+                                    <Typography variant="body1" fontWeight="medium">
+                                        {formatNumber(simulationData.proyeccionAU10Dias)} mm
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={6} sx={{ textAlign: 'center' }}>
+                                    <Typography variant="body1" color="text.secondary">2 Metros</Typography>
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
+                                        <GaugeIndicator 
+                                            percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial2m) * 100)}
+                                            size={60}
+                                        />
+                                    </Box>
+                                    <Typography variant="body1" fontWeight="medium">
+                                        {formatNumber(simulationData.proyeccionAU10Dias * 1.2)} mm
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+                        </Paper>
                     </Grid>
                 </Grid>
 

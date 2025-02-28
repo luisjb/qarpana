@@ -5,12 +5,12 @@ const pool = require('../db');
 
 // Crear un nuevo lote
 router.post('/', verifyToken, async (req, res) => {
-    const { campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total } = req.body;
+    const { campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m } = req.body;
     
     try {
         const result = await pool.query(
-            'INSERT INTO lotes (campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id',
-            [campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total]
+            'INSERT INTO lotes (campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id',
+            [campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m]
         );
 
         res.status(201).json({ message: 'Lote creado con éxito', loteId: result.rows[0].id });
@@ -52,6 +52,7 @@ router.get('/campo/:campoId', verifyToken, async (req, res) => {
                 l.campaña,
                 l.porcentaje_agua_util_umbral,
                 l.agua_util_total,
+                l.capacidad_almacenamiento_2m,
                 cu.nombre_cultivo
             FROM campo_info c
             CROSS JOIN LATERAL (
@@ -80,12 +81,12 @@ router.get('/campo/:campoId', verifyToken, async (req, res) => {
 // Actualizar un lote
 router.put('/:loteId', verifyToken, async (req, res) => {
     const { loteId } = req.params;
-    const { nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total } = req.body;
+    const { nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m } = req.body;
 
     try {
         const result = await pool.query(
-            'UPDATE lotes SET nombre_lote = $1, cultivo_id = $2, especie = $3, variedad = $4, fecha_siembra = $5, activo = $6, campaña = $7, porcentaje_agua_util_umbral = $8, agua_util_total = $9 WHERE id = $10 RETURNING *',
-            [nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, loteId]
+            'UPDATE lotes SET nombre_lote = $1, cultivo_id = $2, especie = $3, variedad = $4, fecha_siembra = $5, activo = $6, campaña = $7, porcentaje_agua_util_umbral = $8, agua_util_total = $9, capacidad_almacenamiento_2m = $10 WHERE id = $11 RETURNING *',
+            [nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, loteId]
         );
 
         if (result.rows.length === 0) {
@@ -131,7 +132,6 @@ router.delete('/:loteId', verifyToken, async (req, res) => {
     }
 });
 
-
 // Nueva ruta para obtener el cultivo de un lote específico para una campaña
 router.get('/:loteId/cultivo', verifyToken, async (req, res) => {
     const { loteId } = req.params;
@@ -153,6 +153,43 @@ router.get('/:loteId/cultivo', verifyToken, async (req, res) => {
         res.json(result.rows[0]);
     } catch (error) {
         console.error('Error al obtener cultivo del lote:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+router.get('/:loteId', verifyToken, async (req, res) => {
+    try {
+        const { loteId } = req.params;
+
+        const result = await pool.query(`
+            SELECT 
+                l.id,
+                l.nombre_lote,
+                l.campo_id,           -- Importante: necesitamos esto para la navegación
+                l.cultivo_id,
+                l.especie,
+                l.variedad,
+                l.fecha_siembra,
+                l.activo,
+                l.campaña,
+                l.porcentaje_agua_util_umbral,
+                l.agua_util_total,
+                l.capacidad_almacenamiento_2m,
+                c.nombre_campo,
+                cu.nombre_cultivo
+            FROM lotes l
+            LEFT JOIN campos c ON l.campo_id = c.id
+            LEFT JOIN cultivos cu ON l.cultivo_id = cu.id
+            WHERE l.id = $1
+        `, [loteId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Lote no encontrado' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error al obtener lote:', error);
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 });

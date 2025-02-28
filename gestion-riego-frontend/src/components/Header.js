@@ -18,6 +18,8 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import LandscapeIcon from '@mui/icons-material/Landscape';
 import ChangeCircleIcon from '@mui/icons-material/ChangeCircle';
 import PeopleIcon from '@mui/icons-material/People';
+import WaterDrop from '@mui/icons-material/WaterDrop';
+
 
 import logo from '../assets/logo.jpeg';
 
@@ -45,6 +47,7 @@ const Header = () => {
 
     const menuItems = [
         { text: 'Panel', icon: <DashboardIcon />, link: '/' },
+        { text: 'Resumen de Círculos', icon: <WaterDrop />, link: '/resumen-circulos' },
         { text: 'Campos', icon: <LandscapeIcon />, link: '/campos' },
         { text: 'Cambios Diarios', icon: <ChangeCircleIcon />, link: '/cambios-diarios' },
         ...(isAdmin ? [{ text: 'Gestión de Usuarios', icon: <PeopleIcon />, link: '/admin/users' }] : []),

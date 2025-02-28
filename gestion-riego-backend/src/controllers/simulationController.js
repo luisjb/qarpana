@@ -45,20 +45,6 @@ exports.getSimulationData = async (req, res) => {
             return cambio.dias <= maxDiasSimulacion;
         });
 
-        console.log('Datos del lote:', {
-            agua_util_total: lote.agua_util_total,
-            capacidad_almacenamiento_2m: lote.capacidad_almacenamiento_2m,
-            porcentaje_agua_util_umbral: lote.porcentaje_agua_util_umbral,
-            utilizar_un_metro: lote.utilizar_un_metro
-        });
-
-        console.log('Muestra de cambios diarios:', cambios.slice(0, 3).map(c => ({
-            fecha: c.fecha_cambio,
-            agua_util_diaria: c.agua_util_diaria,
-            precipitaciones: c.precipitaciones,
-            riego: c.riego_cantidad
-        })));
-        
         // Función auxiliar para sumar valores numéricos con manejo de nulos
         const sumarValores = (array, propiedad) => {
             return array.reduce((sum, item) => {
@@ -71,8 +57,14 @@ exports.getSimulationData = async (req, res) => {
         };
 
         const aguaUtilTotal = lote.valores_estratos 
-            ? lote.valores_estratos.reduce((sum, valor) => sum + parseFloat(valor), 0)
+        ? lote.valores_estratos.reduce((sum, valor) => sum + parseFloat(valor), 0)
+        : 0;
+    
+        // Calcular agua útil inicial a 1m y 2m
+        const auInicial1m = lote.valores_estratos 
+            ? lote.valores_estratos.slice(0, 5).reduce((sum, valor) => sum + parseFloat(valor), 0)
             : 0;
+        const auInicial2m = aguaUtilTotal;
 
         // Calcular acumulados
         let lluviasEfectivasAcumuladas = 0;
@@ -84,11 +76,7 @@ exports.getSimulationData = async (req, res) => {
             riegoAcumulado = sumarValores(cambios, 'riego_cantidad');
         }
 
-        // Calcular agua útil inicial a 1m y 2m
-        const auInicial1m = lote.valores_estratos 
-            ? lote.valores_estratos.slice(0, 5).reduce((sum, valor) => sum + parseFloat(valor), 0)
-            : 0;
-        const auInicial2m = aguaUtilTotal;
+       
          // Cálculos 
         const fechas = cambios.map(c => c.fecha_cambio);
         const lluvias = cambios.map(c => c.precipitaciones || 0);
@@ -220,25 +208,14 @@ exports.getSimulationData = async (req, res) => {
             // Calculamos el agua útil umbral
             const aguaUtilUmbral = aguaUtilMaximaActual * (porcentajeUmbral / 100);
 
-            // Calcular agua útil a 1m y 2m
-            const aguaUtil1m = auInicial1m + gananciaAgua - etr;
-            const aguaUtil2m = auInicial2m + gananciaAgua - etr;
-        
-            // Para debug
-            console.log('Cálculos de agua útil:', {
-                estratosDisponibles: estratosDisponiblesFinales,
-                aguaUtilDisponibleActual,
-                aguaUtilDiaria,
-                porcentajeAguaUtil,
-                capacidadExtraccion,
-                etcCalculado: parseFloat(etcCalculado || 0),
-                perdidaAguaUsada: etr,
-                nuevoEstratoValor: estratosDisponiblesFinales > estratoAnterior ? 
-                    valoresEstratos[estratoAnterior || 0] : 'No hay nuevo estrato',
-                aguaUtil1m,
-                aguaUtil2m
-            });
+            // Usamos los valores iniciales que ya hemos calculado
+            const valorAuInicial1m = auInicial1m;
+            const valorAuInicial2m = auInicial2m;
 
+            // Calcular agua útil a 1m y 2m
+            const aguaUtil1m = Math.max(0, valorAuInicial1m + gananciaAgua - etr);
+            const aguaUtil2m = Math.max(0, valorAuInicial2m + gananciaAgua - etr);
+            
             return {
                 aguaUtilDiaria,
                 aguaUtilUmbral,
@@ -249,6 +226,7 @@ exports.getSimulationData = async (req, res) => {
                 aguaUtil2m
             };
         };
+
 
         // Procesamos los datos día a día
         let datosSimulacion = [];
@@ -278,6 +256,8 @@ exports.getSimulationData = async (req, res) => {
             });
         });
         
+        const ultimoDato = datosSimulacion.length > 0 ? datosSimulacion[datosSimulacion.length - 1] : { aguaUtilDiaria: 0, aguaUtil1m: 0, aguaUtil2m: 0 };
+
         const ultimaAguaUtil = datosSimulacion[datosSimulacion.length - 1]?.aguaUtilDiaria || 0;
         const proyeccion = await calcularProyeccionAU(loteId, ultimaAguaUtil);
         const ultimoDiaHistorico = cambios[cambios.length - 1]?.dias || 0;
@@ -394,8 +374,8 @@ exports.getSimulationData = async (req, res) => {
             ],
             aguaUtil1m: datosSimulacion.map(d => d.aguaUtil1m || 0),
             aguaUtil2m: datosSimulacion.map(d => d.aguaUtil2m || 0),
-            porcentajeAu1m: datosSimulacion.map(d => (d.aguaUtil1m / lote.agua_util_total) * 100 || 0),
-            porcentajeAu2m: datosSimulacion.map(d => (d.aguaUtil2m / lote.capacidad_almacenamiento_2m) * 100 || 0)
+            porcentajeAu1m: parseFloat(lote.agua_util_total) > 0 ? (ultimoDato.aguaUtil1m / parseFloat(lote.agua_util_total)) * 100 : 0,
+            porcentajeAu2m: parseFloat(lote.capacidad_almacenamiento_2m) > 0 ? (ultimoDato.aguaUtil2m / parseFloat(lote.capacidad_almacenamiento_2m)) * 100 : 0
         };
 
         // También vamos a agregar un console.log para verificar los valores
@@ -663,3 +643,78 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
     }
  }
 
+exports.getSummaryData = async (req, res) => {
+    const { loteId } = req.params;
+
+    try {
+        // Obtenemos los datos básicos del lote
+        const { rows: [lote] } = await pool.query(`
+            SELECT l.id, l.nombre_lote, l.especie, l.variedad, l.campaña
+            FROM lotes l
+            WHERE l.id = $1
+        `, [loteId]);
+
+        if (!lote) {
+            return res.status(404).json({ error: 'Lote no encontrado' });
+        }
+
+        // Reutilizamos la lógica de cálculo del getSimulationData
+        // Creamos un objeto simulado para req y res
+        const mockReq = { 
+            params: { loteId },
+            query: { campaña: lote.campaña }
+        };
+        
+        let simulationData = null;
+        
+        // Objeto res simulado que capturará los datos de simulación
+        const mockRes = {
+            json: (data) => {
+                simulationData = data;
+            }
+        };
+
+        // Llamamos a getSimulationData con nuestros objetos simulados
+        await exports.getSimulationData(mockReq, mockRes);
+        
+        // Si no tenemos datos, devolvemos un error
+        if (!simulationData) {
+            return res.status(404).json({ error: 'No se pudieron obtener datos de simulación' });
+        }
+
+        // Extraemos solo los datos que necesitamos para el resumen
+        const lastIndex = simulationData.aguaUtil.length - 1;
+        
+        // Creamos un objeto resumen con los datos relevantes
+        const resumen = {
+            loteId: lote.id,
+            nombreLote: lote.nombre_lote,
+            especie: lote.especie,
+            variedad: lote.variedad,
+            campana: lote.campaña,
+            // Usamos el último valor de cada array
+            aguaUtilZonaRadicular: simulationData.aguaUtil[lastIndex],
+            aguaUtil1m: simulationData.aguaUtil1m[lastIndex],
+            aguaUtil2m: simulationData.aguaUtil2m[lastIndex],
+            porcentajeAguaUtil: simulationData.porcentajeAguaUtil,
+            porcentajeAu1m: simulationData.porcentajeAu1m,
+            porcentajeAu2m: simulationData.porcentajeAu2m,
+            ultimaFecha: simulationData.fechas[lastIndex]
+        };
+
+        // Agregamos un log para verificar los valores
+        console.log(`Resumen para lote ${loteId} (usando datos de simulación):`, {
+            id: lote.id,
+            nombre: lote.nombre_lote,
+            aguaUtil1m: resumen.aguaUtil1m,
+            aguaUtil2m: resumen.aguaUtil2m,
+            porcentajeAu1m: resumen.porcentajeAu1m,
+            porcentajeAu2m: resumen.porcentajeAu2m
+        });
+
+        res.json(resumen);
+    } catch (error) {
+        console.error('Error al obtener datos de resumen:', error);
+        res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+};

@@ -16,7 +16,7 @@ create table cultivos (
     fecha date not null,
     campo text not null,
     lote text not null,
-    "ubicación" text not null,
+    ubicacion text not null,
     riego_cantidad numeric,
     riego_fecha_inicio date,
     precipitaciones numeric,
@@ -41,7 +41,7 @@ create table campos (
     id bigint primary key generated always as identity,
     usuario_id bigint references usuarios (id),
     nombre_campo text not null,
-    "ubicación" text not null
+    ubicacion text not null
 );
 
 create table lotes (
@@ -310,4 +310,10 @@ CREATE INDEX idx_pronostico_fecha ON pronostico(fecha_pronostico);
 
 
 ALTER TABLE cambios_diarios ALTER COLUMN riego_fecha_inicio DROP NOT NULL;
+
+ALTER TABLE lotes
+ADD COLUMN capacidad_almacenamiento_2m NUMERIC;
+
+ALTER TABLE lotes
+ADD COLUMN utilizar_un_metro BOOLEAN DEFAULT FALSE;
 

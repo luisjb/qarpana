@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const instance = axios.create({
     baseURL: 'https://api.qarpana.com.ar/api'
+    //baseURL: `http://localhost:5000/api`
 });
 
 instance.interceptors.request.use(
@@ -32,7 +33,6 @@ instance.interceptors.response.use(
                     // Acceso prohibido
                     console.error('Acceso prohibido');
                     break;
-                // ... manejar otros casos si es necesario
             }
         }
         return Promise.reject(error);

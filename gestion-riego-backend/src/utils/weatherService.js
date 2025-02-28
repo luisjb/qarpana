@@ -15,13 +15,13 @@ class WeatherService {
     
              // Obtener los campos activos
             const camposResult = await client.query(`
-                SELECT DISTINCT c.id, c.nombre_campo, c."ubicación",
+                SELECT DISTINCT c.id, c.nombre_campo, c.ubicacion,
                     COUNT(l.id) as cantidad_lotes
                 FROM campos c
                 INNER JOIN lotes l ON l.campo_id = c.id
-                WHERE c."ubicación" IS NOT NULL 
+                WHERE c.ubicacion IS NOT NULL 
                 AND l.activo = true
-                GROUP BY c.id, c.nombre_campo, c."ubicación"
+                GROUP BY c.id, c.nombre_campo, c.ubicacion
             `);
             console.log('Campos y lotes a procesar:', camposResult.rows);
 
@@ -29,7 +29,7 @@ class WeatherService {
             for (const campo of camposResult.rows) {
                 try {
                      // Obtener pronóstico para el campo
-                    const [lat, lon] = campo.ubicación.split(',').map(coord => coord.trim());
+                    const [lat, lon] = campo.ubicacion.split(',').map(coord => coord.trim());
                     const pronostico = await this.obtenerPronosticoCampo(lat, lon);
                     console.log(`Pronóstico obtenido para campo ${campo.nombre_campo}`);
 
@@ -176,10 +176,10 @@ class WeatherService {
     async actualizarPronosticoLote(client, lote, pronostico) {
         try {
             const campoResult = await client.query(
-                'SELECT "ubicación" FROM campos WHERE id = (SELECT campo_id FROM lotes WHERE id = $1)',
+                'SELECT "ubicacion" FROM campos WHERE id = (SELECT campo_id FROM lotes WHERE id = $1)',
                 [lote.id]
             );
-            const [lat, lon] = campoResult.rows[0].ubicación.split(',').map(coord => parseFloat(coord.trim()));
+            const [lat, lon] = campoResult.rows[0].ubicacion.split(',').map(coord => parseFloat(coord.trim()));
             
             // Crear calculador ETo
             const calculator = new EToCalculator(lat, 100);

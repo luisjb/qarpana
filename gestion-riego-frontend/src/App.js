@@ -10,11 +10,20 @@ import CultivoDetail from './components/CultivoDetail';
 import UserManagement from './components/UserManagement';
 import CambiosDiarios from './components/CambiosDiarios';
 import Simulaciones from './components/Simulations';
+import ResumenCirculos from './components/ResumenCirculos';
 
-//import './style.css';
 import axios from './axiosConfig';
 
+// Import the Poppins font
+import '@fontsource/poppins';
+
 const theme = createTheme({
+  typography: {
+    fontFamily: 'Poppins, Arial, sans-serif',
+    allVariants: {
+      color: '#00434B',
+    },
+  },
   palette: {
     primary: {
       main: '#00434b',
@@ -32,6 +41,12 @@ const theme = createTheme({
           },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
             borderColor: '#00434b',
+          },
+          '&.Mui-focused .MuiOutlinedInput-input': {
+            borderColor: '#00434b',
+          },
+          '&.Mui-focused .MuiInputLabel-root': {
+            color: '#00434b',
           },
         },
       },
@@ -122,6 +137,12 @@ function App() {
             path="/admin/users" 
             element={<PrivateRoute element={<UserManagement />} allowedRoles={['admin']} />} 
           />
+          <Route 
+            path="/resumen-circulos" 
+            element={<PrivateRoute element={<ResumenCirculos />}/>}
+          />
+
+
         </Routes>
       </Router>
     </ThemeProvider>
