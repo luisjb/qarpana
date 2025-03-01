@@ -32,7 +32,7 @@ services:
       - DB_PORT=5432
       - JWT_SECRET=tu_clave_secreta_muy_segura
       - CORS_ORIGIN=https://qarpana.com.ar  
-      - VIRTUAL_HOST=api.qarpana.com.ar
+      - VIRTUAL_HOST=api.qarpana.com.ar 
     depends_on:
       - db
     networks:
