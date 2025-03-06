@@ -518,8 +518,18 @@ function Simulations() {
                 },
                 grid: {
                     drawOnChartArea: false
+                },
+                // Asegurar que haya suficiente espacio en la parte superior para las etiquetas
+                suggestedMax: function(context) {
+                    if (simulationData && simulationData.aguaUtil) {
+                        const maxValue = Math.max(
+                            ...simulationData.aguaUtil.filter(val => val !== null && !isNaN(val)),
+                            ...simulationData.aguaUtilProyectada.filter(val => val !== null && !isNaN(val))
+                        );
+                        return maxValue * 1.2; // 20% extra de espacio arriba
+                    }
+                    return undefined;
                 }
-                
             }
         },
         plugins: {

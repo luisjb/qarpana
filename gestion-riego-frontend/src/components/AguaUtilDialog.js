@@ -28,8 +28,8 @@ function AguaUtilDialog({ open, onClose, loteId, onSave }) {
                 setAguaUtil(newAguaUtil);
                 const loteResponse = await axios.get(`/lotes/${loteId}`);
                 if (loteResponse.data) {
-                    setUtilizarUnMetro(loteResponse.data.utilizar_un_metro || false);
-                }
+                    console.log("Valor de utilizar_un_metro:", loteResponse.data.utilizar_un_metro);
+                    setUtilizarUnMetro(loteResponse.data.utilizar_un_metro || false);                }
             }
         } catch (error) {
             console.error('Error al obtener agua útil:', error);
