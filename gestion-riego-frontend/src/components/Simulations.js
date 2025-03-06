@@ -414,8 +414,16 @@ function Simulations() {
         let startDay = 0;
         const colors = ['rgba(110, 243, 110, 0.2)', 'rgba(156, 105, 46, 0.2)', 'rgba(255, 238, 86, 0.2)', 'rgba(75, 192, 192, 0.2)'];
 
+        const allAguaUtilValues = [
+            ...simulationData.aguaUtil, 
+            ...simulationData.aguaUtilProyectada.filter(val => val !== null && !isNaN(val))
+        ];
+
         const maxAguaUtil = Math.max(...simulationData.aguaUtil, ...simulationData.aguaUtilProyectada.filter(val => val !== null));
         const labelPosition = maxAguaUtil * 0.85; // 85% del máximo
+
+        const labelYPosition = Math.max(...allAguaUtilValues) * 1.1; // 110% del máximo
+
 
         simulationData.estadosFenologicos.forEach((estado, index) => {
             // Añadimos la caja de color para cada estado fenológico
@@ -424,17 +432,19 @@ function Simulations() {
                 xMin: startDay,
                 xMax: estado.dias,
                 yMin: 0,
-                yMax: 'max',
+                yMax: Math.max(...allAguaUtilValues) * 1.2, // Asegurar que la caja llegue hasta arriba
                 backgroundColor: colors[index % colors.length],
                 borderColor: 'transparent',
                 drawTime: 'beforeDatasetsDraw',
+                z: -1 // Para que esté detrás de los datasets
+
             });
             
             // Añadimos la etiqueta con el nombre del estado fenológico
             annotations.push({
                 type: 'label',
                 xValue: (startDay + estado.dias) / 2, // Posición x centrada entre inicio y fin
-                yValue: labelPosition,
+                yValue: labelYPosition,
                 backgroundColor: 'rgba(255, 255, 255, 0.7)',
                 borderRadius: 4,
                 content: estado.fenologia,
@@ -444,10 +454,16 @@ function Simulations() {
                 },
                 color: 'rgba(0, 0, 0, 0.8)',
                 padding: {
-                    top: 3,
-                    bottom: 3,
-                    left: 5,
-                    right: 5
+                    top: 4,
+                    bottom: 4,
+                    left: 6,
+                    right: 6
+                },
+                 // Asegurar que la etiqueta siempre esté visible
+                drawTime: 'afterDatasetsDraw',
+                z: 100, // Alto valor de z-index para asegurar que esté por encima de todo
+                position: {
+                    y: 'top' // Forzar la posición en la parte superior
                 }
             });
             startDay = estado.dias;
@@ -481,6 +497,17 @@ function Simulations() {
                 },
                 grid: {
                     drawOnChartArea: false
+                },
+                // Asegurar que haya suficiente espacio en la parte superior para las etiquetas
+                suggestedMax: function(context) {
+                    if (simulationData && simulationData.aguaUtil) {
+                        const maxValue = Math.max(
+                            ...simulationData.aguaUtil.filter(val => val !== null && !isNaN(val)),
+                            ...simulationData.aguaUtilProyectada.filter(val => val !== null && !isNaN(val))
+                        );
+                        return maxValue * 1.2; // 20% extra de espacio arriba
+                    }
+                    return undefined;
                 }
             },
             y1: {
@@ -492,6 +519,7 @@ function Simulations() {
                 grid: {
                     drawOnChartArea: false
                 }
+                
             }
         },
         plugins: {
@@ -524,9 +552,18 @@ function Simulations() {
                 text: 'Balance Hídrico',
             },
             annotation: {
+                drawTime: 'afterDraw', // Asegurar que las anotaciones se dibujen después de todos los elementos
+                common: {
+                    drawTime: 'afterDraw'
+                },
                 annotations: getEstadosFenologicosAnnotations()
             }
         },
+        layout: {
+            padding: {
+                top: 30
+            }
+        }
     };
 
     const chartData = simulationData ? {

@@ -26,7 +26,10 @@ function AguaUtilDialog({ open, onClose, loteId, onSave }) {
                     }
                 });
                 setAguaUtil(newAguaUtil);
-                setUtilizarUnMetro(response.data.length === 5);
+                const loteResponse = await axios.get(`/lotes/${loteId}`);
+                if (loteResponse.data) {
+                    setUtilizarUnMetro(loteResponse.data.utilizar_un_metro || false);
+                }
             }
         } catch (error) {
             console.error('Error al obtener agua útil:', error);
@@ -45,7 +48,13 @@ function AguaUtilDialog({ open, onClose, loteId, onSave }) {
                 estrato: index + 1,
                 valor: parseFloat(valor) || 0 // Convertir a número y manejar valores vacíos
             }));
-            await axios.post(`/agua-util-inicial/${loteId}`, { agua_util_inicial: aguaUtilData, utilizar_un_metro: utilizarUnMetro });
+            await axios.post(`/agua-util-inicial/${loteId}`, { 
+                agua_util_inicial: aguaUtilData,
+                utilizar_un_metro: utilizarUnMetro 
+            });            
+
+            await axios.put(`/lotes/${loteId}`, { utilizar_un_metro: utilizarUnMetro });
+
             onSave();
             onClose();
         } catch (error) {

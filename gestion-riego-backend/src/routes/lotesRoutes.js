@@ -53,6 +53,7 @@ router.get('/campo/:campoId', verifyToken, async (req, res) => {
                 l.porcentaje_agua_util_umbral,
                 l.agua_util_total,
                 l.capacidad_almacenamiento_2m,
+                l.utilizar_un_metro,
                 cu.nombre_cultivo
             FROM campo_info c
             CROSS JOIN LATERAL (
@@ -81,12 +82,24 @@ router.get('/campo/:campoId', verifyToken, async (req, res) => {
 // Actualizar un lote
 router.put('/:loteId', verifyToken, async (req, res) => {
     const { loteId } = req.params;
-    const { nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m } = req.body;
+    const { nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, utilizar_un_metro  } = req.body;
 
     try {
+        if (utilizar_un_metro !== undefined && Object.keys(req.body).length === 1) {
+            const updateResult = await pool.query(
+                'UPDATE lotes SET utilizar_un_metro = $1 WHERE id = $2 RETURNING *',
+                [utilizar_un_metro, loteId]
+            );
+            
+            if (updateResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Lote no encontrado' });
+            }
+            
+            return res.json(updateResult.rows[0]);
+        }
         const result = await pool.query(
-            'UPDATE lotes SET nombre_lote = $1, cultivo_id = $2, especie = $3, variedad = $4, fecha_siembra = $5, activo = $6, campaña = $7, porcentaje_agua_util_umbral = $8, agua_util_total = $9, capacidad_almacenamiento_2m = $10 WHERE id = $11 RETURNING *',
-            [nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, loteId]
+            'UPDATE lotes SET nombre_lote = $1, cultivo_id = $2, especie = $3, variedad = $4, fecha_siembra = $5, activo = $6, campaña = $7, porcentaje_agua_util_umbral = $8, agua_util_total = $9, capacidad_almacenamiento_2m = $10, utilizar_un_metro = COALESCE($11, utilizar_un_metro) WHERE id = $11 RETURNING *',
+            [nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, utilizar_un_metro, loteId]
         );
 
         if (result.rows.length === 0) {

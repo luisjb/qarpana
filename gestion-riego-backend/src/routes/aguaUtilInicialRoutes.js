@@ -22,7 +22,7 @@ router.get('/:loteId', verifyToken, async (req, res) => {
 // Actualizar agua útil inicial de un lote
 router.post('/:loteId', verifyToken, async (req, res) => {
     const { loteId } = req.params;
-    const { agua_util_inicial } = req.body;
+    const { agua_util_inicial, utilizar_un_metro } = req.body;
 
     if (!Array.isArray(agua_util_inicial)) {
         return res.status(400).json({ error: 'agua_util_inicial debe ser un array' });
@@ -42,6 +42,14 @@ router.post('/:loteId', verifyToken, async (req, res) => {
             );
         }
 
+        // Actualizar el campo utilizar_un_metro en la tabla lotes
+        if (utilizar_un_metro !== undefined) {
+            await pool.query(
+                'UPDATE lotes SET utilizar_un_metro = $1 WHERE id = $2',
+                [utilizar_un_metro, loteId]
+            );
+        }
+
         await pool.query('COMMIT');
 
         res.status(200).json({ message: 'Agua útil inicial actualizada con éxito' });
@@ -51,5 +59,6 @@ router.post('/:loteId', verifyToken, async (req, res) => {
         res.status(500).json({ error: 'Error del servidor', details: err.message });
     }
 });
+
 
 module.exports = router;
