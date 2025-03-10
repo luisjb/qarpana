@@ -212,14 +212,19 @@ exports.getSimulationData = async (req, res) => {
             const valorAuInicial1m = auInicial1m;
             const valorAuInicial2m = auInicial2m;
 
+            let aguaUtil1m, aguaUtil2m;
+
             // Calcular agua útil a 1m y 2m
-            const aguaUtil1m = aguaUtil1mAnterior !== undefined ? 
-            Math.max(0, aguaUtil1mAnterior - etr + gananciaAgua) : 
-            Math.max(0, valorAuInicial1m - etr + gananciaAgua);
+            if (aguaUtil1mAnterior === undefined) {
+                // First day calculation - use initial values
+                aguaUtil1m = Math.max(0, valorAuInicial1m - etr + gananciaAgua);
+                aguaUtil2m = Math.max(0, valorAuInicial2m - etr + gananciaAgua);
+            } else {
+                // Subsequent days - start with previous day's values
+                aguaUtil1m = Math.max(0, aguaUtil1mAnterior - etr + gananciaAgua);
+                aguaUtil2m = Math.max(0, aguaUtil2mAnterior - etr + gananciaAgua);
+            }
             
-            const aguaUtil2m = aguaUtil2mAnterior !== undefined ? 
-            Math.max(0, aguaUtil2mAnterior - etr + gananciaAgua) : 
-            Math.max(0, valorAuInicial2m - etr + gananciaAgua);
             
             return {
                 aguaUtilDiaria,
