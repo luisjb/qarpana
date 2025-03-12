@@ -289,6 +289,8 @@ exports.getSimulationData = async (req, res) => {
             fechaSiembra: lote.fecha_siembra,
             auInicial1m: auInicial1m,
             auInicial2m: auInicial2m,
+            agua_util_total: parseFloat(lote.agua_util_total || 0),
+            capacidad_almacenamiento_2m: parseFloat(lote.capacidad_almacenamiento_2m || 0),
             lluviasEfectivasAcumuladas: cambios.reduce((sum, c) => sum + (parseFloat(c.lluvia_efectiva) || 0), 0),
             riegoAcumulado: cambios.reduce((sum, c) => sum + (parseFloat(c.riego_cantidad) || 0), 0),
             cultivo: lote.nombre_cultivo,

@@ -928,7 +928,7 @@ function Simulations() {
                                     <Typography variant="body1" color="text.secondary">1 Metro</Typography>
                                     <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
                                         <GaugeIndicator 
-                                            percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial1m) * 100)} 
+                                            percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.agua_util_total) * 100)} 
                                             size={60}
                                         />
                                     </Box>
@@ -940,7 +940,7 @@ function Simulations() {
                                     <Typography variant="body1" color="text.secondary">2 Metros</Typography>
                                     <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
                                         <GaugeIndicator 
-                                            percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.auInicial2m) * 100)}
+                                            percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.capacidad_almacenamiento_2m) * 100)}
                                             size={60}
                                         />
                                     </Box>

@@ -29,8 +29,16 @@ function AguaUtilDialog({ open, onClose, loteId, onSave }) {
             }
             const loteResponse = await axios.get(`/lotes/${loteId}`);
             if (loteResponse.data) {
-                setUtilizarUnMetro(loteResponse.data.utilizar_un_metro || false);
-            }
+                const unMetroValue = loteResponse.data.utilizar_un_metro;
+                
+                // Comprobamos si el valor existe y hacemos una conversión explícita a booleano
+                if (unMetroValue !== undefined) {
+                    // Los valores posibles en JavaScript que se consideran "falsy" son:
+                    // false, 0, "", null, undefined, NaN
+                    // Por lo tanto, si unMetroValue es alguno de estos, será false, de lo contrario, true
+                    setUtilizarUnMetro(Boolean(unMetroValue));
+                }
+            }            
         } catch (error) {
             console.error('Error al obtener agua útil:', error);
         }
