@@ -98,7 +98,7 @@ router.put('/:loteId', verifyToken, async (req, res) => {
             return res.json(updateResult.rows[0]);
         }
         const result = await pool.query(
-            'UPDATE lotes SET nombre_lote = $1, cultivo_id = $2, especie = $3, variedad = $4, fecha_siembra = $5, activo = $6, campaña = $7, porcentaje_agua_util_umbral = $8, agua_util_total = $9, capacidad_almacenamiento_2m = $10, utilizar_un_metro = COALESCE($11, utilizar_un_metro) WHERE id = $11 RETURNING *',
+            'UPDATE lotes SET nombre_lote = $1, cultivo_id = $2, especie = $3, variedad = $4, fecha_siembra = $5, activo = $6, campaña = $7, porcentaje_agua_util_umbral = $8, agua_util_total = $9, capacidad_almacenamiento_2m = $10, utilizar_un_metro = COALESCE($11, utilizar_un_metro) WHERE id = $12 RETURNING *',
             [nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, utilizar_un_metro, loteId]
         );
 
