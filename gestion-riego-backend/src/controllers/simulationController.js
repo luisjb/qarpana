@@ -126,13 +126,13 @@ exports.getSimulationData = async (req, res) => {
 
             if (!valoresEstratos || !dia) {
                 return {
-                    aguaUtilDiaria: 0,
+                    aguaUtilDiaria:  aguaUtilAnterior || 17,
                     aguaUtilUmbral: 0,
                     estratosDisponibles: estratoAnteriorCorregido,
                     porcentajeAguaUtil: 0,
                     profundidadRaices: 0,
-                    aguaUtil1m: 0,
-                    aguaUtil2m: 0
+                    aguaUtil1m: aguaUtil1mAnterior || 17,
+                    aguaUtil2m: aguaUtil2mAnterior || 17
                 };
             }
             
@@ -141,11 +141,11 @@ exports.getSimulationData = async (req, res) => {
             const DIAS_SIN_CRECIMIENTO = 6; // Días iniciales sin crecimiento radicular
 
             const crecimientoRadicular = parseFloat(indice_crecimiento_radicular);
-            if (isNaN(crecimientoRadicular) || crecimientoRadicular <= 0) {
-                console.warn(`Warning: indice_crecimiento_radicular inválido: ${indice_crecimiento_radicular}, usando valor por defecto`);
-                indice_crecimiento_radicular = 0.1; // Valor por defecto
-            }
+            const crecimientoValido = !isNaN(crecimientoRadicular) && crecimientoRadicular > 0 
+            ? crecimientoRadicular 
+            : 0.1; // Valor por defecto
 
+            
             // Calculamos la profundidad alcanzada por las raíces usando el índice específico del cultivo
             const diasEfectivos = dia <= DIAS_SIN_CRECIMIENTO ? 0 : dia - DIAS_SIN_CRECIMIENTO;
             const profundidadRaices = Math.min(
@@ -160,18 +160,26 @@ exports.getSimulationData = async (req, res) => {
             ));
         
             // Aseguramos que no haya saltos de más de un estrato por vez
-            const estratosDisponiblesFinales = estratoAnterior ? 
-                Math.min(estratosDisponibles, estratoAnterior + 1) : 
-                estratosDisponibles;
+            const estratosDisponiblesFinales = Math.max(
+                estratosDisponibles,
+                estratoAnteriorCorregido
+            );
             
             // Valor por estrato (agua útil total dividida por número de estratos)
             const valorPorEstrato = parseFloat(aguaUtilTotal) / numEstratos;
 
-            const etcCalculado = parseFloat(evapotranspiracion || 0) * parseFloat(kc || 0);
+            const etcCalculado = Math.max(0, (parseFloat(evapotranspiracion || 0) * parseFloat(kc || 0)) || 0);
+            
+            const aguaUtilAnteriorValor = aguaUtilAnterior === 0 ? valorPorEstrato * 0.1 : aguaUtilAnterior;
+
 
             // Calculamos la capacidad de extracción como porcentaje del agua útil anterior
-            const capacidadExtraccion = aguaUtilAnterior ? 
-            (parseFloat(aguaUtilAnterior) * parseFloat(indice_capacidad_extraccion)) / 100 : 0;
+            const capacidadExtraccion = Math.max(
+                0.8, // Valor mínimo para evitar quedar atrapado en 0
+                aguaUtilAnteriorValor ? 
+                    (parseFloat(aguaUtilAnteriorValor) * parseFloat(indice_capacidad_extraccion)) / 100 : 0.8
+            );
+        
 
             // Aplicamos los cambios diarios
             const etr = Math.min(
@@ -215,8 +223,9 @@ exports.getSimulationData = async (req, res) => {
             .reduce((sum, valor) => sum + parseFloat(valor), 0);            
             
             // Calculamos el porcentaje de agua útil
-            const porcentajeAguaUtil = (aguaUtilDiaria / aguaUtilMaximaActual) * 100;
-
+            const porcentajeAguaUtil = aguaUtilMaximaActual > 0 ? 
+                (aguaUtilDiaria / aguaUtilMaximaActual) * 100 : 1;
+                
             // Calculamos el agua útil umbral
             const aguaUtilUmbral = aguaUtilMaximaActual * (porcentajeUmbral / 100);
 
