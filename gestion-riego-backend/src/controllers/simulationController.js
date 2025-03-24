@@ -121,11 +121,14 @@ exports.getSimulationData = async (req, res) => {
             indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, 
             aguaUtilAnterior, estratoAnterior, indice_capacidad_extraccion, kc, utilizarUnMetro, aguaUtil1mAnterior, aguaUtil2mAnterior) => {
 
+            const estratoAnteriorCorregido = estratoAnterior === 0 || estratoAnterior === undefined || estratoAnterior === null ? 1 : estratoAnterior;
+
+
             if (!valoresEstratos || !dia) {
                 return {
                     aguaUtilDiaria: 0,
                     aguaUtilUmbral: 0,
-                    estratosDisponibles: 0,
+                    estratosDisponibles: estratoAnteriorCorregido,
                     porcentajeAguaUtil: 0,
                     profundidadRaices: 0,
                     aguaUtil1m: 0,
@@ -137,6 +140,12 @@ exports.getSimulationData = async (req, res) => {
             const PROFUNDIDAD_POR_ESTRATO = 20; // 20 cm por estrato
             const DIAS_SIN_CRECIMIENTO = 6; // Días iniciales sin crecimiento radicular
 
+            const crecimientoRadicular = parseFloat(indice_crecimiento_radicular);
+            if (isNaN(crecimientoRadicular) || crecimientoRadicular <= 0) {
+                console.warn(`Warning: indice_crecimiento_radicular inválido: ${indice_crecimiento_radicular}, usando valor por defecto`);
+                indice_crecimiento_radicular = 0.1; // Valor por defecto
+            }
+
             // Calculamos la profundidad alcanzada por las raíces usando el índice específico del cultivo
             const diasEfectivos = dia <= DIAS_SIN_CRECIMIENTO ? 0 : dia - DIAS_SIN_CRECIMIENTO;
             const profundidadRaices = Math.min(
@@ -145,10 +154,10 @@ exports.getSimulationData = async (req, res) => {
             );
             
             // Calculamos cuántos estratos están disponibles (cambio cada PROFUNDIDAD_POR_ESTRATO cm)
-            const estratosDisponibles = Math.min(
+            const estratosDisponibles = Math.max(1, Math.min(
                 Math.floor(profundidadRaices / PROFUNDIDAD_POR_ESTRATO) + 1,
                 numEstratos
-            );
+            ));
         
             // Aseguramos que no haya saltos de más de un estrato por vez
             const estratosDisponiblesFinales = estratoAnterior ? 
@@ -181,10 +190,13 @@ exports.getSimulationData = async (req, res) => {
                 // Días subsiguientes: siempre sumamos el agua útil anterior
                 aguaUtilDiaria = aguaUtilAnterior;
                 
-                if (estratosDisponiblesFinales > estratoAnterior) {
+                if (estratosDisponiblesFinales > estratoAnteriorCorregido) {
                     // Si alcanzamos un nuevo estrato, sumamos su valor
-                    const nuevoEstrato = estratoAnterior || 0;
-                    aguaUtilDiaria += parseFloat(valoresEstratos[nuevoEstrato]);
+                    for (let i = estratoAnteriorCorregido; i < estratosDisponiblesFinales; i++) {
+                        if (i < valoresEstratos.length) {
+                            aguaUtilDiaria += parseFloat(valoresEstratos[i] || 0);
+                        }
+                    }
                 }
                 
                 // Aplicamos pérdidas y ganancias
