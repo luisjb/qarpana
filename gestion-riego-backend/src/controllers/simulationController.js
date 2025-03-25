@@ -746,8 +746,8 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         const proyeccionFinal = {
             proyeccionCompleta,
             aguaUtilDia8: proyeccionCompleta[6]?.agua_util_diaria || aguaUtilZonaRadicular,
-            aguaUtil1mDia8: proyeccionCompleta[6]?.agua_util_1m || aguaUtil1m,
-            aguaUtil2mDia8: proyeccionCompleta[6]?.agua_util_2m || aguaUtil2m,
+            aguaUtil1mDia8: proyeccionCompleta[6].agua_util_1m  ,
+            aguaUtil2mDia8: proyeccionCompleta[6].agua_util_2m ,
             porcentajeProyectado: proyeccionCompleta[6]?.porcentajeAguaUtil || 
                 (aguaUtilTotal1m > 0 ? (aguaUtil1m / aguaUtilTotal1m) * 100 : 0),
             porcentajeProyectado2m: proyeccionCompleta[6]?.porcentajeAguaUtil2m || 
