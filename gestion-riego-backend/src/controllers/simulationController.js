@@ -656,6 +656,9 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
             aguaUtil1mAnterior = Math.max(0, aguaUtil1mAnterior - etr + gananciaAgua);
             aguaUtil2mAnterior = Math.max(0, aguaUtil2mAnterior - etr + gananciaAgua);
             
+            const porcentajeAguaUtil = aguaUtilTotal1m > 0 ? (aguaUtil1mAnterior / aguaUtilTotal1m) * 100 : 0;
+            const porcentajeAguaUtil2m = aguaUtilTotal2m > 0 ? (aguaUtil2mAnterior / aguaUtilTotal2m) * 100 : 0;
+            
             const aguaUtilMaximaActual = ultimoCambio.valores_estratos
                 .slice(0, estratosAlcanzados)
                 .reduce((sum, valor) => sum + parseFloat(valor), 0);
