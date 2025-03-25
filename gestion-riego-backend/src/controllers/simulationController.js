@@ -596,12 +596,26 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
         const simulationData = await getLastSimulationData(loteId);
         
         let aguaUtilAnterior = parseFloat(aguaUtilInicial);
-        let aguaUtil1mAnterior = simulationData?.aguaUtil1m;
-        let aguaUtil2mAnterior = simulationData?.aguaUtil2m;
+      
 
         const capacidad1m = parseFloat(ultimoCambio.agua_util_total || 0);
         const capacidad2m = parseFloat(ultimoCambio.capacidad_almacenamiento_2m || 0);
-
+        
+         // Get agua util 1m and 2m using proper proportions
+         let proportion1m = 1; // Default: identical to zona radicular
+         let proportion2m = 1; // Default: identical to zona radicular
+        
+        if (simulationData) {
+            proportion1m = simulationData.proportion1m || 1;
+            proportion2m = simulationData.proportion2m || (capacidad2m > 0 ? capacidad2m / capacidad1m : 1.4);
+        } else if (capacidad1m > 0 && capacidad2m > 0) {
+            proportion2m = capacidad2m / capacidad1m;
+        }
+        
+         // Calculate starting values with proportions
+         const aguaUtil1mAnterior = parseFloat(simulationData?.aguaUtil1m || (aguaUtilInicial * proportion1m));
+         const aguaUtil2mAnterior = parseFloat(simulationData?.aguaUtil2m || (aguaUtilInicial * proportion2m));
+         
         let diasAcumulados = parseInt(ultimoCambio.ultimo_dia);
         const indiceCrecimientoRadicular = parseFloat(ultimoCambio.indice_crecimiento_radicular);
 
@@ -637,6 +651,10 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
             );
         };
  
+        let aguaUtilZonaRadicular = aguaUtilAnterior;
+        let aguaUtil1m = aguaUtil1mAnterior;
+        let aguaUtil2m = aguaUtil2mAnterior;
+
         for (const pronostico of pronosticos) {
 
             diasAcumulados++;
@@ -651,11 +669,14 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
                 capacidadExtraccion
             );
             const gananciaAgua = parseFloat(pronostico.lluvia_efectiva || 0);
-            console.log('Ganancia de agua:', gananciaAgua, 'ETR:', etr, 'Agua útil anterior:', aguaUtilAnterior, 'Agua útil 1m anterior:', aguaUtil1mAnterior, 'Agua útil 2m anterior:', aguaUtil2mAnterior);
+            console.log('Ganancia de agua:', gananciaAgua, 'ETR:', etr, 
+                'Agua útil anterior:', aguaUtilZonaRadicular, 
+                'Agua útil 1m anterior:', aguaUtil1m, 
+                'Agua útil 2m anterior:', aguaUtil2m);
  
-            aguaUtilAnterior = Math.max(0, aguaUtilAnterior - etr + gananciaAgua);
-            aguaUtil1mAnterior = Math.max(0, aguaUtil1mAnterior - etr + gananciaAgua);
-            aguaUtil2mAnterior = Math.max(0, aguaUtil2mAnterior - etr + gananciaAgua);
+                aguaUtilZonaRadicular = Math.max(0, aguaUtilZonaRadicular - etr + gananciaAgua);
+                aguaUtil1m = Math.max(0, aguaUtil1m - etr + gananciaAgua);
+                aguaUtil2m = Math.max(0, aguaUtil2m - etr + gananciaAgua);
             
             const porcentajeAguaUtil = aguaUtilTotal1m > 0 ? (aguaUtil1mAnterior / aguaUtilTotal1m) * 100 : 0;
             const porcentajeAguaUtil2m = aguaUtilTotal2m > 0 ? (aguaUtil2mAnterior / aguaUtilTotal2m) * 100 : 0;
@@ -664,17 +685,17 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
                 .slice(0, estratosAlcanzados)
                 .reduce((sum, valor) => sum + parseFloat(valor), 0);
             
-            proyeccionCompleta.push({
-                fecha: pronostico.fecha_pronostico,
-                agua_util_diaria: aguaUtilAnterior,
-                agua_util_1m: aguaUtil1mAnterior,
-                agua_util_2m: aguaUtil2mAnterior,
-                estratos_disponibles: estratosAlcanzados,
-                lluvia_efectiva: pronostico.lluvia_efectiva,
-                etc: pronostico.etc,
-                porcentajeAguaUtil: porcentajeAguaUtil,
-                porcentajeAguaUtil2m: porcentajeAguaUtil2m
-            });
+                proyeccionCompleta.push({
+                    fecha: pronostico.fecha_pronostico,
+                    agua_util_diaria: aguaUtilZonaRadicular,
+                    agua_util_1m: aguaUtil1m,
+                    agua_util_2m: aguaUtil2m,
+                    estratos_disponibles: estratosAlcanzados, // This doesn't change in projection
+                    lluvia_efectiva: pronostico.lluvia_efectiva,
+                    etc: pronostico.etc,
+                    porcentajeAguaUtil: porcentajeAguaUtil,
+                    porcentajeAguaUtil2m: porcentajeAguaUtil2m
+                });
         }
         const proyeccionFinal = {
             proyeccionCompleta,
@@ -708,12 +729,12 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
     }
  }
 
- async function getLastSimulationData(loteId) {
+async function getLastSimulationData(loteId) {
     try {
-        // Get the latest historic simulation data
-        const { rows: datosSimulacion } = await pool.query(`
-            SELECT cd.lote_id, cd.fecha_cambio, l.utilizar_un_metro, 
-                   l.agua_util_total, l.capacidad_almacenamiento_2m
+        // Get the latest historic simulation data with relevant lote information
+        const { rows } = await pool.query(`
+            SELECT cd.lote_id, cd.fecha_cambio, cd.agua_util_diaria,
+                   l.utilizar_un_metro, l.agua_util_total, l.capacidad_almacenamiento_2m
             FROM cambios_diarios cd
             JOIN lotes l ON cd.lote_id = l.id
             WHERE cd.lote_id = $1
@@ -721,31 +742,64 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
             LIMIT 1
         `, [loteId]);
 
-        if (datosSimulacion.length === 0) {
+        if (rows.length === 0) {
             return null;
         }
 
-        // We need to simulate the calculations as is done in getSimulationData
-        // This is a simplified version to get the last values
-        const lastChanges = await pool.query(`
-            SELECT * FROM cambios_diarios 
-            WHERE lote_id = $1
-            ORDER BY fecha_cambio DESC
-            LIMIT 30
-        `, [loteId]);
-
-        // Process the data similar to how getSimulationData does
-        // For simplicity, we're only getting the most recent values
-        const ultimoCambio = lastChanges.rows[0];
+        const ultimoCambio = rows[0];
         
-        // For a quick approximation, we'll estimate 1m as 70% of total capacity and 2m as 100%
+        // Get data for calculating proportions
+        const { rows: valoresEstratos } = await pool.query(`
+            SELECT estratos, valor
+            FROM agua_util_inicial
+            WHERE lote_id = $1
+            ORDER BY estratos
+        `, [loteId]);
+        
+        // Calculate sum for 1m (first 5 strata) and total
+        const sumValores1m = valoresEstratos
+            .filter(v => v.estratos <= 5)
+            .reduce((sum, v) => sum + parseFloat(v.valor || 0), 0);
+        
+        const sumValoresTotal = valoresEstratos
+            .reduce((sum, v) => sum + parseFloat(v.valor || 0), 0);
+        
+        // Calculate the agua util values
         const agua_util_diaria = parseFloat(ultimoCambio?.agua_util_diaria || 0);
-        const aguaUtil1m = agua_util_diaria;
-        const aguaUtil2m = agua_util_diaria * 1.4; // Approximating 2m as 40% more than the zona radicular value
+        
+        // Check if we have capacities to calculate proportions
+        const capacidad1m = parseFloat(ultimoCambio.agua_util_total || 0);
+        const capacidad2m = parseFloat(ultimoCambio.capacidad_almacenamiento_2m || 0);
+        
+        // If we have estratos data, use it to calculate proportions
+        // Otherwise fallback to capacity-based proportions
+        let proportion1m = 1; // Default: 1m = zona radicular
+        let proportion2m = capacidad2m > 0 ? (capacidad2m / capacidad1m) : 1.4; // Default: 2m = 140% of 1m
+        
+        if (sumValoresTotal > 0 && sumValores1m > 0) {
+            proportion1m = sumValores1m / sumValoresTotal;
+            proportion2m = 1; // full total
+        }
+        
+        // Calculate agua util values
+        const aguaUtil1m = agua_util_diaria * proportion1m;
+        const aguaUtil2m = agua_util_diaria * proportion2m;
+        
+        console.log('Cálculo de proporciones de agua útil:', {
+            agua_util_diaria,
+            proportion1m,
+            proportion2m,
+            aguaUtil1m,
+            aguaUtil2m
+        });
         
         return {
             aguaUtil1m,
-            aguaUtil2m
+            aguaUtil2m,
+            totalAgua1m: capacidad1m,
+            totalAgua2m: capacidad2m,
+            proportion1m,
+            proportion2m
         };
     } catch (error) {
         console.error('Error getting last simulation data:', error);
