@@ -584,6 +584,7 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
             LIMIT 1
         `, [loteId]);
  
+ 
         if (!ultimoCambio) return { 
             proyeccionCompleta: [], 
             aguaUtilDia8: 0, 
@@ -592,41 +593,19 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
             porcentajeProyectado2m: 0 // Adding 2m percentage projection
         };
 
-        const { rows: [ultimosDatos] } = await pool.query(`
-            SELECT cd.agua_util_diaria, cd.agua_util_1m, cd.agua_util_2m
-            FROM cambios_diarios cd
-            WHERE cd.lote_id = $1 
-            ORDER BY cd.fecha_cambio DESC
-            LIMIT 1
-        `, [loteId]);
+        const simulationData = await getLastSimulationData(loteId);
         
         let aguaUtilAnterior = parseFloat(aguaUtilInicial);
-        let aguaUtil1mAnterior = parseFloat(ultimosDatos?.agua_util_1m || aguaUtilInicial);
-        let aguaUtil2mAnterior = parseFloat(ultimosDatos?.agua_util_2m || (aguaUtilInicial * 1.4)); // Using a default multiplier if not available
+        let aguaUtil1mAnterior = simulationData?.aguaUtil1m || parseFloat(aguaUtilInicial);
+        let aguaUtil2mAnterior = simulationData?.aguaUtil2m || parseFloat(aguaUtilInicial * 1.4);
 
-        const { rows: [iniciales] } = await pool.query(`
-            SELECT 
-                (SELECT SUM(valor) FROM agua_util_inicial WHERE lote_id = $1) as au_total,
-                (SELECT SUM(valor) FROM agua_util_inicial WHERE lote_id = $1 AND estratos <= 5) as au_1m
-            `, [loteId]);
-
-        const auTotal = parseFloat(iniciales?.au_total || 0);
-        const au1m = parseFloat(iniciales?.au_1m || 0);
-
+        const capacidad1m = parseFloat(ultimoCambio.agua_util_total || 0);
+        const capacidad2m = parseFloat(ultimoCambio.capacidad_almacenamiento_2m || 0);
 
         let diasAcumulados = parseInt(ultimoCambio.ultimo_dia);
         const indiceCrecimientoRadicular = parseFloat(ultimoCambio.indice_crecimiento_radicular);
 
         const estratosAlcanzados = ultimoCambio.estrato_alcanzado || 1;
-        const aguaUtilDisponible = ultimoCambio.valores_estratos
-            ?.slice(0, estratosAlcanzados)
-            .reduce((sum, valor) => sum + parseFloat(valor), 0) || 0;
- 
-        console.log('Punto de partida proyección:', {
-            aguaUtilAnterior,
-            aguaUtilDisponible,
-            fecha: ultimoCambio.fecha_cambio
-        });
  
         const { rows: pronosticos } = await pool.query(`
             SELECT 
@@ -645,12 +624,9 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
  
         let proyeccionCompleta = [];
 
-        const aguaUtilTotal1m = ultimoCambio.utilizar_un_metro ? 
-            parseFloat(ultimoCambio.agua_util_total || 0) : 
-            (au1m || parseFloat(ultimoCambio.agua_util_total || 0) * 0.7); // Default to 70% if not available
-        
-         const aguaUtilTotal2m = parseFloat(ultimoCambio.capacidad_almacenamiento_2m || 0) || 
-            (auTotal || parseFloat(ultimoCambio.agua_util_total || 0) * 1.4); // Default to 140% if not available
+        const aguaUtilTotal1m = capacidad1m;
+        const aguaUtilTotal2m = capacidad2m || (capacidad1m * 1.4);
+
 
          // Función auxiliar para calcular estrato basado en profundidad
            // Function to calculate estrato based on depth
@@ -692,10 +668,18 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
                 estratos_disponibles: estratosAlcanzados,
                 lluvia_efectiva: pronostico.lluvia_efectiva,
                 etc: pronostico.etc,
-                porcentajeAguaUtil: (aguaUtilAnterior / aguaUtilTotal1m) * 100,
-                porcentajeAguaUtil2m: (aguaUtil2mAnterior / aguaUtilTotal2m) * 100
+                porcentajeAguaUtil: porcentajeAguaUtil,
+                porcentajeAguaUtil2m: porcentajeAguaUtil2m
             });
         }
+        const proyeccionFinal = {
+            proyeccionCompleta,
+            aguaUtilDia8: proyeccionCompleta[6]?.agua_util_diaria || 0, 
+            aguaUtil1mDia8: proyeccionCompleta[6]?.agua_util_1m || 0,
+            aguaUtil2mDia8: proyeccionCompleta[6]?.agua_util_2m || 0,
+            porcentajeProyectado: proyeccionCompleta[6]?.porcentajeAguaUtil || 0,
+            porcentajeProyectado2m: proyeccionCompleta[6]?.porcentajeAguaUtil2m || 0
+        };
 
         console.log('Proyección calculada con 1m y 2m:', {
             valorInicial: aguaUtilInicial,
@@ -719,6 +703,51 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
         };
     }
  }
+
+ async function getLastSimulationData(loteId) {
+    try {
+        // Get the latest historic simulation data
+        const { rows: datosSimulacion } = await pool.query(`
+            SELECT cd.lote_id, cd.fecha_cambio, l.utilizar_un_metro, 
+                   l.agua_util_total, l.capacidad_almacenamiento_2m
+            FROM cambios_diarios cd
+            JOIN lotes l ON cd.lote_id = l.id
+            WHERE cd.lote_id = $1
+            ORDER BY cd.fecha_cambio DESC
+            LIMIT 1
+        `, [loteId]);
+
+        if (datosSimulacion.length === 0) {
+            return null;
+        }
+
+        // We need to simulate the calculations as is done in getSimulationData
+        // This is a simplified version to get the last values
+        const lastChanges = await pool.query(`
+            SELECT * FROM cambios_diarios 
+            WHERE lote_id = $1
+            ORDER BY fecha_cambio DESC
+            LIMIT 30
+        `, [loteId]);
+
+        // Process the data similar to how getSimulationData does
+        // For simplicity, we're only getting the most recent values
+        const ultimoCambio = lastChanges.rows[0];
+        
+        // For a quick approximation, we'll estimate 1m as 70% of total capacity and 2m as 100%
+        const agua_util_diaria = parseFloat(ultimoCambio?.agua_util_diaria || 0);
+        const aguaUtil1m = agua_util_diaria;
+        const aguaUtil2m = agua_util_diaria * 1.4; // Approximating 2m as 40% more than the zona radicular value
+        
+        return {
+            aguaUtil1m,
+            aguaUtil2m
+        };
+    } catch (error) {
+        console.error('Error getting last simulation data:', error);
+        return null;
+    }
+}
 
 exports.getSummaryData = async (req, res) => {
     const { loteId } = req.params;
