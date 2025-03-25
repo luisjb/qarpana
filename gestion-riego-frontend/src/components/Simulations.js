@@ -928,24 +928,24 @@ function Simulations() {
                                     <Typography variant="body1" color="text.secondary">1 Metro</Typography>
                                     <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
                                         <GaugeIndicator 
-                                            percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.agua_util_total) * 100)} 
+                                            percentage={formatNumber(simulationData.porcentajeProyectado || 0)}
                                             size={60}
                                         />
                                     </Box>
                                     <Typography variant="body1" fontWeight="medium">
-                                        {formatNumber(simulationData.proyeccionAU10Dias)} mm
+                                        {formatNumber(simulationData.proyeccionAU1mDia8)} mm
                                     </Typography>
                                 </Grid>
                                 <Grid item xs={6} sx={{ textAlign: 'center' }}>
                                     <Typography variant="body1" color="text.secondary">2 Metros</Typography>
                                     <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
                                         <GaugeIndicator 
-                                            percentage={formatNumber((simulationData.proyeccionAU10Dias / simulationData.capacidad_almacenamiento_2m) * 100)}
+                                            percentage={formatNumber(simulationData.porcentajeProyectado2m || 0)}
                                             size={60}
                                         />
                                     </Box>
                                     <Typography variant="body1" fontWeight="medium">
-                                        {formatNumber(simulationData.proyeccionAU10Dias * 1.2)} mm
+                                        {formatNumber(simulationData.proyeccionAU2mDia8)} mm
                                     </Typography>
                                 </Grid>
                             </Grid>
