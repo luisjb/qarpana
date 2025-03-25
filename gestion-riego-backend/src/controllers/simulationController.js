@@ -596,8 +596,8 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
         const simulationData = await getLastSimulationData(loteId);
         
         let aguaUtilAnterior = parseFloat(aguaUtilInicial);
-        let aguaUtil1mAnterior = simulationData?.aguaUtil1m || parseFloat(aguaUtilInicial);
-        let aguaUtil2mAnterior = simulationData?.aguaUtil2m || parseFloat(aguaUtilInicial);
+        let aguaUtil1mAnterior = simulationData?.aguaUtil1m;
+        let aguaUtil2mAnterior = simulationData?.aguaUtil2m;
 
         const capacidad1m = parseFloat(ultimoCambio.agua_util_total || 0);
         const capacidad2m = parseFloat(ultimoCambio.capacidad_almacenamiento_2m || 0);
