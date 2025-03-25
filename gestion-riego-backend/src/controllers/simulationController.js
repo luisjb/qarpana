@@ -291,8 +291,14 @@ exports.getSimulationData = async (req, res) => {
         
         const ultimoDato = datosSimulacion.length > 0 ? datosSimulacion[datosSimulacion.length - 1] : { aguaUtilDiaria: 0, aguaUtil1m: 0, aguaUtil2m: 0 };
 
+
+
+
         const ultimaAguaUtil = datosSimulacion[datosSimulacion.length - 1]?.aguaUtilDiaria || 0;
-        const proyeccion = await calcularProyeccionAU(loteId, ultimaAguaUtil);
+        // Obtener también los últimos valores de 1m y 2m
+        const ultimaAguaUtil1m = datosSimulacion[datosSimulacion.length - 1]?.aguaUtil1m || 0;
+        const ultimaAguaUtil2m = datosSimulacion[datosSimulacion.length - 1]?.aguaUtil2m || 0;
+        const proyeccion = await calcularProyeccionAU(loteId, ultimaAguaUtil, ultimaAguaUtil1m, ultimaAguaUtil2m);
         const ultimoDiaHistorico = cambios[cambios.length - 1]?.dias || 0;
         proyeccion.proyeccionCompleta = proyeccion.proyeccionCompleta.filter((p, index) => {
             const diasTotales = ultimoDiaHistorico + index + 1;
@@ -566,7 +572,7 @@ function calcularPorcentajeAguaUtil(aguaUtilActual, aguaUtilTotal) {
     return aguaUtilTotal > 0 ? Math.round((aguaUtilActual / aguaUtilTotal) * 100) : 0;
 }
 
-async function calcularProyeccionAU(loteId, aguaUtilInicial) {
+async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, aguaUtil2mInicial) {
     try {
         // Obtener datos del lote y último cambio diario
         const { rows: [ultimoCambio] } = await pool.query(`
@@ -610,17 +616,9 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
         
         // MODIFICACIÓN: Usar exactamente los valores de simulationData
         // Si no existe simulationData, usar aguaUtilInicial para todos
-        let aguaUtil1mAnterior, aguaUtil2mAnterior;
+        let aguaUtil1mAnterior = parseFloat(aguaUtil1mInicial) || 0;
+        let aguaUtil2mAnterior = parseFloat(aguaUtil2mInicial) || 0;
         
-        if (simulationData) {
-            // Usar los valores exactos de simulationData, incluso si son 0
-            aguaUtil1mAnterior = simulationData.aguaUtil1m;
-            aguaUtil2mAnterior = simulationData.aguaUtil2m;
-        } else {
-            // Si no hay simulationData, usar el mismo valor para los tres
-            aguaUtil1mAnterior = aguaUtilAnterior;
-            aguaUtil2mAnterior = aguaUtilAnterior;
-        }
         
         // Días desde la siembra y datos de crecimiento
         let diasAcumulados = parseInt(ultimoCambio.ultimo_dia) || 0;
