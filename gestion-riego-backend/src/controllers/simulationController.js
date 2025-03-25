@@ -597,7 +597,7 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
         
         let aguaUtilAnterior = parseFloat(aguaUtilInicial);
         let aguaUtil1mAnterior = simulationData?.aguaUtil1m || parseFloat(aguaUtilInicial);
-        let aguaUtil2mAnterior = simulationData?.aguaUtil2m || parseFloat(aguaUtilInicial * 1.4);
+        let aguaUtil2mAnterior = simulationData?.aguaUtil2m || parseFloat(aguaUtilInicial);
 
         const capacidad1m = parseFloat(ultimoCambio.agua_util_total || 0);
         const capacidad2m = parseFloat(ultimoCambio.capacidad_almacenamiento_2m || 0);
@@ -625,7 +625,7 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
         let proyeccionCompleta = [];
 
         const aguaUtilTotal1m = capacidad1m;
-        const aguaUtilTotal2m = capacidad2m || (capacidad1m * 1.4);
+        const aguaUtilTotal2m = capacidad2m || (capacidad1m);
 
 
          // Función auxiliar para calcular estrato basado en profundidad
@@ -647,10 +647,11 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
             const capacidadExtraccion = (aguaUtilAnterior * parseFloat(ultimoCambio.indice_capacidad_extraccion)) / 100;
             
             const etr = Math.min(
-                parseFloat(pronostico.etc || 0),
+                parseFloat(pronostico.etc || 1),
                 capacidadExtraccion
             );
             const gananciaAgua = parseFloat(pronostico.lluvia_efectiva || 0);
+            console.log('Ganancia de agua:', gananciaAgua, 'ETR:', etr, 'Agua útil anterior:', aguaUtilAnterior, 'Agua útil 1m anterior:', aguaUtil1mAnterior, 'Agua útil 2m anterior:', aguaUtil2mAnterior);
  
             aguaUtilAnterior = Math.max(0, aguaUtilAnterior - etr + gananciaAgua);
             aguaUtil1mAnterior = Math.max(0, aguaUtil1mAnterior - etr + gananciaAgua);
