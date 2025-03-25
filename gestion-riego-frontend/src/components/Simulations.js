@@ -933,7 +933,7 @@ function Simulations() {
                                         />
                                     </Box>
                                     <Typography variant="body1" fontWeight="medium">
-                                        {formatNumber(simulationData.proyeccionAU1mDia8)} mm
+                                        {formatNumber(simulationData.proyeccionAU1mDia8 || simulationData.proyeccionAU10Dias)} mm
                                     </Typography>
                                 </Grid>
                                 <Grid item xs={6} sx={{ textAlign: 'center' }}>
@@ -945,7 +945,7 @@ function Simulations() {
                                         />
                                     </Box>
                                     <Typography variant="body1" fontWeight="medium">
-                                        {formatNumber(simulationData.proyeccionAU2mDia8)} mm
+                                        {formatNumber(simulationData.proyeccionAU2mDia8 || simulationData.proyeccionAU10Dias)} mm
                                     </Typography>
                                 </Grid>
                             </Grid>
