@@ -598,31 +598,27 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
             };
         }
 
-        // Obtener datos de simulación para 1m y 2m
+        // Obtener datos de simulación para proporciones entre 1m y 2m
         const simulationData = await getLastSimulationData(loteId);
         
-        // Parsear valores iniciales
+        // Parsear valor inicial principal
         const aguaUtilAnterior = parseFloat(aguaUtilInicial) || 0;
         
         // Determinar las capacidades totales
         const capacidad1m = parseFloat(ultimoCambio.agua_util_total || 0);
         const capacidad2m = parseFloat(ultimoCambio.capacidad_almacenamiento_2m || 0);
         
-        let aguaUtil1mAnterior, aguaUtil2mAnterior, proportion1m, proportion2m;
+        // MODIFICACIÓN: Usar exactamente los valores de simulationData
+        // Si no existe simulationData, usar aguaUtilInicial para todos
+        let aguaUtil1mAnterior, aguaUtil2mAnterior;
         
         if (simulationData) {
-            // Si tenemos datos de simulación, usar sus valores y proporciones
-            aguaUtil1mAnterior = parseFloat(simulationData.aguaUtil1m);
-            aguaUtil2mAnterior = parseFloat(simulationData.aguaUtil2m);
-            proportion1m = simulationData.proportion1m;
-            proportion2m = simulationData.proportion2m;
+            // Usar los valores exactos de simulationData, incluso si son 0
+            aguaUtil1mAnterior = simulationData.aguaUtil1m;
+            aguaUtil2mAnterior = simulationData.aguaUtil2m;
         } else {
-            // Si no hay datos, determinar proporciones estándar
-            proportion1m = 0.7; // Por defecto, aproximadamente 70% está en el primer metro
-            proportion2m = 1.0; // Al ser zona radicular, el 100% está en 2m
-            
-            // Usar proporciones para derivar valores iniciales
-            aguaUtil1mAnterior = aguaUtilAnterior * proportion1m;
+            // Si no hay simulationData, usar el mismo valor para los tres
+            aguaUtil1mAnterior = aguaUtilAnterior;
             aguaUtil2mAnterior = aguaUtilAnterior;
         }
         
@@ -647,7 +643,7 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
             LIMIT 7
         `, [loteId, ultimoCambio.fecha_cambio]);
         
-        // Si no hay pronósticos, retornar valores por defecto
+        // Si no hay pronósticos, retornar valores iniciales
         if (pronosticos.length === 0) {
             console.log(`No hay pronósticos disponibles para el lote ${loteId}`);
             return {
@@ -665,13 +661,11 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial) {
         const aguaUtilTotal2m = capacidad2m || 200; // Valor por defecto: 200mm
         
         // Logging para depuración
-        console.log('Valores iniciales para proyección:', {
+        console.log('Valores iniciales para proyección (valores exactos):', {
             loteId,
             aguaUtilInicial,
             aguaUtil1mAnterior,
             aguaUtil2mAnterior,
-            proportion1m,
-            proportion2m,
             capacidad1m,
             capacidad2m
         });
