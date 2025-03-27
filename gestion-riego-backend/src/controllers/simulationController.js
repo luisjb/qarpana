@@ -66,6 +66,10 @@ exports.getSimulationData = async (req, res) => {
             : 0;
         const auInicial2m = aguaUtilTotal;
 
+        console.log('agua util total:', aguaUtilTotal);
+        console.log('agua util inicial 1m:', auInicial1m);
+        console.log('agua util inicial 2m:', auInicial2m);
+
         // Calcular acumulados
         let lluviasEfectivasAcumuladas = 0;
         let riegoAcumulado = 0;
@@ -233,6 +237,9 @@ exports.getSimulationData = async (req, res) => {
             const valorAuInicial1m = auInicial1m;
             const valorAuInicial2m = auInicial2m;
 
+            console.log('valorAuInicial1m:', valorAuInicial1m);
+            console.log('valorAuInicial2m:', valorAuInicial2m);
+
             let aguaUtil1m, aguaUtil2m;
 
             // Calcular agua útil a 1m y 2m
@@ -240,14 +247,23 @@ exports.getSimulationData = async (req, res) => {
                 // First day calculation - use initial values
                 aguaUtil1m = Math.max(0, valorAuInicial1m - etr + gananciaAgua);
                 aguaUtil2m = Math.max(0, valorAuInicial2m - etr + gananciaAgua);
+                console.log('------------------- primer dia aguaUtil1m:', aguaUtil1m);
+                console.log('------------------- primer dia aguaUtil2m:', aguaUtil2m);
             } else {
                 // Subsequent days - start with previous day's values
                 // Si el valor anterior es 0 o muy bajo, usamos un valor mínimo
                 const valorBase1m = aguaUtil1mAnterior <= 0 ? valorAuInicial1m * 0.1 : aguaUtil1mAnterior;
                 const valorBase2m = aguaUtil2mAnterior <= 0 ? valorAuInicial2m * 0.1 : aguaUtil2mAnterior;
+                console.log('------------------- aguaUtil1mAnterior:', aguaUtil1mAnterior);
+                console.log('------------------- aguaUtil2mAnterior:', aguaUtil2mAnterior);
+                console.log('------------------- valorBase1m:', valorBase1m);
+                console.log('------------------- valorBase2m:', valorBase2m);
                 
                 aguaUtil1m = Math.max(0, valorBase1m - etr + gananciaAgua);
                 aguaUtil2m = Math.max(0, valorBase2m - etr + gananciaAgua);
+
+                console.log('------------------- aguaUtil1m:', aguaUtil1m);
+                console.log('------------------- aguaUtil2m:', aguaUtil2m);
             }
             
             
