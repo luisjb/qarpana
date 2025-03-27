@@ -23,7 +23,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
         return res.status(400).json({ error: 'Todos los campos son requeridos' });
     }
 
-    if (tipo_usuario !== 'Admin' && tipo_usuario !== 'user') {
+    if (tipo_usuario !== 'Admin' && tipo_usuario !== 'user'  && tipo_usuario !== 'demo') {
         return res.status(400).json({ error: 'Tipo de usuario inválido' });
     }
 
@@ -50,7 +50,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     const { id } = req.params;
     const { nombre_usuario, contraseña, tipo_usuario } = req.body;
     
-    if (tipo_usuario && tipo_usuario !== 'Admin' && tipo_usuario !== 'user') {
+    if (tipo_usuario && tipo_usuario !== 'Admin' && tipo_usuario !== 'user'  && tipo_usuario !== 'demo') {
         return res.status(400).json({ error: 'Tipo de usuario inválido' });
     }
 

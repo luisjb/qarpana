@@ -238,12 +238,21 @@ exports.getSimulationData = async (req, res) => {
             // Calcular agua útil a 1m y 2m
             if (aguaUtil1mAnterior === undefined) {
                 // First day calculation - use initial values
-                aguaUtil1m = valorAuInicial1m - etr + gananciaAgua;
-                aguaUtil2m = valorAuInicial2m - etr + gananciaAgua;
+                aguaUtil1m = Math.max(0, valorAuInicial1m - etr + gananciaAgua);
+                aguaUtil2m = Math.max(0, valorAuInicial2m - etr + gananciaAgua);
             } else {
-                // Subsequent days - start with previous day's values
-                aguaUtil1m = aguaUtil1mAnterior - etr + gananciaAgua;
-                aguaUtil2m = aguaUtil2mAnterior - etr + gananciaAgua;
+                // Si el valor anterior es 0 o muy bajo, usamos un valor mínimo o el último valor válido
+                // En este caso, rastreamos los últimos valores válidos en datosSimulacion
+                const ultimoValorValido1m = aguaUtil1mAnterior <= 0 ? 
+                    (index > 1 ? datosSimulacion.slice(0, index).reverse().find(d => d.aguaUtil1m > 0)?.aguaUtil1m : null) || valorAuInicial1m * 0.1 : 
+                    aguaUtil1mAnterior;
+                    
+                const ultimoValorValido2m = aguaUtil2mAnterior <= 0 ? 
+                    (index > 1 ? datosSimulacion.slice(0, index).reverse().find(d => d.aguaUtil2m > 0)?.aguaUtil2m : null) || valorAuInicial2m * 0.1 : 
+                    aguaUtil2mAnterior;
+                
+                aguaUtil1m = Math.max(0, ultimoValorValido1m - etr + gananciaAgua);
+                aguaUtil2m = Math.max(0, ultimoValorValido2m - etr + gananciaAgua);
             }
             
             
