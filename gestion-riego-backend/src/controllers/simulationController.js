@@ -242,7 +242,7 @@ exports.getSimulationData = async (req, res) => {
 
             let aguaUtil1m, aguaUtil2m;
             console.log('aguaUtil1mAnterior:', aguaUtil1mAnterior);
-            console,log(esPrimerDia);
+            console.log(esPrimerDia);
 
             // Calcular agua útil a 1m y 2m
             if (esPrimerDia) {
