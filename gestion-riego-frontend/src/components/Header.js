@@ -30,6 +30,7 @@ const Header = () => {
     const [anchorEl, setAnchorEl] = useState(null);
     const userRole = localStorage.getItem('role');
     const isAdmin = userRole && userRole.toLowerCase() === 'admin';
+    const isDemo = userRole && userRole.toLowerCase() === 'demo';
 
     const handleMenu = (event) => {
         setAnchorEl(event.currentTarget);
@@ -48,9 +49,11 @@ const Header = () => {
     const menuItems = [
         { text: 'Panel', icon: <DashboardIcon />, link: '/' },
         { text: 'Resumen de Círculos', icon: <WaterDrop />, link: '/resumen-circulos' },
-        { text: 'Campos', icon: <LandscapeIcon />, link: '/campos' },
-        { text: 'Cambios Diarios', icon: <ChangeCircleIcon />, link: '/cambios-diarios' },
-        ...(isAdmin ? [{ text: 'Gestión de Usuarios', icon: <PeopleIcon />, link: '/admin/users' }] : []),
+        ...(isDemo ? [] : [
+            { text: 'Campos', icon: <LandscapeIcon />, link: '/campos' },
+            { text: 'Cambios Diarios', icon: <ChangeCircleIcon />, link: '/cambios-diarios' },
+            ...(isAdmin ? [{ text: 'Gestión de Usuarios', icon: <PeopleIcon />, link: '/admin/users' }] : []),
+        ]),
     ];
 
     return (

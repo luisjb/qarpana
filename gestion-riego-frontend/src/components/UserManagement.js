@@ -132,6 +132,7 @@ function UserManagement() {
                     >
                         <MenuItem value="user">Usuario</MenuItem>
                         <MenuItem value="Admin">Administrador</MenuItem>
+                        <MenuItem value="demo">Demo</MenuItem>
                     </Select>
                 </FormControl>
                 <Button 
