@@ -241,9 +241,11 @@ exports.getSimulationData = async (req, res) => {
             console.log('valorAuInicial2m:', valorAuInicial2m);
 
             let aguaUtil1m, aguaUtil2m;
-
+            console.log('aguaUtil1mAnterior:', aguaUtil1mAnterior);
             // Calcular agua útil a 1m y 2m
-            if (aguaUtil1mAnterior === undefined) {
+            if (aguaUtil1mAnterior === undefined || aguaUtil1mAnterior === null || 
+                aguaUtil1mAnterior === 0 || aguaUtil1mAnterior === '' || 
+                isNaN(aguaUtil1mAnterior)) {
                 // First day calculation - use initial values
                 aguaUtil1m = Math.max(0, valorAuInicial1m - etr + gananciaAgua);
                 aguaUtil2m = Math.max(0, valorAuInicial2m - etr + gananciaAgua);
