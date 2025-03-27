@@ -244,8 +244,11 @@ exports.getSimulationData = async (req, res) => {
             console.log('aguaUtil1mAnterior:', aguaUtil1mAnterior);
             console.log(esPrimerDia);
 
+            const esPrimerDiaReal = esPrimerDia || (dia && parseInt(dia) === 1);
+
+            console.log('esPrimerDiaReal:', esPrimerDiaReal);
             // Calcular agua útil a 1m y 2m
-            if (esPrimerDia) {
+            if (esPrimerDiaReal) {
                 // First day calculation - use initial values
                 aguaUtil1m = Math.max(0, valorAuInicial1m - etr + gananciaAgua);
                 aguaUtil2m = Math.max(0, valorAuInicial2m - etr + gananciaAgua);
