@@ -123,7 +123,7 @@ exports.getSimulationData = async (req, res) => {
         // Función para calcular el agua útil acumulada por estratos
         const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, 
             indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, 
-            aguaUtilAnterior, estratoAnterior, indice_capacidad_extraccion, kc, utilizarUnMetro, aguaUtil1mAnterior, aguaUtil2mAnterior) => {
+            aguaUtilAnterior, estratoAnterior, indice_capacidad_extraccion, kc, utilizarUnMetro, aguaUtil1mAnterior, aguaUtil2mAnterior, esPrimerDia) => {
 
             const estratoAnteriorCorregido = estratoAnterior === 0 || estratoAnterior === undefined || estratoAnterior === null ? 1 : estratoAnterior;
 
@@ -243,9 +243,7 @@ exports.getSimulationData = async (req, res) => {
             let aguaUtil1m, aguaUtil2m;
             console.log('aguaUtil1mAnterior:', aguaUtil1mAnterior);
             // Calcular agua útil a 1m y 2m
-            if (aguaUtil1mAnterior === undefined || aguaUtil1mAnterior === null || 
-                aguaUtil1mAnterior === 0 || aguaUtil1mAnterior === '' || 
-                isNaN(aguaUtil1mAnterior)) {
+            if (esPrimerDia) {
                 // First day calculation - use initial values
                 aguaUtil1m = Math.max(0, valorAuInicial1m - etr + gananciaAgua);
                 aguaUtil2m = Math.max(0, valorAuInicial2m - etr + gananciaAgua);
@@ -301,7 +299,8 @@ exports.getSimulationData = async (req, res) => {
                 cambio.kc,
                 lote.utilizar_un_metro,
                 index > 0 ? datosSimulacion[index - 1]?.aguaUtil1m : undefined,
-                index > 0 ? datosSimulacion[index - 1]?.aguaUtil2m : undefined
+                index > 0 ? datosSimulacion[index - 1]?.aguaUtil2m : undefined,
+                index === 0 //  parámetro: true si es el primer día, false en caso contrario
             );
 
             datosSimulacion.push({
