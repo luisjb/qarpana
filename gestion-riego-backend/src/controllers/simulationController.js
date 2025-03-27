@@ -241,18 +241,13 @@ exports.getSimulationData = async (req, res) => {
                 aguaUtil1m = Math.max(0, valorAuInicial1m - etr + gananciaAgua);
                 aguaUtil2m = Math.max(0, valorAuInicial2m - etr + gananciaAgua);
             } else {
-                // Si el valor anterior es 0 o muy bajo, usamos un valor mínimo o el último valor válido
-                // En este caso, rastreamos los últimos valores válidos en datosSimulacion
-                const ultimoValorValido1m = aguaUtil1mAnterior <= 0 ? 
-                    (index > 1 ? datosSimulacion.slice(0, index).reverse().find(d => d.aguaUtil1m > 0)?.aguaUtil1m : null) || valorAuInicial1m * 0.1 : 
-                    aguaUtil1mAnterior;
-                    
-                const ultimoValorValido2m = aguaUtil2mAnterior <= 0 ? 
-                    (index > 1 ? datosSimulacion.slice(0, index).reverse().find(d => d.aguaUtil2m > 0)?.aguaUtil2m : null) || valorAuInicial2m * 0.1 : 
-                    aguaUtil2mAnterior;
+                // Subsequent days - start with previous day's values
+                // Si el valor anterior es 0 o muy bajo, usamos un valor mínimo
+                const valorBase1m = aguaUtil1mAnterior <= 0 ? valorAuInicial1m * 0.1 : aguaUtil1mAnterior;
+                const valorBase2m = aguaUtil2mAnterior <= 0 ? valorAuInicial2m * 0.1 : aguaUtil2mAnterior;
                 
-                aguaUtil1m = Math.max(0, ultimoValorValido1m - etr + gananciaAgua);
-                aguaUtil2m = Math.max(0, ultimoValorValido2m - etr + gananciaAgua);
+                aguaUtil1m = Math.max(0, valorBase1m - etr + gananciaAgua);
+                aguaUtil2m = Math.max(0, valorBase2m - etr + gananciaAgua);
             }
             
             
