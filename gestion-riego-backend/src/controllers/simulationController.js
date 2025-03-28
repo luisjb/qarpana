@@ -194,13 +194,15 @@ exports.getSimulationData = async (req, res) => {
             
             // Calculamos el agua útil diaria
             let aguaUtilDiaria;
-
+            console.log('------------------- aguaUtilAnterior:', aguaUtilAnterior);
             if (aguaUtilAnterior === undefined) {
                 // Primer día: consideramos el primer estrato
                 aguaUtilDiaria = parseFloat(valoresEstratos[0]) - etr + gananciaAgua;
+                console.log('------------------- primer dia aguaUtilDiaria--------------------:', aguaUtilDiaria);
             } else {
                 // Días subsiguientes: siempre sumamos el agua útil anterior
                 aguaUtilDiaria = aguaUtilAnterior;
+                console.log('------------------- aguaUtilDiaria anterior:', aguaUtilDiaria);
                 
                 if (estratosDisponiblesFinales > estratoAnteriorCorregido) {
                     // Si alcanzamos un nuevo estrato, sumamos su valor
