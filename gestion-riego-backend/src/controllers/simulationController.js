@@ -192,10 +192,11 @@ exports.getSimulationData = async (req, res) => {
             );
             const gananciaAgua = parseFloat(lluvia_efectiva || 0) + parseFloat(riego_cantidad || 0);
             
+            const esPrimerDiaReal = esPrimerDia || (dia && parseInt(dia) === 1);
             // Calculamos el agua útil diaria
             let aguaUtilDiaria;
             console.log('------------------- aguaUtilAnterior:', aguaUtilAnterior);
-            if (aguaUtilAnterior === undefined) {
+            if (esPrimerDiaReal) {
                 // Primer día: consideramos el primer estrato
                 aguaUtilDiaria = parseFloat(valoresEstratos[0]) - etr + gananciaAgua;
                 console.log('------------------- primer dia aguaUtilDiaria--------------------:', aguaUtilDiaria);
@@ -246,7 +247,6 @@ exports.getSimulationData = async (req, res) => {
             console.log('aguaUtil1mAnterior:', aguaUtil1mAnterior);
             console.log(esPrimerDia);
 
-            const esPrimerDiaReal = esPrimerDia || (dia && parseInt(dia) === 1);
 
             console.log('esPrimerDiaReal:', esPrimerDiaReal);
             // Calcular agua útil a 1m y 2m
