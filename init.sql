@@ -317,3 +317,36 @@ ADD COLUMN capacidad_almacenamiento_2m NUMERIC;
 ALTER TABLE lotes
 ADD COLUMN utilizar_un_metro BOOLEAN DEFAULT FALSE;
 
+ALTER TABLE cambios_diarios
+ADD COLUMN correccion_agua NUMERIC DEFAULT 0;
+
+-- Agregar la columna capacidad_extraccion a la tabla lotes
+ALTER TABLE lotes
+ADD COLUMN capacidad_extraccion NUMERIC;
+
+CREATE TABLE observaciones (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    lote_id BIGINT REFERENCES lotes(id) ON DELETE CASCADE,
+    fecha DATE NOT NULL,
+    texto TEXT NOT NULL,
+    usuario_id BIGINT REFERENCES usuarios(id),
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Crear índices para mejorar el rendimiento de consultas
+CREATE INDEX idx_observaciones_lote_id ON observaciones(lote_id);
+CREATE INDEX idx_observaciones_fecha ON observaciones(fecha);
+
+-- Crear tabla para recomendaciones a nivel de campo
+CREATE TABLE recomendaciones_campo (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    campo_id BIGINT REFERENCES campos(id) ON DELETE CASCADE,
+    fecha DATE NOT NULL,
+    texto TEXT NOT NULL,
+    usuario_id BIGINT REFERENCES usuarios(id),
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Crear índices para mejorar el rendimiento de consultas
+CREATE INDEX idx_recomendaciones_campo_id ON recomendaciones_campo(campo_id);
+CREATE INDEX idx_recomendaciones_fecha ON recomendaciones_campo(fecha);

@@ -7,6 +7,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import axios from '../axiosConfig';
 import { WaterDrop } from '@mui/icons-material';
+import RecomendacionesSection from './RecomendacionesSection';
+
 
 // Reutilizamos el componente GaugeIndicator 
 const GaugeIndicator = ({ percentage, size = 60 }) => {
@@ -164,7 +166,7 @@ function ResumenCirculos() {
    const handleLoteClick = (loteId, campana) => {
         // Asegurándonos de que ambos valores existan
         if (loteId && campana) {
-            navigate(`/?lote=${loteId}&campana=${campana}`);
+            navigate(`/simulations?lote=${loteId}&campana=${campana}`);
         } else {
             console.error('No se puede navegar: ID de lote o campaña faltante');
         }
@@ -283,6 +285,12 @@ function ResumenCirculos() {
                     </Grid>
                 ))}
             </Grid>
+            {isAdmin && selectedCampo && (
+                <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+
+                    <RecomendacionesSection campoId={selectedCampo} />
+                </Paper>
+            )}
         </Container>
     );
 }

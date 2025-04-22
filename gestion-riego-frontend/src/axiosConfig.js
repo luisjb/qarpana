@@ -21,13 +21,16 @@ instance.interceptors.request.use(
 instance.interceptors.response.use(
     (response) => response,
     (error) => {
+        const isLandingPage = window.location.pathname === '/';
+
         if (error.response) {
             switch (error.response.status) {
                 case 401:
-                    // Token expirado o inválido
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('role');
-                    window.location.href = '/login';
+                    if (!isLandingPage) {
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('role');
+                        window.location.href = '/login';
+                    }
                     break;
                 case 403:
                     // Acceso prohibido

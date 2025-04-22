@@ -30,12 +30,12 @@ function CambiosDiarios() {
         humedad: '',
         temperatura: '',
         evapotranspiracion: '',
-        etc: ''
+        etc: '',
+        correccion_agua: ''
     };
     const [formData, setFormData] = useState({
         fecha_cambio: new Date().toISOString().split('T')[0], // Fecha actual por defecto
         riego_fecha_inicio: '',
-        // ... otros campos
     });
     
 
@@ -151,7 +151,8 @@ function CambiosDiarios() {
                 precipitaciones: currentCambio.precipitaciones === '' ? 0 : Number(currentCambio.precipitaciones),
                 humedad: currentCambio.humedad === '' ? 0 : Number(currentCambio.humedad),
                 temperatura: currentCambio.temperatura === '' ? 0 : Number(currentCambio.temperatura),
-                evapotranspiracion: currentCambio.evapotranspiracion === '' ? 0 : Number(currentCambio.evapotranspiracion)
+                evapotranspiracion: currentCambio.evapotranspiracion === '' ? 0 : Number(currentCambio.evapotranspiracion),
+                correccion_agua: currentCambio.correccion_agua === '' ? 0 : Number(currentCambio.correccion_agua)
             };
     
             if (editing) {
@@ -342,6 +343,7 @@ function CambiosDiarios() {
                             <TableCell>Humedad (%)</TableCell>
                             <TableCell>Temperatura (°C)</TableCell>
                             <TableCell>Evapotranspiración (mm)</TableCell>
+                            <TableCell>Corrección Agua (mm)</TableCell>
                             <TableCell>ETC</TableCell>
                             <TableCell>Lluvia Efectiva (mm)</TableCell>
                         </TableRow>
@@ -358,6 +360,7 @@ function CambiosDiarios() {
                                 <TableCell>{cambio.humedad}</TableCell>
                                 <TableCell>{cambio.temperatura}</TableCell>
                                 <TableCell>{cambio.evapotranspiracion}</TableCell>
+                                <TableCell>{cambio.correccion_agua}</TableCell>
                                 <TableCell>{cambio.etc}</TableCell>
                                 <TableCell>{cambio.lluvia_efectiva}</TableCell>
                                 <TableCell>
@@ -512,6 +515,16 @@ function CambiosDiarios() {
                             type="number"
                             value={currentCambio.precipitaciones}
                             onChange={handleInputChange}
+                        />
+                        <TextField
+                            fullWidth
+                            margin="normal"
+                            name="correccion_agua"
+                            label="Corrección de Agua (mm)"
+                            type="number"
+                            value={currentCambio.correccion_agua}
+                            onChange={handleInputChange}
+                            helperText="Valor positivo para incrementar, negativo para reducir"
                         />
                         <TextField
                             fullWidth

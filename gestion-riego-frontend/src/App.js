@@ -11,6 +11,8 @@ import UserManagement from './components/UserManagement';
 import CambiosDiarios from './components/CambiosDiarios';
 import Simulaciones from './components/Simulations';
 import ResumenCirculos from './components/ResumenCirculos';
+import LandingPage from './components/LandingPage'; // Importa la landing page
+
 
 import axios from './axiosConfig';
 
@@ -66,7 +68,9 @@ const theme = createTheme({
 axios.interceptors.response.use(
   response => response,
   error => {
-    if (error.response && error.response.status === 401) {
+    const isLandingPage = window.location.pathname === '/';
+
+    if (error.response && error.response.status === 401 && !isLandingPage) {
       localStorage.removeItem('token');
       localStorage.removeItem('role');
       window.location.href = '/login';
@@ -112,9 +116,11 @@ function App() {
       <CssBaseline />
       <Router>
         <Routes>
+          <Route path="/" element={<LandingPage />} /> {/* Nueva ruta para la landing page */}
+
           <Route path="/login" element={<Login />} />
           <Route
-            path="/"
+            path="/simulations"
             element={<PrivateRoute element={<Simulaciones />} />}
           />
           <Route

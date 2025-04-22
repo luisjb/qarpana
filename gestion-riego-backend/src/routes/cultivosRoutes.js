@@ -8,7 +8,7 @@ const pool = require('../db');
 router.get('/', verifyToken, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT id, nombre_cultivo
+            SELECT id, nombre_cultivo, indice_capacidad_extraccion
             FROM cultivos
             ORDER BY id`
         );

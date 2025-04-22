@@ -5,12 +5,25 @@ const pool = require('../db');
 
 // Crear un nuevo lote
 router.post('/', verifyToken, async (req, res) => {
-    const { campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m } = req.body;
+    const { 
+        campo_id, 
+        nombre_lote, 
+        cultivo_id, 
+        especie, 
+        variedad, 
+        fecha_siembra, 
+        activo, 
+        campaña, 
+        porcentaje_agua_util_umbral, 
+        agua_util_total, 
+        capacidad_almacenamiento_2m,
+        capacidad_extraccion 
+    } = req.body;
     
     try {
         const result = await pool.query(
-            'INSERT INTO lotes (campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id',
-            [campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m]
+            'INSERT INTO lotes (campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, capacidad_extraccion) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id',
+            [campo_id, nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, capacidad_extraccion]
         );
 
         res.status(201).json({ message: 'Lote creado con éxito', loteId: result.rows[0].id });
@@ -54,7 +67,9 @@ router.get('/campo/:campoId', verifyToken, async (req, res) => {
                 l.agua_util_total,
                 l.capacidad_almacenamiento_2m,
                 l.utilizar_un_metro,
-                cu.nombre_cultivo
+                l.capacidad_extraccion,
+                cu.nombre_cultivo,
+                cu.indice_capacidad_extraccion
             FROM campo_info c
             CROSS JOIN LATERAL (
                 SELECT * FROM lotes WHERE campo_id = $1
@@ -82,7 +97,7 @@ router.get('/campo/:campoId', verifyToken, async (req, res) => {
 // Actualizar un lote
 router.put('/:loteId', verifyToken, async (req, res) => {
     const { loteId } = req.params;
-    const { nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, utilizar_un_metro  } = req.body;
+    const { nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, utilizar_un_metro, capacidad_extraccion } = req.body;
 
     try {
         if (utilizar_un_metro !== undefined && Object.keys(req.body).length === 1) {
@@ -98,8 +113,8 @@ router.put('/:loteId', verifyToken, async (req, res) => {
             return res.json(updateResult.rows[0]);
         }
         const result = await pool.query(
-            'UPDATE lotes SET nombre_lote = $1, cultivo_id = $2, especie = $3, variedad = $4, fecha_siembra = $5, activo = $6, campaña = $7, porcentaje_agua_util_umbral = $8, agua_util_total = $9, capacidad_almacenamiento_2m = $10, utilizar_un_metro = COALESCE($11, utilizar_un_metro) WHERE id = $12 RETURNING *',
-            [nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, utilizar_un_metro, loteId]
+            'UPDATE lotes SET nombre_lote = $1, cultivo_id = $2, especie = $3, variedad = $4, fecha_siembra = $5, activo = $6, campaña = $7, porcentaje_agua_util_umbral = $8, agua_util_total = $9, capacidad_almacenamiento_2m = $10, utilizar_un_metro = COALESCE($11, utilizar_un_metro), capacidad_extraccion = $12 WHERE id = $13 RETURNING *',
+            [nombre_lote, cultivo_id, especie, variedad, fecha_siembra, activo, campaña, porcentaje_agua_util_umbral, agua_util_total, capacidad_almacenamiento_2m, utilizar_un_metro, capacidad_extraccion, loteId]
         );
 
         if (result.rows.length === 0) {
@@ -178,7 +193,7 @@ router.get('/:loteId', verifyToken, async (req, res) => {
             SELECT 
                 l.id,
                 l.nombre_lote,
-                l.campo_id,           -- Importante: necesitamos esto para la navegación
+                l.campo_id,
                 l.cultivo_id,
                 l.especie,
                 l.variedad,
@@ -188,8 +203,10 @@ router.get('/:loteId', verifyToken, async (req, res) => {
                 l.porcentaje_agua_util_umbral,
                 l.agua_util_total,
                 l.capacidad_almacenamiento_2m,
+                l.capacidad_extraccion,
                 c.nombre_campo,
-                cu.nombre_cultivo
+                cu.nombre_cultivo,
+                cu.indice_capacidad_extraccion
             FROM lotes l
             LEFT JOIN campos c ON l.campo_id = c.id
             LEFT JOIN cultivos cu ON l.cultivo_id = cu.id

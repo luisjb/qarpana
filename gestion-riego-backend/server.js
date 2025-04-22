@@ -11,6 +11,10 @@ const usuariosRoutes = require('./src/routes/usuariosRoutes');
 const simulationRoutes = require('./src/routes/simulationRoutes');
 const estadosFenologicosRoutes = require('./src/routes/estadosFenologicosRoutes');
 const campañasRoutes = require('./src/routes/campañaRoutes');
+const observacionesRoutes = require('./src/routes/observacionesRoutes');
+const recomendacionesRoutes = require('./src/routes/recomendacionesRoutes');
+
+
 
 const cron = require('node-cron');
 const actualizacionDiaria = require('./src/utils/actualizacionDiaria');
@@ -73,6 +77,8 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/simulations', simulationRoutes);
 app.use('/api/estados-fenologicos', estadosFenologicosRoutes);
 app.use('/api/campanas', campañasRoutes);
+app.use('/api/observaciones', observacionesRoutes);
+app.use('/api/recomendaciones', recomendacionesRoutes);
 
 
 app.use((err, req, res, next) => {
@@ -82,6 +88,7 @@ app.use((err, req, res, next) => {
 
 app.listen(port, '0.0.0.0', () => {
     console.log(`Servidor corriendo en https://qarpana.com.ar:${port}`);
+    //console.log(`Servidor corriendo en http://localhost:${port}`);
 });
 
 app.post('/api/forzar-actualizacion', async (req, res) => {

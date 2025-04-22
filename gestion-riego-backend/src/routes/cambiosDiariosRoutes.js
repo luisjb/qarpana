@@ -177,6 +177,7 @@ router.post('/', verifyToken, async (req, res) => {
             humedad = 0,
             temperatura = 0,
             evapotranspiracion = 0,
+            correccion_agua = 0,
         } = req.body;
 
         // Obtener fecha de siembra y calcular días
@@ -212,8 +213,8 @@ router.post('/', verifyToken, async (req, res) => {
             `INSERT INTO cambios_diarios 
             (lote_id, fecha_cambio, riego_cantidad, riego_fecha_inicio, 
              precipitaciones, humedad, temperatura, evapotranspiracion,
-             lluvia_efectiva, etc, kc, dias) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+             lluvia_efectiva, etc, kc, dias, correccion_agua) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
             RETURNING *`,
             [
                 lote_id,
@@ -227,7 +228,8 @@ router.post('/', verifyToken, async (req, res) => {
                 lluvia_efectiva,
                 etc,
                 kc,
-                diasDesdeSiembra
+                diasDesdeSiembra,
+                correccion_agua
             ]
         );
 
@@ -256,6 +258,7 @@ router.put('/:id', verifyToken, async (req, res) => {
             humedad,
             temperatura,
             evapotranspiracion,
+            correccion_agua
         } = req.body;
 
         // Obtener el lote_id del cambio diario actual
@@ -284,8 +287,9 @@ router.put('/:id', verifyToken, async (req, res) => {
             evapotranspiracion = $6,
             etc = $7,
             lluvia_efectiva = $8,
-            kc = $9
-            WHERE id = $10 
+            kc = $9,
+            correccion_agua = $10
+            WHERE id = $11
             RETURNING *`,
             [
                 riego_cantidad,
@@ -297,6 +301,7 @@ router.put('/:id', verifyToken, async (req, res) => {
                 etc,
                 lluvia_efectiva,
                 kc,
+                correccion_agua,
                 id
             ]
         );
@@ -391,10 +396,10 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
                     await client.query(
                         `INSERT INTO cambios_diarios 
                         (lote_id, fecha_cambio, evapotranspiracion, etc, kc, dias,
-                            precipitaciones, lluvia_efectiva)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                            precipitaciones, lluvia_efectiva, correccion_agua)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
                         [loteId, fecha, evapotranspiracion, etc, kc, diasDesdeSiembra, 
-                            precipitaciones || 0, lluvia_efectiva]
+                            precipitaciones || 0, lluvia_efectiva, 0]
                     );
                 }
             }

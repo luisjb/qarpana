@@ -31,8 +31,14 @@ services:
       - DB_PASSWORD=BambooAsesores2024
       - DB_PORT=5432
       - JWT_SECRET=tu_clave_secreta_muy_segura
+      #- CORS_ORIGIN=http://localhost:3000
+      #- VIRTUAL_HOST=localhost:5000
+
+      #comentar la parte de arriba  
+
       - CORS_ORIGIN=https://qarpana.com.ar  
       - VIRTUAL_HOST=api.qarpana.com.ar 
+
     depends_on:
       - db
     networks:
@@ -46,6 +52,7 @@ services:
       - backend
     environment:
       #- REACT_APP_API_URL=http://localhost:5000
+      #comentar la parte de arriba
       - VIRTUAL_HOST=qarpana.com.ar
       - VIRTUAL_PORT=3000
 

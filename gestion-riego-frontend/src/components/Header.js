@@ -47,7 +47,7 @@ const Header = () => {
     };
 
     const menuItems = [
-        { text: 'Panel', icon: <DashboardIcon />, link: '/' },
+        { text: 'Panel', icon: <DashboardIcon />, link: '/simulations' },
         { text: 'Resumen de Círculos', icon: <WaterDrop />, link: '/resumen-circulos' },
         ...(isDemo ? [] : [
             { text: 'Campos', icon: <LandscapeIcon />, link: '/campos' },
@@ -59,7 +59,16 @@ const Header = () => {
     return (
         <AppBar position="static">
         <Toolbar>
-            <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+            <Box 
+                    component={Link} 
+                    to="/" 
+                    sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        flexGrow: 1,
+                        textDecoration: 'none' 
+                    }}
+                >
             <img src={logo} alt="Logo" style={{ height: 40, marginRight: 10 }} />
             <Typography variant="h6" component="div" sx={{ fontFamily: 'Poppins, Arial, sans-serif', color: 'white' }}>
                 Qarpana

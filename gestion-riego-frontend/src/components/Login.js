@@ -24,7 +24,7 @@ function Login() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-//            const response = await fetch('http://localhost:5000/api/auth/login', {
+            //const response = await fetch('http://localhost:5000/api/auth/login', {
             const response = await fetch('https://api.qarpana.com.ar/api/auth/login', {
 
                 method: 'POST',
@@ -37,7 +37,7 @@ function Login() {
                 localStorage.setItem('role', data.tipo_usuario); // Guarda el rol exactamente como viene del backend
                 console.log('Login successful. Role:', data.tipo_usuario); // Log para depuración
                 console.log('Login successful. Role:', data.token); // Log para depuración
-                navigate('/');
+                navigate('/simulations');
             } else {
                 setError('Credenciales inválidas');
             }

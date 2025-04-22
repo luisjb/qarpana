@@ -28,7 +28,8 @@ function LotesManagement() {
         campaña: '',
         porcentaje_agua_util_umbral: '',
         agua_util_total: '',
-        capacidad_almacenamiento_2m: '' // Nuevo campo para capacidad de almacenamiento a los 2m
+        capacidad_almacenamiento_2m: '', // Nuevo campo para capacidad de almacenamiento a los 2m
+        capacidad_extraccion: ''
     });
     const [openDialog, setOpenDialog] = useState(false);
     const [openAguaUtilDialog, setOpenAguaUtilDialog] = useState(false);
@@ -75,7 +76,8 @@ function LotesManagement() {
             if (Array.isArray(response.data)) {
                 setCultivos(response.data.map(cultivo => ({
                     id: cultivo.id,
-                    nombre_cultivo: cultivo.nombre_cultivo
+                    nombre_cultivo: cultivo.nombre_cultivo,
+                    indice_capacidad_extraccion: cultivo.indice_capacidad_extraccion
                 })));
             } else {
                 console.error('La respuesta no es un array:', response.data);
@@ -108,16 +110,14 @@ function LotesManagement() {
     };
 
     const handleEdit = (lote) => {
-        //console.log('Lote a editar:', lote);
-        // Si el lote ya tiene un cultivo_id numérico, lo usamos directamente
-        const cultivo_id = typeof lote.cultivo_id === 'number' ? 
-            lote.cultivo_id : 
-            (cultivos.find(c => c.especie === lote.especie)?.id || '');
-    
-        setEditingLote({
+        console.log('Lote a editar:', lote);
+        // Establecer explícitamente el cultivo_id del lote
+        const loteToEdit = {
             ...lote,
-            cultivo_id: cultivo_id
-        });
+            cultivo_id: lote.cultivo_id
+        };
+        
+        setEditingLote(loteToEdit);
         setOpenDialog(true);
     };
 
@@ -143,6 +143,11 @@ function LotesManagement() {
                 alert('Por favor seleccione un cultivo');
                 return;
             }
+            const capacidadExtraccion = parseFloat(loteData.capacidad_extraccion);
+            if (isNaN(capacidadExtraccion)) {
+                alert('La capacidad de extracción debe ser un número válido');
+                return;
+            }
     
             const dataToSend = {
                 ...loteData,
@@ -152,7 +157,8 @@ function LotesManagement() {
                 activo: loteData.activo,
                 porcentaje_agua_util_umbral: parseFloat(loteData.porcentaje_agua_util_umbral),
                 agua_util_total: parseFloat(loteData.agua_util_total),
-                capacidad_almacenamiento_2m: parseFloat(loteData.capacidad_almacenamiento_2m) // Nuevo campo
+                capacidad_almacenamiento_2m: parseFloat(loteData.capacidad_almacenamiento_2m), // Nuevo campo
+                capacidad_extraccion: capacidadExtraccion
             };
     
             //console.log('Datos a enviar al backend:', dataToSend);
@@ -176,7 +182,8 @@ function LotesManagement() {
                 campaña: '',
                 porcentaje_agua_util_umbral: '',
                 agua_util_total: '',
-                capacidad_almacenamiento_2m: '' // Resetear el nuevo campo
+                capacidad_almacenamiento_2m: '', // Resetear el nuevo campo
+                capacidad_extraccion: ''
             });
         } catch (error) {
             console.error('Error al guardar lote:', error);
@@ -231,7 +238,8 @@ function LotesManagement() {
             campaña: '',
             porcentaje_agua_util_umbral: '',
             agua_util_total: '',
-            capacidad_almacenamiento_2m: '' // Resetear el nuevo campo
+            capacidad_almacenamiento_2m: '', // Resetear el nuevo campo
+            capacidad_extraccion: ''
         });
     };
 
@@ -311,16 +319,38 @@ function LotesManagement() {
                                     
                                     if (selectedCultivo) {
                                         //('Cultivo seleccionado:', selectedCultivo);
+                                        let indiceCapacidadExtraccion;
+                                        try {
+                                            indiceCapacidadExtraccion = parseFloat(selectedCultivo.indice_capacidad_extraccion);
+                                            if (isNaN(indiceCapacidadExtraccion)) {
+                                                console.warn('El índice de capacidad de extracción no es un número válido:', selectedCultivo.indice_capacidad_extraccion);
+                                                indiceCapacidadExtraccion = 5; // Valor predeterminado si no es válido
+                                            }
+                                        } catch (error) {
+                                            console.error('Error al convertir índice de capacidad de extracción:', error);
+                                            indiceCapacidadExtraccion = 5; // Valor predeterminado en caso de error
+                                        }
                                         
+                                        console.log('Índice de capacidad de extracción (después de validar):', indiceCapacidadExtraccion);
                                         if (editingLote) {
-                                            setEditingLote(prev => ({
-                                                ...prev,
-                                                cultivo_id: selectedId
-                                            }));
+                                            setEditingLote(prev => {
+                                                // Si no hay capacidad_extraccion o está cambiando el cultivo,
+                                                // usamos el índice del cultivo
+                                                const useCapacidadExtraccion = prev.cultivo_id === selectedId && prev.capacidad_extraccion
+                                                    ? prev.capacidad_extraccion
+                                                    : indiceCapacidadExtraccion;
+                                                
+                                                return {
+                                                    ...prev,
+                                                    cultivo_id: selectedId,
+                                                    capacidad_extraccion: useCapacidadExtraccion
+                                                };
+                                            });
                                         } else {
                                             setNuevoLote(prev => ({
                                                 ...prev,
-                                                cultivo_id: selectedId
+                                                cultivo_id: selectedId,
+                                                capacidad_extraccion: indiceCapacidadExtraccion
                                             }));
                                         }
                                     }
@@ -418,6 +448,17 @@ function LotesManagement() {
                             value={editingLote ? editingLote.capacidad_almacenamiento_2m : nuevoLote.capacidad_almacenamiento_2m}
                             onChange={handleInputChange}
                             InputProps={{ inputProps: { min: 0, step: 0.1 } }}
+                            required
+                        />
+                        <TextField
+                            fullWidth
+                            margin="normal"
+                            name="capacidad_extraccion"
+                            label="Capacidad de Extracción (%)"
+                            type="number"
+                            value={editingLote ? (isNaN(parseFloat(editingLote.capacidad_extraccion)) ? 5 : editingLote.capacidad_extraccion) : 
+                                (isNaN(parseFloat(nuevoLote.capacidad_extraccion)) ? 5 : nuevoLote.capacidad_extraccion)}                            onChange={handleInputChange}
+                            InputProps={{ inputProps: { min: 0, max: 100, step: 0.1 } }}
                             required
                         />
                         <FormControlLabel

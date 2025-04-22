@@ -13,6 +13,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import DownloadIcon from '@mui/icons-material/Download';
 import { WaterDrop } from '@mui/icons-material';
 import { useLocation } from 'react-router-dom';
+import ObservacionesSection from './ObservacionesSection';
 
 
 
@@ -347,27 +348,216 @@ function Simulations() {
     };
 
     const prepareCSVData = (simulationData) => {
-        // Combinar fechas históricas y proyectadas
-        const allDates = [
-            ...(simulationData.fechas || []),
-            ...(simulationData.fechasProyeccion || [])
-        ].filter(date => isValidDate(date));
+        // Log inicial para depuración
+        console.log('Preparando CSV con simulationData:', {
+            fechas: simulationData.fechas?.length || 0,
+            fechasProyeccion: simulationData.fechasProyeccion?.length || 0,
+            estadosFenologicos: simulationData.estadosFenologicos,
+            fechaSiembra: simulationData.fechaSiembra
+        });
         
-        const formatDecimal = (value) => {
-            return parseFloat(value || 0).toFixed(2);
+        // Función interna para validar fechas
+        const isDateValid = (dateString) => {
+            if (!dateString) return false;
+            const date = new Date(dateString);
+            return date instanceof Date && !isNaN(date.getTime());
         };
-    
-        // Preparar los datos fila por fila
-        const csvData = allDates.map((date, index) => {
-            const isHistorical = index < simulationData.fechas.length;
-            const etcValue = parseFloat(simulationData.etc[index] || 0).toFixed(2);
+        
+        // Usar la función de validación disponible o la interna
+        const validateDate = typeof isValidDate === 'function' ? isValidDate : isDateValid;
+        
+        // Combinar fechas válidas
+        const fechasHistoricas = (simulationData.fechas || []).filter(date => validateDate(date));
+        const fechasProyeccion = (simulationData.fechasProyeccion || []).filter(date => validateDate(date));
+        const allDates = [...fechasHistoricas, ...fechasProyeccion];
+        
+        
+        if (allDates.length === 0) {
+            console.error('No hay fechas válidas para procesar');
+            return [];
+        }
+        
+        // Funciones de formato
+        const formatDecimal = (value) => parseFloat(value || 0).toFixed(2);
+        const formatNumber = (value) => Math.round(parseFloat(value) || 0);
+        
+        // Calcular días absolutos desde siembra
+        let diasDesdeSiembra = [];
+        
+        if (simulationData.fechaSiembra && validateDate(simulationData.fechaSiembra)) {
+            const fechaSiembra = new Date(simulationData.fechaSiembra);
             
+            diasDesdeSiembra = allDates.map((date, index) => {
+                if (!validateDate(date)) return 0;
+                const dateObj = new Date(date);
+                const dias = Math.floor((dateObj - fechaSiembra) / (1000 * 60 * 60 * 24));
+                return Math.max(0, dias);
+            });
+            
+        } else {
+            // Fallback si no hay fecha de siembra válida
+            diasDesdeSiembra = allDates.map((_, index) => index);
+        }
+        
+        // Crear rangos de estados fenológicos
+        let rangosEstadosFenologicos = [];
+        
+        if (simulationData.estadosFenologicos && 
+            Array.isArray(simulationData.estadosFenologicos) && 
+            simulationData.estadosFenologicos.length > 0) {
+            
+            
+            // Ordenar por días para asegurar secuencia correcta
+            const estadosOrdenados = [...simulationData.estadosFenologicos].sort((a, b) => 
+                parseInt(a.dias || 0) - parseInt(b.dias || 0)
+            );
+            
+            let startDay = 0;
+            estadosOrdenados.forEach((estado, index) => {
+                const diasEstado = parseInt(estado.dias || 0);
+                
+                if (isNaN(diasEstado)) {
+                    return;
+                }
+                
+                if (diasEstado >= startDay) {
+                    rangosEstadosFenologicos.push({
+                        fenologia: estado.fenologia,
+                        inicio: startDay,
+                        fin: diasEstado
+                    });
+                    startDay = diasEstado;
+                }
+            });
+            
+            // Agregar el último estado para cubrir días restantes
+            if (rangosEstadosFenologicos.length > 0) {
+                const ultimoEstado = estadosOrdenados[estadosOrdenados.length - 1];
+                rangosEstadosFenologicos.push({
+                    fenologia: ultimoEstado.fenologia,
+                    inicio: parseInt(ultimoEstado.dias || 0),
+                    fin: Infinity
+                });
+            }
+        } else if (simulationData.estadoFenologico) {
+            // Fallback si solo tenemos el estado actual
+            rangosEstadosFenologicos.push({
+                fenologia: simulationData.estadoFenologico,
+                inicio: 0,
+                fin: Infinity
+            });
+        } else {
+            // Fallback si no hay información de estados
+            rangosEstadosFenologicos.push({
+                fenologia: "Desconocido",
+                inicio: 0,
+                fin: Infinity
+            });
+        }
+        
+        // Si no se crearon rangos, usar uno por defecto
+        if (rangosEstadosFenologicos.length === 0) {
+            rangosEstadosFenologicos.push({
+                fenologia: "Sin datos",
+                inicio: 0,
+                fin: Infinity
+            });
+        }
+        
+        
+        
+        
+        // Determinar el ciclo total del cultivo (último día definido en estados fenológicos)
+        const ultimoDiaDefinido = rangosEstadosFenologicos.length > 1 ? 
+            rangosEstadosFenologicos[rangosEstadosFenologicos.length - 2].fin : 50;
+        
+        
+        // Normalizar los días para que estén dentro del rango de estados fenológicos
+        const diasNormalizados = diasDesdeSiembra.map(dia => {
+            if (dia <= ultimoDiaDefinido) {
+                return dia; // Usar día directamente si está dentro del rango
+            } else {
+                // Normalizar al ciclo del cultivo usando módulo
+                return dia % ultimoDiaDefinido;
+            }
+        });
+        
+        
+        // Función para determinar estado fenológico basada en días normalizados
+        const determinarEstadoFenologico = (dia) => {
+            const diaNum = parseInt(dia);
+            if (isNaN(diaNum)) {
+                return rangosEstadosFenologicos[0]?.fenologia || "Desconocido";
+            }
+            
+            for (const rango of rangosEstadosFenologicos) {
+                if (diaNum >= rango.inicio && diaNum < rango.fin) {
+                    return rango.fenologia;
+                }
+            }
+            
+            return rangosEstadosFenologicos[rangosEstadosFenologicos.length - 1]?.fenologia || "Desconocido";
+        };
+        
+        // Verificar con ejemplos
+        if (diasNormalizados.length > 0) {
+            console.log('Ejemplos de asignación de estados con días normalizados:');
+            const diasMuestra = [0, Math.floor(diasNormalizados.length / 3), Math.floor(diasNormalizados.length * 2 / 3)];
+            
+            diasMuestra.forEach(indice => {
+                const diaAbs = diasDesdeSiembra[indice];
+                const diaNorm = diasNormalizados[indice];
+                const estado = determinarEstadoFenologico(diaNorm);
+                console.log(`Fecha ${allDates[indice]}, Día absoluto ${diaAbs}, Día normalizado ${diaNorm}: Estado ${estado}`);
+            });
+        }
+        
+        // Función para formatear fechas
+        const formatDate = (dateString) => {
+            if (!validateDate(dateString)) return '';
+            
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'});
+            } catch (error) {
+                console.error('Error al formatear fecha:', error);
+                return dateString;
+            }
+        };
+        
+        // Preparar los datos para el CSV
+        const csvData = allDates.map((date, index) => {
+            const isHistorical = index < fechasHistoricas.length;
+            const etcValue = formatDecimal(simulationData.etc?.[index] || 0);
+            
+            let aguaUtil;
+            if (isHistorical) {
+                aguaUtil = formatNumber(simulationData.aguaUtil?.[index] || 0);
+            } else {
+                const proyIndex = index - fechasHistoricas.length;
+                aguaUtil = formatNumber(simulationData.aguaUtilProyectada?.[proyIndex] || 0);
+            }
+            
+            const umbral = formatNumber(simulationData.aguaUtilUmbral?.[index] || 0);
+            
+            let porcentajeAU = 0;
+            if (umbral > 0 && simulationData.porcentajeAguaUtilUmbral) {
+                const porcentajeUmbral = parseFloat(simulationData.porcentajeAguaUtilUmbral) / 100;
+                porcentajeAU = formatNumber((aguaUtil / (umbral / porcentajeUmbral)) * 100);
+            }
+            
+            // Usar día normalizado para determinar el estado fenológico
+            const diaNormalizado = diasNormalizados[index];
+            const estadoFenologico = determinarEstadoFenologico(diaNormalizado);
+            
+            // Crear el objeto de datos
             return {
                 Fecha: formatDate(date),
                 'Agua Útil (mm)': isHistorical ? 
                     formatNumber(simulationData.aguaUtil[index]) : 
                     formatNumber(simulationData.aguaUtilProyectada[index - simulationData.fechas.length]),
                 'Agua Útil Umbral (mm)': formatNumber(simulationData.aguaUtilUmbral[index]),
+                '% Agua Útil': porcentajeAU,
                 'Lluvias (mm)': formatNumber(simulationData.lluvias[index] || 0),
                 'Lluvia Efectiva (mm)': formatNumber(simulationData.lluviasEfectivas[index] || 0),
                 'Riego (mm)': formatNumber(simulationData.riego[index] || 0),
@@ -375,7 +565,8 @@ function Simulations() {
                 'KC': simulationData.kc[index] ? parseFloat(simulationData.kc[index]).toFixed(2) : '0.00',
                 'Evapotranspiración': parseFloat(simulationData.evapotranspiracion[index] || 0).toFixed(2),
                 'ETC': etcValue,
-                'Capacidad Extracción': formatDecimal(simulationData.capacidadExtraccion[index] || 0)
+                'Capacidad Extracción': formatDecimal(simulationData.capacidadExtraccion[index] || 0),
+                'Estado Fenológico': estadoFenologico
             };
         });
     
@@ -963,9 +1154,17 @@ function Simulations() {
                 <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
                     {chartData && <Chart type="bar" data={chartData} options={chartOptions} />}
                 </Paper>
-               
+                {simulationData && isAdmin && (
+                <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
+                        <ObservacionesSection 
+                            loteId={selectedLote} 
+                            campaña={selectedCampaña} 
+                        />
+                </Paper>
+                )}
                 </>
             )}
+            
             <CorreccionDiasDialog 
                     open={openCorreccionDialog} 
                     onClose={() => setOpenCorreccionDialog(false)}
