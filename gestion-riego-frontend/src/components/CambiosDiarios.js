@@ -354,15 +354,15 @@ function CambiosDiarios() {
                                 <TableCell>
                                     {cambio.fecha_cambio ? formatDate(cambio.fecha_cambio) : '-'}
                                 </TableCell>
-                                <TableCell>{cambio.riego_cantidad}</TableCell>
+                                <TableCell>{cambio.riego_cantidad !== null ? parseFloat(cambio.riego_cantidad).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.riego_fecha_inicio ? new Date(cambio.riego_fecha_inicio).toLocaleDateString() : '-'}</TableCell>
-                                <TableCell>{cambio.precipitaciones}</TableCell>
-                                <TableCell>{cambio.humedad}</TableCell>
-                                <TableCell>{cambio.temperatura}</TableCell>
-                                <TableCell>{cambio.evapotranspiracion}</TableCell>
-                                <TableCell>{cambio.correccion_agua}</TableCell>
-                                <TableCell>{cambio.etc}</TableCell>
-                                <TableCell>{cambio.lluvia_efectiva}</TableCell>
+                                <TableCell>{cambio.precipitaciones !== null ? parseFloat(cambio.precipitaciones).toFixed(2) : '-'}</TableCell>
+                                <TableCell>{cambio.humedad !== null ? parseFloat(cambio.humedad).toFixed(2) : '-'}</TableCell>
+                                <TableCell>{cambio.temperatura !== null ? parseFloat(cambio.temperatura).toFixed(2) : '-'}</TableCell>
+                                <TableCell>{cambio.evapotranspiracion !== null ? parseFloat(cambio.evapotranspiracion).toFixed(2) : '-'}</TableCell>
+                                <TableCell>{cambio.correccion_agua !== null ? parseFloat(cambio.correccion_agua).toFixed(2) : '-'}</TableCell>
+                                <TableCell>{cambio.etc !== null ? parseFloat(cambio.etc).toFixed(2) : '-'}</TableCell>
+                                <TableCell>{cambio.lluvia_efectiva !== null ? parseFloat(cambio.lluvia_efectiva).toFixed(2) : '-'}</TableCell>
                                 <TableCell>
                                     <IconButton onClick={() => handleEdit(cambio)} color="primary">
                                         <Edit />
