@@ -29,6 +29,7 @@ exports.getSimulationData = async (req, res) => {
                 JOIN cultivos c ON l.cultivo_id = c.id
                 LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
                 WHERE l.id = $1
+                AND l.activo = true
                 ${campaña ? 'AND l.campaña = $2' : ''}
                 AND (cd.fecha_cambio >= l.fecha_siembra OR cd.fecha_cambio IS NULL)
                 ORDER BY cd.fecha_cambio`, 

@@ -149,11 +149,13 @@ function Simulations() {
 
     const fetchLotes = async (campoId) => {
         try {
-        const response = await axios.get(`/lotes/campo/${campoId}`);
-        setLotes(Array.isArray(response.data) ? response.data : response.data.lotes || []);
+            const response = await axios.get(`/lotes/campo/${campoId}`);
+            setLotes(Array.isArray(response.data) 
+                ? response.data.filter(lote => lote.activo) 
+                : (response.data.lotes || []).filter(lote => lote.activo));
         } catch (error) {
-        console.error('Error al obtener lotes:', error);
-        setLotes([]);
+            console.error('Error al obtener lotes:', error);
+            setLotes([]);
         }
     };
 
