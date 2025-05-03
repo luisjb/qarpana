@@ -182,17 +182,34 @@ router.post('/', verifyToken, async (req, res) => {
 
         // Obtener fecha de siembra y calcular días
          const { rows: [loteInfo] } = await client.query(
-            'SELECT fecha_siembra, cultivo_id FROM lotes WHERE id = $1',
+            'SELECT fecha_siembra, cultivo_id FROM lotes WHERE id = $1 AND activo = true',
             [lote_id]
         );
 
         if (!loteInfo) {
             return res.status(404).json({ error: 'Lote no encontrado' });
         }
-        
+        // Verificar máximo de días
+        const { rows: [maxDays] } = await client.query(`
+            SELECT MAX(GREATEST(indice_dias, COALESCE(dias_correccion, 0))) as max_dias
+            FROM coeficiente_cultivo cc
+            WHERE cc.cultivo_id = $1
+        `, [loteInfo.cultivo_id]);
+
+        const maxDiasSimulacion = maxDays.max_dias || 150; // Valor por defecto
+
         const diasDesdeSiembra = Math.floor(
             (new Date(fecha_cambio) - new Date(loteInfo.fecha_siembra)) / (1000 * 60 * 60 * 24)
         );
+
+        // Rechazar si se excede el máximo de días
+        if (diasDesdeSiembra > maxDiasSimulacion) {
+            return res.status(400).json({ 
+                error: 'No se pueden crear cambios diarios después del máximo de días configurado',
+                maxDias: maxDiasSimulacion,
+                diasActuales: diasDesdeSiembra
+            });
+        }
 
         // Calcular KC y ETC
         const { rows: [kc_data] } = await client.query(`

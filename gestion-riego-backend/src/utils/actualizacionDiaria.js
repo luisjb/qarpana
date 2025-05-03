@@ -22,9 +22,25 @@ async function actualizacionDiaria() {
 
         for (const lote of lotesResult.rows) {
             try {
+
+                // Verificar si ya se alcanzó el máximo de días para este lote
+                const { rows: [maxDays] } = await client.query(`
+                    SELECT MAX(GREATEST(indice_dias, COALESCE(dias_correccion, 0))) as max_dias
+                    FROM coeficiente_cultivo cc
+                    WHERE cc.cultivo_id = $1
+                `, [lote.cultivo_id]);
+                
+                const maxDiasSimulacion = maxDays.max_dias || 150; // Valor por defecto si no se encuentra el cultivo
+
                 const fechaSiembra = new Date(lote.fecha_siembra);
                 const diasDesdeSiembra = Math.floor((hoy - fechaSiembra) / (1000 * 60 * 60 * 24));
 
+                // Si ya se alcanzó o superó el máximo de días, saltamos este lote
+                if (diasDesdeSiembra > maxDiasSimulacion) {
+                    console.log(`Lote ${lote.id} ha alcanzado el máximo de días (${maxDiasSimulacion}). Días actuales: ${diasDesdeSiembra}`);
+                    continue;
+                }
+                
                 // Obtener o crear el registro de cambios_diarios para hoy
                 let cambioDiario = await obtenerOCrearCambioDiario(client, lote.id, hoy, diasDesdeSiembra);
 

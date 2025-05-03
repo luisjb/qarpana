@@ -74,17 +74,12 @@ function CambiosDiarios() {
     const fetchLotes = async (campoId) => {
         try {
             const response = await axios.get(`/lotes/campo/${campoId}`);
-            console.log('Lotes fetched:', response.data);
+            // Filtrar solo lotes activos
+            const activeLotes = Array.isArray(response.data) 
+                ? response.data.filter(lote => lote.activo) 
+                : (response.data.lotes || []).filter(lote => lote.activo);
             
-            // Verificar si la respuesta tiene la estructura esperada
-            if (response.data && Array.isArray(response.data.lotes)) {
-                setLotes(response.data.lotes);
-            } else if (Array.isArray(response.data)) {
-                setLotes(response.data);
-            } else {
-                console.error('Formato de respuesta inesperado para lotes:', response.data);
-                setLotes([]);
-            }
+            setLotes(activeLotes);
         } catch (error) {
             console.error('Error al obtener lotes:', error);
             setLotes([]);
