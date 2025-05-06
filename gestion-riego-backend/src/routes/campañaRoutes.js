@@ -21,6 +21,13 @@ router.get('/lote/:loteId', verifyToken, async (req, res) => {
         const campaña = result.rows[0].campaña;
         console.log('Campaña encontrada:', campaña);
 
+        // Obtener campañas específicas para este lote
+        const loteCampañasResult = await pool.query(
+            'SELECT DISTINCT campaña FROM lotes WHERE id = $1 AND campaña IS NOT NULL',
+            [loteId]
+        );
+        const campañasDelLote = loteCampañasResult.rows.map(row => row.campaña);
+
         // Si quieres obtener todas las campañas únicas, puedes hacer una consulta adicional
         const allCampañasResult = await pool.query(
             'SELECT DISTINCT campaña FROM lotes WHERE campaña IS NOT NULL ORDER BY campaña'
@@ -29,6 +36,7 @@ router.get('/lote/:loteId', verifyToken, async (req, res) => {
 
         res.json({
             loteCampaña: campaña,
+            campañasDelLote: campañasDelLote,
             todasLasCampañas: allCampañas
         });
     } catch (error) {

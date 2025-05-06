@@ -161,23 +161,40 @@ function Simulations() {
 
     const fetchCampañas = async (loteId) => {
         try {
-        const response = await axios.get(`/campanas/lote/${loteId}`);
-        if (response.data && Array.isArray(response.data.todasLasCampañas)) {
-            setCampañas(response.data.todasLasCampañas);
-            if (response.data.todasLasCampañas.length === 1) {
-            setSelectedCampaña(response.data.todasLasCampañas[0]);
-            fetchSimulationData(loteId, response.data.todasLasCampañas[0]);
+            const response = await axios.get(`/campanas/lote/${loteId}`);
+            if (response.data && Array.isArray(response.data.todasLasCampañas)) {
+                // Filtrar para mostrar solo las campañas que pertenecen a este lote específico
+                const campañasLote = response.data.todasLasCampañas.filter(campaña => {
+                    return response.data.campañasDelLote && response.data.campañasDelLote.includes(campaña);
+                });
+                
+                setCampañas(campañasLote);
+                
+                // Si solo hay una campaña, seleccionarla automáticamente
+                if (campañasLote.length === 1) {
+                    setSelectedCampaña(campañasLote[0]);
+                    fetchSimulationData(loteId, campañasLote[0]);
+                } else if (campañasLote.length > 0) {
+                    // Establecer la campaña actual del lote como seleccionada por defecto
+                    const campañaActual = response.data.loteCampaña || '';
+                    if (campañaActual && campañasLote.includes(campañaActual)) {
+                        setSelectedCampaña(campañaActual);
+                        fetchSimulationData(loteId, campañaActual);
+                    } else {
+                        setSelectedCampaña(''); // Ninguna seleccionada si no hay coincidencia
+                    }
+                } else {
+                    setCampañas([]);
+                    setSelectedCampaña('');
+                }
             } else {
-            setSelectedCampaña(response.data.loteCampaña || '');
+                setCampañas([]);
+                setSelectedCampaña('');
             }
-        } else {
+        } catch (error) {
+            console.error('Error al obtener campañas:', error);
             setCampañas([]);
             setSelectedCampaña('');
-        }
-        } catch (error) {
-        console.error('Error al obtener campañas:', error);
-        setCampañas([]);
-        setSelectedCampaña('');
         }
     };
 

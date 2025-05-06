@@ -68,9 +68,9 @@ exports.getSimulationData = async (req, res) => {
             : 0;
         const auInicial2m = aguaUtilTotal;
 
-        console.log('agua util total:', aguaUtilTotal);
+        /*console.log('agua util total:', aguaUtilTotal);
         console.log('agua util inicial 1m:', auInicial1m);
-        console.log('agua util inicial 2m:', auInicial2m);
+        console.log('agua util inicial 2m:', auInicial2m);*/
 
         // Calcular acumulados
         let lluviasEfectivasAcumuladas = 0;
@@ -109,8 +109,8 @@ exports.getSimulationData = async (req, res) => {
         
         const estadoFenologico = await getEstadoFenologico(loteId, diasDesdeSiembra);
 
-        console.log('Días desde siembra:', diasDesdeSiembra);
-        console.log('Estados fenológicos:', estadoFenologico);
+        /*console.log('Días desde siembra:', diasDesdeSiembra);
+        console.log('Estados fenológicos:', estadoFenologico);*/
 
         // Obtener todos los estados fenológicos
         const estadosFenologicos = await getEstadosFenologicos(loteId);
@@ -244,7 +244,7 @@ exports.getSimulationData = async (req, res) => {
             let aguaUtil1m, aguaUtil2m;
             
 
-            console.log('esPrimerDiaReal:', esPrimerDiaReal);
+            //console.log('esPrimerDiaReal:', esPrimerDiaReal);
             // Calcular agua útil a 1m y 2m
             if (esPrimerDiaReal) {
                 // First day calculation - use initial values
@@ -443,7 +443,7 @@ exports.getSimulationData = async (req, res) => {
         };
 
         // También vamos a agregar un console.log para verificar los valores
-        console.log('ETC valores:', simulationData.etc.slice(0, 5)); // Ver primeros 5 valores
+       /* console.log('ETC valores:', simulationData.etc.slice(0, 5)); // Ver primeros 5 valores
         console.log('Evapotranspiracion valores:', simulationData.evapotranspiracion.slice(0, 5));
 
         console.log('Datos de simulación enviados:', {
@@ -456,7 +456,7 @@ exports.getSimulationData = async (req, res) => {
                 valores: simulationData.aguaUtilProyectada,
                 dia8: simulationData.proyeccionAU10Dias
             }
-        });
+        });*/
 
         res.json(simulationData);
     } catch (error) {
@@ -468,7 +468,7 @@ exports.getSimulationData = async (req, res) => {
 
 async function getEstadoFenologico(loteId, diasDesdeSiembra) {
     try {
-        console.log('Calculando estado fenológico para lote:', loteId, 'días:', diasDesdeSiembra);
+        //console.log('Calculando estado fenológico para lote:', loteId, 'días:', diasDesdeSiembra);
         
         // Primero verificamos si hay estados fenológicos para este lote
         const { rows: [count] } = await pool.query(
@@ -477,7 +477,7 @@ async function getEstadoFenologico(loteId, diasDesdeSiembra) {
         );
         
         if (count.count === '0') {
-            console.log('No hay estados fenológicos registrados para el lote:', loteId);
+           // console.log('No hay estados fenológicos registrados para el lote:', loteId);
             // Aquí podrías insertar estados fenológicos por defecto si lo deseas
             await insertarEstadosFenologicosDefault(loteId);
         }
@@ -504,7 +504,7 @@ async function getEstadoFenologico(loteId, diasDesdeSiembra) {
             }
         }
 
-        console.log('Estado fenológico encontrado para días', diasDesdeSiembra, ':', estadoActual);
+        //console.log('Estado fenológico encontrado para días', diasDesdeSiembra, ':', estadoActual);
         return estadoActual;
 
     } catch (error) {
@@ -555,7 +555,7 @@ async function insertarEstadosFenologicosDefault(loteId) {
             );
         }
 
-        console.log('Estados fenológicos por defecto insertados para lote:', loteId);
+        //console.log('Estados fenológicos por defecto insertados para lote:', loteId);
     } catch (error) {
         console.error('Error al insertar estados fenológicos por defecto:', error);
     }
@@ -612,7 +612,7 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
  
         // Si no hay datos, retornar valores por defecto
         if (!ultimoCambio) {
-            console.log(`No hay datos de cambios diarios para el lote ${loteId}`);
+            //console.log(`No hay datos de cambios diarios para el lote ${loteId}`);
             return { 
                 proyeccionCompleta: [], 
                 aguaUtilDia8: 0, 
@@ -662,7 +662,7 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         
         // Si no hay pronósticos, retornar valores iniciales
         if (pronosticos.length === 0) {
-            console.log(`No hay pronósticos disponibles para el lote ${loteId}`);
+            //console.log(`No hay pronósticos disponibles para el lote ${loteId}`);
             return {
                 proyeccionCompleta: [],
                 aguaUtilDia8: aguaUtilAnterior,
@@ -678,14 +678,14 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         const aguaUtilTotal2m = capacidad2m || 200; // Valor por defecto: 200mm
         
         // Logging para depuración
-        console.log('Valores iniciales para proyección (valores exactos):', {
+        /*console.log('Valores iniciales para proyección (valores exactos):', {
             loteId,
             aguaUtilInicial,
             aguaUtil1mAnterior,
             aguaUtil2mAnterior,
             capacidad1m,
             capacidad2m
-        });
+        });*/
         
         // Función auxiliar para calcular estrato basado en profundidad
         const calcularEstrato = (profundidadRaiz) => {
@@ -720,10 +720,10 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
             const gananciaAgua = parseFloat(pronostico.lluvia_efectiva || 0);
             
             // Logging para depuración
-            console.log('Ganancia de agua:', gananciaAgua, 'ETR:', etr, 
+            /*console.log('Ganancia de agua:', gananciaAgua, 'ETR:', etr, 
                 'Agua útil anterior:', aguaUtilZonaRadicular, 
                 'Agua útil 1m anterior:', aguaUtil1m, 
-                'Agua útil 2m anterior:', aguaUtil2m);
+                'Agua útil 2m anterior:', aguaUtil2m);*/
  
             // Actualizar valores para cada profundidad usando la misma fórmula
             // pero con sus propios valores iniciales
@@ -774,13 +774,13 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         };
 
         // Logging final para depuración
-        console.log('Proyección calculada con 1m y 2m:', {
+        /*console.log('Proyección calculada con 1m y 2m:', {
             valorInicial: aguaUtilInicial,
             valorFinal1m: proyeccionFinal.aguaUtil1mDia8,
             valorFinal2m: proyeccionFinal.aguaUtil2mDia8,
             porcentaje1m: proyeccionFinal.porcentajeProyectado,
             porcentaje2m: proyeccionFinal.porcentajeProyectado2m
-        });
+        });*/
 
         return proyeccionFinal;
  
@@ -891,7 +891,7 @@ async function getLastSimulationData(loteId) {
         const aguaUtil2m = aguaUtilActual * proportion2m;
         
         // Logging para depuración
-        console.log('Datos de simulación para lote:', loteId, {
+        /*console.log('Datos de simulación para lote:', loteId, {
             aguaUtilActual,
             estratoAlcanzado,
             capacidad1m,
@@ -900,7 +900,7 @@ async function getLastSimulationData(loteId) {
             proportion2m,
             aguaUtil1m,
             aguaUtil2m
-        });
+        });*/
         
         // Retornar todos los datos calculados
         return {
