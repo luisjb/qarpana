@@ -110,19 +110,24 @@ function ResumenCirculos() {
             setLoading(true);
             const response = await axios.get(`/lotes/campo/${campoId}`);
             
-            // Si hay lotes en el campo seleccionado, obtener los datos de cada lote
-            if (response.data.lotes && response.data.lotes.length > 0) {
-                const lotesPromises = response.data.lotes.map(async (lote) => {
+            // Filtrar solo los lotes activos antes de procesar
+            const lotesActivos = response.data.lotes && response.data.lotes.length > 0
+                ? response.data.lotes.filter(lote => lote.activo)
+                : [];
+            
+            // Si hay lotes activos en el campo seleccionado, obtener los datos de cada lote
+            if (lotesActivos.length > 0) {
+                const lotesPromises = lotesActivos.map(async (lote) => {
                     try {
                         const dataResponse = await axios.get(`/simulations/summary/${lote.id}`);
-                        console.log(`Datos de resumen para lote ${lote.nombre_lote} (ID: ${lote.id}):`, {
+                        /*console.log(`Datos de resumen para lote ${lote.nombre_lote} (ID: ${lote.id}):`, {
                             porcentaje1m: dataResponse.data.porcentajeAu1m,
                             valor1m: dataResponse.data.aguaUtil1m,
                             porcentaje2m: dataResponse.data.porcentajeAu2m,
                             valor2m: dataResponse.data.aguaUtil2m,
                             fecha: dataResponse.data.ultimaFecha
-                        });
-
+                        });*/
+    
                         return {
                             ...lote,
                             waterData: dataResponse.data
