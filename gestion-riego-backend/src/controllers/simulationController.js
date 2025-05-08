@@ -67,7 +67,7 @@ exports.getSimulationData = async (req, res) => {
             ? lote.valores_estratos.slice(0, 5).reduce((sum, valor) => sum + parseFloat(valor), 0)
             : 0;
         const auInicial2m = aguaUtilTotal;
-        console,log('valores estratos:', lote.valores_estratos);
+        console.log('valores estratos:', lote.valores_estratos);
         console.log('agua util total:', aguaUtilTotal);
         console.log('agua util inicial 1m:', auInicial1m);
         console.log('agua util inicial 2m:', auInicial2m);
