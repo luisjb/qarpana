@@ -678,14 +678,14 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         const aguaUtilTotal2m = capacidad2m || 200; // Valor por defecto: 200mm
         
         // Logging para depuración
-        /*console.log('Valores iniciales para proyección (valores exactos):', {
+        console.log('Valores iniciales para proyección (valores exactos):', {
             loteId,
             aguaUtilInicial,
             aguaUtil1mAnterior,
             aguaUtil2mAnterior,
             capacidad1m,
             capacidad2m
-        });*/
+        });
         
         // Función auxiliar para calcular estrato basado en profundidad
         const calcularEstrato = (profundidadRaiz) => {
@@ -774,13 +774,13 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         };
 
         // Logging final para depuración
-        /*console.log('Proyección calculada con 1m y 2m:', {
+        console.log('Proyección calculada con 1m y 2m:', {
             valorInicial: aguaUtilInicial,
             valorFinal1m: proyeccionFinal.aguaUtil1mDia8,
             valorFinal2m: proyeccionFinal.aguaUtil2mDia8,
             porcentaje1m: proyeccionFinal.porcentajeProyectado,
             porcentaje2m: proyeccionFinal.porcentajeProyectado2m
-        });*/
+        });
 
         return proyeccionFinal;
  
