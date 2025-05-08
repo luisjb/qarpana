@@ -32,7 +32,7 @@ exports.getSimulationData = async (req, res) => {
                 AND l.activo = true
                 ${campaña ? 'AND l.campaña = $2' : ''}
                 AND (cd.fecha_cambio >= l.fecha_siembra OR cd.fecha_cambio IS NULL)
-                ORDER BY cd.fecha_cambio`, 
+                ORDER BY cd.dias ASC, cd.fecha_cambio ASC`, 
             campaña ? [loteId, campaña] : [loteId]
         );
 
