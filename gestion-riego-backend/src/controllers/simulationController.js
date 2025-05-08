@@ -67,10 +67,10 @@ exports.getSimulationData = async (req, res) => {
             ? lote.valores_estratos.slice(0, 5).reduce((sum, valor) => sum + parseFloat(valor), 0)
             : 0;
         const auInicial2m = aguaUtilTotal;
-        console.log('valores estratos:', lote.valores_estratos);
+        /*console.log('valores estratos:', lote.valores_estratos);
         console.log('agua util total:', aguaUtilTotal);
         console.log('agua util inicial 1m:', auInicial1m);
-        console.log('agua util inicial 2m:', auInicial2m);
+        console.log('agua util inicial 2m:', auInicial2m);*/
 
         // Calcular acumulados
         let lluviasEfectivasAcumuladas = 0;
@@ -195,6 +195,8 @@ exports.getSimulationData = async (req, res) => {
             const gananciaAgua = parseFloat(lluvia_efectiva || 0) + parseFloat(riego_cantidad || 0)  + parseFloat(correccion_agua || 0);
             
             const esPrimerDiaReal = esPrimerDia || (dia && parseInt(dia) === 1);
+            console.log('esPrimerDiaReal:', esPrimerDiaReal, 'dia:', dia);
+            
             // Calculamos el agua útil diaria
             let aguaUtilDiaria;
             if (esPrimerDiaReal) {
@@ -244,7 +246,7 @@ exports.getSimulationData = async (req, res) => {
             let aguaUtil1m, aguaUtil2m;
             
 
-            //console.log('esPrimerDiaReal:', esPrimerDiaReal);
+            console.log('esPrimerDiaReal:', esPrimerDiaReal);
             // Calcular agua útil a 1m y 2m
             if (esPrimerDiaReal) {
                 // First day calculation - use initial values
