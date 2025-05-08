@@ -3,6 +3,8 @@ const pool = require('../db');
 exports.getSimulationData = async (req, res) => {
     const { loteId } = req.params;
     const { campaña } = req.query;
+    global.lastProcessedLoteId = null;
+    global.lastSimulationData = null;
 
     try {
         const { rows: [maxDays] } = await pool.query(`
@@ -193,8 +195,8 @@ exports.getSimulationData = async (req, res) => {
                 capacidadExtraccion
             );
             const gananciaAgua = parseFloat(lluvia_efectiva || 0) + parseFloat(riego_cantidad || 0)  + parseFloat(correccion_agua || 0);
-            
-            const esPrimerDiaReal = esPrimerDia || (dia && parseInt(dia) === 1);
+            const diaNumero = parseInt(dia || '0', 10);
+            const esPrimerDiaReal = esPrimerDia || diaNumero === 1;
             console.log('esPrimerDiaReal:', esPrimerDiaReal, 'dia:', dia);
             
             // Calculamos el agua útil diaria
@@ -281,7 +283,9 @@ exports.getSimulationData = async (req, res) => {
         // Procesamos los datos día a día
         let datosSimulacion = [];
         cambiosFiltrados.forEach((cambio, index) => {
-        
+            
+            const esPrimerDia = index === 0 || parseInt(cambio.dias, 10) === 1;
+
             const resultados = calcularAguaUtilPorEstratos(
                 cambio.dias,
                 lote.valores_estratos,
@@ -300,7 +304,7 @@ exports.getSimulationData = async (req, res) => {
                 lote.utilizar_un_metro,
                 index > 0 ? datosSimulacion[index - 1]?.aguaUtil1m : undefined,
                 index > 0 ? datosSimulacion[index - 1]?.aguaUtil2m : undefined,
-                index === 0 //  parámetro: true si es el primer día, false en caso contrario
+                esPrimerDia  //  parámetro: true si es el primer día, false en caso contrario
             );
 
             datosSimulacion.push({
