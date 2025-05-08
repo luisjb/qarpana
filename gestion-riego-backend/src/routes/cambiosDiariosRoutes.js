@@ -197,10 +197,17 @@ router.post('/', verifyToken, async (req, res) => {
         `, [loteInfo.cultivo_id]);
 
         const maxDiasSimulacion = maxDays.max_dias || 150; // Valor por defecto
-
+        
+        const fechaSiembra = new Date(loteInfo.fecha_siembra);
+        const fechaCambio = new Date(fecha_cambio);
+        
+        // Asegurar que ambas fechas son válidas antes de calcular
+        if (isNaN(fechaSiembra.getTime()) || isNaN(fechaCambio.getTime())) {
+            throw new Error('Fechas inválidas al calcular días desde siembra');
+        }
         const diasDesdeSiembra = Math.floor(
-            (new Date(fecha_cambio) - new Date(loteInfo.fecha_siembra)) / (1000 * 60 * 60 * 24)
-        );
+            (fechaCambio.getTime() - fechaSiembra.getTime()) / (1000 * 60 * 60 * 24)
+        ) + 1;
 
         // Rechazar si se excede el máximo de días
         if (diasDesdeSiembra > maxDiasSimulacion) {

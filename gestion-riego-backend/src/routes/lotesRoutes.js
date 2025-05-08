@@ -224,4 +224,9 @@ router.get('/:loteId', verifyToken, async (req, res) => {
     }
 });
 
+router.post('/:loteId/corregir-dias', verifyToken, async (req, res) => {
+    const { corregirDiasLote } = require('../controllers/simulationController');
+    return corregirDiasLote(req, res);
+});
+
 module.exports = router;

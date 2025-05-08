@@ -45,6 +45,30 @@ exports.getSimulationData = async (req, res) => {
         const lote = result.rows[0];
         const cambios = result.rows;
 
+        const fechaSiembra = new Date(lote.fecha_siembra);
+        let hayInconsistencias = false;
+        
+        for (const cambio of cambios) {
+            if (!cambio.fecha_cambio) continue;
+            
+            const fechaCambio = new Date(cambio.fecha_cambio);
+            const diasCalculados = Math.floor(
+                (fechaCambio.getTime() - fechaSiembra.getTime()) / (1000 * 60 * 60 * 24)
+            ) + 1;
+            
+            if (Math.abs(diasCalculados - cambio.dias) > 1) {
+                console.warn(`Inconsistencia en días para lote ${loteId}: fecha=${cambio.fecha_cambio}, dias=${cambio.dias}, calculado=${diasCalculados}`);
+                hayInconsistencias = true;
+                
+                // Opcional: corrección automática
+                cambio.dias = diasCalculados;
+            }
+        }
+        
+        if (hayInconsistencias) {
+            console.warn(`Se detectaron inconsistencias en los días del lote ${loteId}. Se recomienda corregirlos con el endpoint /lotes/${loteId}/corregir-dias`);
+        }
+        
         const cambiosFiltrados = cambios.filter(cambio => {
             return cambio.dias <= maxDiasSimulacion;
         });
@@ -999,5 +1023,79 @@ exports.getSummaryData = async (req, res) => {
     } catch (error) {
         console.error('Error al obtener datos de resumen:', error);
         res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+};
+
+// Función para corregir los días en la base de datos
+exports.corregirDiasLote = async (req, res) => {
+    const { loteId } = req.params;
+    const client = await pool.connect();
+    
+    try {
+        await client.query('BEGIN');
+        
+        // 1. Obtener la fecha de siembra del lote
+        const { rows: [lote] } = await client.query(
+            'SELECT fecha_siembra FROM lotes WHERE id = $1',
+            [loteId]
+        );
+        
+        if (!lote) {
+            return res.status(404).json({ error: 'Lote no encontrado' });
+        }
+        
+        const fechaSiembra = lote.fecha_siembra;
+        console.log(`Fecha de siembra para lote ${loteId}: ${fechaSiembra}`);
+        
+        // 2. Obtener todos los cambios diarios para este lote
+        const { rows: cambios } = await client.query(
+            'SELECT id, fecha_cambio, dias FROM cambios_diarios WHERE lote_id = $1 ORDER BY fecha_cambio',
+            [loteId]
+        );
+        
+        console.log(`Encontrados ${cambios.length} registros para corregir`);
+        
+        // 3. Actualizar los días para cada registro
+        let actualizados = 0;
+        
+        for (const cambio of cambios) {
+            // Calcular los días correctos entre la fecha de siembra y la fecha del cambio
+            const fechaCambio = new Date(cambio.fecha_cambio);
+            const fechaSiembraDate = new Date(fechaSiembra);
+            
+            // Calcular diferencia en días
+            const diferenciaMilisegundos = fechaCambio.getTime() - fechaSiembraDate.getTime();
+            const diasCorrectos = Math.floor(diferenciaMilisegundos / (1000 * 60 * 60 * 24)) + 1;
+            
+            // Solo actualizar si los días son diferentes
+            if (cambio.dias !== diasCorrectos) {
+                await client.query(
+                    'UPDATE cambios_diarios SET dias = $1 WHERE id = $2',
+                    [diasCorrectos, cambio.id]
+                );
+                
+                console.log(`Actualizado registro ${cambio.id}: dias ${cambio.dias} -> ${diasCorrectos}`);
+                actualizados++;
+            }
+        }
+        
+        await client.query('COMMIT');
+        
+        return res.json({
+            success: true,
+            message: `Corrección completada. Se actualizaron ${actualizados} de ${cambios.length} registros.`,
+            loteId,
+            fechaSiembra
+        });
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error al corregir días:', error);
+        return res.status(500).json({ 
+            error: 'Error del servidor', 
+            message: error.message 
+        });
+    } finally {
+        client.release();
     }
 };
