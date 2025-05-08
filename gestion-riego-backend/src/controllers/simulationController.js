@@ -68,9 +68,9 @@ exports.getSimulationData = async (req, res) => {
             : 0;
         const auInicial2m = aguaUtilTotal;
 
-        /*console.log('agua util total:', aguaUtilTotal);
+        console.log('agua util total:', aguaUtilTotal);
         console.log('agua util inicial 1m:', auInicial1m);
-        console.log('agua util inicial 2m:', auInicial2m);*/
+        console.log('agua util inicial 2m:', auInicial2m);
 
         // Calcular acumulados
         let lluviasEfectivasAcumuladas = 0;
