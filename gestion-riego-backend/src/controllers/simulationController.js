@@ -250,7 +250,7 @@ exports.getSimulationData = async (req, res) => {
                 // First day calculation - use initial values
                 aguaUtil1m = Math.max(0, valorAuInicial1m - etr + gananciaAgua);
                 aguaUtil2m = Math.max(0, valorAuInicial2m - etr + gananciaAgua);
-               
+                console.log('aguaUtil1m:', aguaUtil1m);
             } else {
                 // Subsequent days - start with previous day's values
                 // Si el valor anterior es 0 o muy bajo, usamos un valor mínimo
@@ -259,7 +259,7 @@ exports.getSimulationData = async (req, res) => {
                
                 aguaUtil1m = Math.max(0, valorBase1m - etr + gananciaAgua);
                 aguaUtil2m = Math.max(0, valorBase2m - etr + gananciaAgua);
-
+                console.log('aguaUtil1m:', aguaUtil1m);
                
             }
             
