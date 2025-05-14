@@ -42,7 +42,7 @@ router.post('/refresh', verifyToken, async (req, res) => {
                     datos_json = $3, 
                     fecha_actualizacion = CURRENT_TIMESTAMP
                 `,
-                [estacion.code.toString(), estacion.title, JSON.stringify(estacion)]
+                [String(estacion.code), estacion.title, JSON.stringify(estacion)]
             );
         }
 
@@ -50,7 +50,24 @@ router.post('/refresh', verifyToken, async (req, res) => {
         
         // Devolver las estaciones actualizadas
         const { rows } = await client.query('SELECT * FROM estaciones_meteorologicas ORDER BY titulo');
-        res.json(rows);
+        
+        // Procesar los resultados para agregar latitude y longitude desde datos_json
+        const processedRows = rows.map(row => {
+            try {
+                const datos = JSON.parse(row.datos_json);
+                return {
+                    ...row,
+                    latitude: datos.latitude || null,
+                    longitude: datos.longitude || null,
+                    modules: datos.modules || []
+                };
+            } catch (error) {
+                console.error('Error al procesar datos JSON de estación:', error);
+                return row;
+            }
+        });
+        
+        res.json(processedRows);
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error al actualizar estaciones:', err);
@@ -72,7 +89,18 @@ router.get('/:codigo', verifyToken, async (req, res) => {
             return res.status(404).json({ error: 'Estación no encontrada' });
         }
         
-        res.json(rows[0]);
+        // Procesar los resultados para agregar latitude y longitude desde datos_json
+        const estacion = rows[0];
+        try {
+            const datos = JSON.parse(estacion.datos_json);
+            estacion.latitude = datos.latitude || null;
+            estacion.longitude = datos.longitude || null;
+            estacion.modules = datos.modules || [];
+        } catch (error) {
+            console.error('Error al procesar datos JSON de estación:', error);
+        }
+        
+        res.json(estacion);
     } catch (err) {
         console.error('Error al obtener estación:', err);
         res.status(500).json({ error: 'Error del servidor' });

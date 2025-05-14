@@ -150,12 +150,12 @@ function CamposManagement() {
         if (editingCampo) {
             setEditingCampo(prev => ({
                 ...prev,
-                estacion_id: estacion.code.toString()
+                estacion_id: String(estacion.code)
             }));
         } else {
             setNuevoCampo(prev => ({
                 ...prev,
-                estacion_id: estacion.code.toString()
+                estacion_id: String(estacion.code)
             }));
         }
         
@@ -166,10 +166,10 @@ function CamposManagement() {
     const extractCoordinates = (ubicacionStr) => {
         try {
             // Asumiendo que la ubicación puede estar en formato "lat,lng" o un objeto JSON stringificado
-            if (ubicacionStr.includes(',')) {
+            if (ubicacionStr && ubicacionStr.includes(',')) {
                 const [lat, lng] = ubicacionStr.split(',').map(coord => parseFloat(coord.trim()));
                 return [lat, lng];
-            } else if (ubicacionStr.includes('{')) {
+            } else if (ubicacionStr && ubicacionStr.includes('{')) {
                 const ubicObj = JSON.parse(ubicacionStr);
                 return [ubicObj.lat, ubicObj.lng];
             }
@@ -190,6 +190,17 @@ function CamposManagement() {
         }, [coords, map]);
         return null;
     }
+
+    // Función auxiliar para encontrar una estación asociada segura
+    const findEstacionAsociada = (campo) => {
+        if (!campo || !campo.estacion_id || !estaciones || estaciones.length === 0) {
+            return null;
+        }
+        
+        // Convertir estacion_id a string para comparar
+        const estacionId = String(campo.estacion_id);
+        return estaciones.find(est => est && est.code && String(est.code) === estacionId);
+    };
 
     return (
         <Container maxWidth="md">
@@ -213,7 +224,7 @@ function CamposManagement() {
             
             <List>
                 {campos.map((campo) => {
-                    const estacionAsociada = estaciones.find(est => est.code.toString() === campo.estacion_id);
+                    const estacionAsociada = findEstacionAsociada(campo);
                     
                     return (
                         <ListItem key={campo.id}>
@@ -313,7 +324,7 @@ function CamposManagement() {
                                     <em>Ninguna</em>
                                 </MenuItem>
                                 {estaciones.map((estacion) => (
-                                    <MenuItem key={estacion.code} value={estacion.code.toString()}>
+                                    <MenuItem key={estacion.code} value={String(estacion.code)}>
                                         {estacion.title}
                                     </MenuItem>
                                 ))}
@@ -385,9 +396,13 @@ function CamposManagement() {
                                 
                                 {/* Marcadores para cada estación */}
                                 {estaciones.map(estacion => {
-                                    // Aquí asumimos que tenemos las coordenadas de las estaciones
-                                    // Si no están disponibles, podrías usar geocodificación o agregar esa información
-                                    const isSelected = selectedEstacion && selectedEstacion.code === estacion.code;
+                                    // Usar coordenadas reales de la API
+                                    const estacionCoords = [
+                                        parseFloat(estacion.latitude || "-31.4201"),
+                                        parseFloat(estacion.longitude || "-64.1888")
+                                    ];
+                                    
+                                    const isSelected = selectedEstacion && String(selectedEstacion.code) === String(estacion.code);
                                     const markerIcon = isSelected 
                                         ? new L.Icon({
                                             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
@@ -402,7 +417,7 @@ function CamposManagement() {
                                     return (
                                         <Marker 
                                             key={estacion.code} 
-                                            position={[-31.4201 + Math.random() * 0.2, -64.1888 + Math.random() * 0.2]} // Simulación de posiciones
+                                            position={estacionCoords} // Usar coordenadas reales
                                             icon={markerIcon}
                                             eventHandlers={{
                                                 click: () => handleSelectEstacion(estacion)

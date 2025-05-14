@@ -356,6 +356,8 @@ CREATE TABLE estaciones_meteorologicas (
     id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     codigo TEXT NOT NULL UNIQUE,  -- El "code" de la API de OMIXOM
     titulo TEXT NOT NULL,
+    latitud TEXT,
+    longitud TEXT,
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     datos_json JSONB  -- Para almacenar todos los datos de la estación incluyendo módulos
 );
