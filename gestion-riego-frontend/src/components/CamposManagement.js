@@ -76,7 +76,19 @@ function CamposManagement() {
         try {
             setIsLoadingEstaciones(true);
             const response = await axios.get('/estaciones');
-            setEstaciones(response.data);
+            
+            // Procesar los datos para unificar los nombres de propiedades
+            const processedEstaciones = response.data.map(estacion => {
+                return {
+                    ...estacion,
+                    // Asegurar que code y title estén disponibles
+                    code: estacion.code || estacion.codigo,
+                    title: estacion.title || estacion.titulo
+                };
+            });
+            
+            setEstaciones(processedEstaciones);
+            console.log('Estaciones cargadas:', processedEstaciones); // Para depuración
             setIsLoadingEstaciones(false);
         } catch (error) {
             console.error('Error al obtener estaciones:', error);
@@ -201,13 +213,16 @@ function CamposManagement() {
     };
 
     // Componente para centrar el mapa en una posición
-    function SetViewOnClick({ coords }) {
+    function SetViewOnClick({ coords, zoomLevel = 7 }) {
         const map = useMap();
         useEffect(() => {
             if (coords) {
-                map.setView(coords, 13);
+                map.setView(coords, zoomLevel);
+            } else {
+                // Si no hay coordenadas, centrar en Córdoba con un zoom que muestre la provincia
+                map.setView([-31.4201, -64.1888], 7);
             }
-        }, [coords, map]);
+        }, [coords, map, zoomLevel]);
         return null;
     }
 
@@ -253,16 +268,18 @@ function CamposManagement() {
                     <Button variant="contained" color="primary" onClick={() => setOpenDialog(true)}>
                         Agregar Nuevo Campo
                     </Button>
-                )}
-                <Button 
+                )}  
+                {isAdmin && (
+                    <Button 
                     variant="outlined" 
                     color="secondary" 
                     onClick={refreshEstaciones} 
                     disabled={isLoadingEstaciones}
                     startIcon={<Refresh />}
-                >
-                    {isLoadingEstaciones ? 'Actualizando...' : 'Actualizar Estaciones'}
-                </Button>
+                    >
+                        {isLoadingEstaciones ? 'Actualizando...' : 'Actualizar Estaciones'}
+                    </Button>
+                )}
             </Box>
             
             <List>
@@ -384,11 +401,16 @@ function CamposManagement() {
                                 <MenuItem value="">
                                     <em>Ninguna</em>
                                 </MenuItem>
-                                {estaciones.map((estacion) => (
-                                    <MenuItem key={estacion.code} value={String(estacion.code)}>
-                                        {estacion.title}
-                                    </MenuItem>
-                                ))}
+                                {estaciones.map((estacion) => {
+                                    const estacionCode = estacion.code ? String(estacion.code) : 
+                                                        estacion.codigo ? String(estacion.codigo) : '';
+                                    
+                                    return (
+                                        <MenuItem key={estacionCode} value={estacionCode}>
+                                            {estacion.title || estacion.titulo || 'Estación sin nombre'}
+                                        </MenuItem>
+                                    );
+                                })}
                             </Select>
                         </FormControl>
                         <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between' }}>
@@ -437,7 +459,7 @@ function CamposManagement() {
                         {estaciones.length > 0 ? (
                             <MapContainer 
                                 center={[-31.4201, -64.1888]} // Coordenadas de Córdoba, Argentina
-                                zoom={5} 
+                                zoom={4} 
                                 style={{ height: '100%', width: '100%' }}
                             >
                                 <TileLayer

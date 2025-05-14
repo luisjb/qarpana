@@ -9,33 +9,40 @@ router.get('/', verifyToken, async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT * FROM estaciones_meteorologicas ORDER BY titulo');
         
-        // Procesar los datos JSON de cada estación para extraer latitud y longitud
+        // Procesar los datos JSON de cada estación
         const processedEstaciones = rows.map(estacion => {
             try {
-                let latitude = estacion.latitud;
-                let longitude = estacion.longitud;
-                
-                // Si no tenemos valores en las columnas, intentamos extraer del JSON
-                if ((!latitude || !longitude) && estacion.datos_json) {
-                    const datos = typeof estacion.datos_json === 'string' 
+                // Extraer datos del JSON si existe
+                let datosJson = {};
+                if (estacion.datos_json) {
+                    datosJson = typeof estacion.datos_json === 'string' 
                         ? JSON.parse(estacion.datos_json) 
                         : estacion.datos_json;
-                    
-                    latitude = latitude || datos.latitude;
-                    longitude = longitude || datos.longitude;
                 }
                 
+                // Normalizar nombres de propiedades
                 return {
                     ...estacion,
-                    latitude: latitude,
-                    longitude: longitude
+                    code: estacion.codigo || (datosJson?.code ? String(datosJson.code) : ''),
+                    title: estacion.titulo || datosJson?.title || 'Estación sin nombre',
+                    latitude: estacion.latitud || datosJson?.latitude || null,
+                    longitude: estacion.longitud || datosJson?.longitude || null,
+                    modules: datosJson?.modules || []
                 };
             } catch (error) {
                 console.error(`Error procesando datos de estación ${estacion.codigo}:`, error);
-                return estacion;
+                return {
+                    ...estacion,
+                    code: estacion.codigo || '',
+                    title: estacion.titulo || 'Estación sin nombre',
+                    latitude: estacion.latitud || null,
+                    longitude: estacion.longitud || null,
+                    modules: []
+                };
             }
         });
         
+        console.log('Enviando estaciones procesadas:', processedEstaciones.length);
         res.json(processedEstaciones);
     } catch (err) {
         console.error('Error al obtener estaciones:', err);
@@ -47,7 +54,7 @@ router.get('/', verifyToken, async (req, res) => {
 router.post('/refresh', verifyToken, async (req, res) => {
     const client = await pool.connect();
     try {
-        // Obtener el token de OMIXOM (este podría estar en una variable de entorno)
+        // Obtener el token de OMIXOM
         const OMIXOM_TOKEN = 'fa31ec35bbe0e6684f75e8cc2ebe38dd999f7356';
         
         // Realizar la solicitud a la API de OMIXOM
@@ -57,15 +64,24 @@ router.post('/refresh', verifyToken, async (req, res) => {
             }
         });
         
+        console.log('Estaciones obtenidas de API:', response.data.length);
+        
         await client.query('BEGIN');
 
         // Guardar o actualizar cada estación en la base de datos
         for (const estacion of response.data) {
             await client.query(
-                `INSERT INTO estaciones_meteorologicas (codigo, titulo, latitud, longitud, datos_json, fecha_actualizacion) 
-                 VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-                 ON CONFLICT (codigo) 
-                 DO UPDATE SET 
+                `INSERT INTO estaciones_meteorologicas (
+                    codigo, 
+                    titulo, 
+                    latitud, 
+                    longitud, 
+                    datos_json, 
+                    fecha_actualizacion
+                ) 
+                VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+                ON CONFLICT (codigo) 
+                DO UPDATE SET 
                     titulo = $2,
                     latitud = $3,
                     longitud = $4, 
@@ -87,7 +103,7 @@ router.post('/refresh', verifyToken, async (req, res) => {
         // Devolver las estaciones actualizadas
         const { rows } = await client.query('SELECT * FROM estaciones_meteorologicas ORDER BY titulo');
         
-        // Procesar los resultados
+        // Procesar los resultados para normalizar propiedades
         const processedRows = rows.map(row => {
             try {
                 const datos = typeof row.datos_json === 'string' 
@@ -96,13 +112,22 @@ router.post('/refresh', verifyToken, async (req, res) => {
                 
                 return {
                     ...row,
-                    latitude: row.latitud || datos.latitude || null,
-                    longitude: row.longitud || datos.longitude || null,
-                    modules: datos.modules || []
+                    code: row.codigo || '',
+                    title: row.titulo || '',
+                    latitude: row.latitud || datos?.latitude || null,
+                    longitude: row.longitud || datos?.longitude || null,
+                    modules: datos?.modules || []
                 };
             } catch (error) {
                 console.error('Error al procesar datos JSON de estación:', error);
-                return row;
+                return {
+                    ...row,
+                    code: row.codigo || '',
+                    title: row.titulo || '',
+                    latitude: row.latitud || null,
+                    longitude: row.longitud || null,
+                    modules: []
+                };
             }
         });
         
