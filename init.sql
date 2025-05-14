@@ -365,3 +365,14 @@ CREATE TABLE estaciones_meteorologicas (
 -- Agregar campo para asociar estaciones a campos
 ALTER TABLE campos
 ADD COLUMN estacion_id TEXT;  -- Aquí guardamos el código de la estación (no el ID de nuestra tabla)
+
+-- Primero, verificamos si la extensión está instalada
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Agregar una columna para almacenar múltiples IDs de usuarios
+ALTER TABLE campos 
+ADD COLUMN IF NOT EXISTS usuarios_ids BIGINT[];
+
+UPDATE campos 
+SET usuarios_ids = ARRAY[usuario_id]
+WHERE usuario_id IS NOT NULL AND (usuarios_ids IS NULL OR array_length(usuarios_ids, 1) IS NULL);

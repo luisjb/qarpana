@@ -4,7 +4,7 @@ import axios from '../axiosConfig';
 import {
     Container, Typography, TextField, Button, List, ListItem, ListItemText,
     Select, MenuItem, FormControl, InputLabel, Grid, Dialog, DialogActions,
-    DialogContent, DialogContentText, DialogTitle, IconButton, Box
+    DialogContent, DialogContentText, DialogTitle, IconButton, Box, Chip
 } from '@mui/material';
 import { Edit, Delete, Add, Refresh, Map } from '@mui/icons-material';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
@@ -22,7 +22,12 @@ L.Icon.Default.mergeOptions({
 function CamposManagement() {
     const [campos, setCampos] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
-    const [nuevoCampo, setNuevoCampo] = useState({ nombre_campo: '', ubicacion: '', usuario_id: '', estacion_id: '' });
+    const [nuevoCampo, setNuevoCampo] = useState({ 
+        nombre_campo: '', 
+        ubicacion: '', 
+        usuarios_ids: [], 
+        estacion_id: '' 
+    });
     const [editingCampo, setEditingCampo] = useState(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -106,6 +111,21 @@ function CamposManagement() {
         }
     };
 
+    const handleUsuariosChange = (e) => {
+        const value = e.target.value;
+        if (editingCampo) {
+            setEditingCampo(prev => ({
+                ...prev,
+                usuarios_ids: value
+            }));
+        } else {
+            setNuevoCampo(prev => ({
+                ...prev,
+                usuarios_ids: value
+            }));
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -115,7 +135,7 @@ function CamposManagement() {
                 await axios.post('/campos', nuevoCampo);
             }
             fetchCampos();
-            setNuevoCampo({ nombre_campo: '', ubicacion: '', usuario_id: '', estacion_id: '' });
+            setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
             setEditingCampo(null);
             setOpenDialog(false);
         } catch (error) {
@@ -202,6 +222,29 @@ function CamposManagement() {
         return estaciones.find(est => est && est.code && String(est.code) === estacionId);
     };
 
+    // Obtener los nombres de los usuarios asignados a un campo
+    const getUsersNamesForCampo = (campo) => {
+        if (!campo || (!campo.usuarios_ids && !campo.usuario_id) || !usuarios || usuarios.length === 0) {
+            return 'No asignado';
+        }
+        
+        // Si tenemos array de usuarios_ids, lo usamos; si no, usamos usuario_id
+        const userIds = campo.usuarios_ids || (campo.usuario_id ? [campo.usuario_id] : []);
+        
+        // Si no hay usuarios asignados
+        if (!userIds.length) {
+            return 'No asignado';
+        }
+        
+        // Obtener nombres de los usuarios
+        return userIds
+            .map(id => {
+                const user = usuarios.find(u => u.id === id);
+                return user ? user.nombre_usuario : 'Usuario desconocido';
+            })
+            .join(', ');
+    };
+
     return (
         <Container maxWidth="md">
             <Typography variant="h4" gutterBottom>Gestión de Campos</Typography>
@@ -234,7 +277,7 @@ function CamposManagement() {
                                     <>
                                         <span>Ubicación: {campo.ubicacion || 'No especificada'}</span>
                                         <br />
-                                        <span>Usuario: {campo.nombre_usuario || 'No asignado'}</span>
+                                        <span>Usuarios: {getUsersNamesForCampo(campo)}</span>
                                         <br />
                                         <span>Estación: {estacionAsociada ? estacionAsociada.title : 'No asignada'}</span>
                                     </>
@@ -249,11 +292,15 @@ function CamposManagement() {
                             {isAdmin && (
                                 <>
                                     <IconButton onClick={() => {
+                                        // Preparamos el campo para edición
+                                        const usuariosIds = campo.usuarios_ids || 
+                                                          (campo.usuario_id ? [campo.usuario_id] : []);
+                                        
                                         setEditingCampo({
                                             ...campo,
-                                            usuario_id: campo.usuario_id || '',
                                             ubicacion: campo.ubicacion || '',
-                                            estacion_id: campo.estacion_id || ''
+                                            estacion_id: campo.estacion_id || '',
+                                            usuarios_ids: usuariosIds
                                         });
                                         setOpenDialog(true);
                                     }} color="primary">
@@ -299,11 +346,25 @@ function CamposManagement() {
                             required
                         />
                         <FormControl fullWidth margin="normal">
-                            <InputLabel>Usuario</InputLabel>
+                            <InputLabel>Usuarios</InputLabel>
                             <Select
-                                name="usuario_id"
-                                value={editingCampo ? editingCampo.usuario_id || '' : nuevoCampo.usuario_id}
-                                onChange={handleInputChange}
+                                multiple
+                                name="usuarios_ids"
+                                value={editingCampo ? (editingCampo.usuarios_ids || []) : (nuevoCampo.usuarios_ids || [])}
+                                onChange={handleUsuariosChange}
+                                renderValue={(selected) => (
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                        {selected.map((value) => {
+                                            const user = usuarios.find(u => u.id === value);
+                                            return (
+                                                <Chip 
+                                                    key={value} 
+                                                    label={user ? user.nombre_usuario : 'Usuario desconocido'} 
+                                                />
+                                            );
+                                        })}
+                                    </Box>
+                                )}
                                 required
                             >
                                 {usuarios.map((usuario) => (
@@ -376,7 +437,7 @@ function CamposManagement() {
                         {estaciones.length > 0 ? (
                             <MapContainer 
                                 center={[-31.4201, -64.1888]} // Coordenadas de Córdoba, Argentina
-                                zoom={8} 
+                                zoom={5} 
                                 style={{ height: '100%', width: '100%' }}
                             >
                                 <TileLayer
@@ -397,9 +458,23 @@ function CamposManagement() {
                                 {/* Marcadores para cada estación */}
                                 {estaciones.map(estacion => {
                                     // Usar coordenadas reales de la API
+                                    const latitude = estacion.latitude || 
+                                                   estacion.latitud || 
+                                                   (estacion.datos_json && typeof estacion.datos_json === 'string' 
+                                                    ? JSON.parse(estacion.datos_json).latitude 
+                                                    : null) || 
+                                                   "-31.4201";
+                                    
+                                    const longitude = estacion.longitude || 
+                                                    estacion.longitud || 
+                                                    (estacion.datos_json && typeof estacion.datos_json === 'string' 
+                                                     ? JSON.parse(estacion.datos_json).longitude 
+                                                     : null) || 
+                                                    "-64.1888";
+                                    
                                     const estacionCoords = [
-                                        parseFloat(estacion.latitude || "-31.4201"),
-                                        parseFloat(estacion.longitude || "-64.1888")
+                                        parseFloat(latitude),
+                                        parseFloat(longitude)
                                     ];
                                     
                                     const isSelected = selectedEstacion && String(selectedEstacion.code) === String(estacion.code);

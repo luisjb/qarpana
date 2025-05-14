@@ -8,7 +8,35 @@ const pool = require('../db');
 router.get('/', verifyToken, async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT * FROM estaciones_meteorologicas ORDER BY titulo');
-        res.json(rows);
+        
+        // Procesar los datos JSON de cada estación para extraer latitud y longitud
+        const processedEstaciones = rows.map(estacion => {
+            try {
+                let latitude = estacion.latitud;
+                let longitude = estacion.longitud;
+                
+                // Si no tenemos valores en las columnas, intentamos extraer del JSON
+                if ((!latitude || !longitude) && estacion.datos_json) {
+                    const datos = typeof estacion.datos_json === 'string' 
+                        ? JSON.parse(estacion.datos_json) 
+                        : estacion.datos_json;
+                    
+                    latitude = latitude || datos.latitude;
+                    longitude = longitude || datos.longitude;
+                }
+                
+                return {
+                    ...estacion,
+                    latitude: latitude,
+                    longitude: longitude
+                };
+            } catch (error) {
+                console.error(`Error procesando datos de estación ${estacion.codigo}:`, error);
+                return estacion;
+            }
+        });
+        
+        res.json(processedEstaciones);
     } catch (err) {
         console.error('Error al obtener estaciones:', err);
         res.status(500).json({ error: 'Error del servidor' });
@@ -34,15 +62,23 @@ router.post('/refresh', verifyToken, async (req, res) => {
         // Guardar o actualizar cada estación en la base de datos
         for (const estacion of response.data) {
             await client.query(
-                `INSERT INTO estaciones_meteorologicas (codigo, titulo, datos_json, fecha_actualizacion) 
-                 VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+                `INSERT INTO estaciones_meteorologicas (codigo, titulo, latitud, longitud, datos_json, fecha_actualizacion) 
+                 VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
                  ON CONFLICT (codigo) 
                  DO UPDATE SET 
-                    titulo = $2, 
-                    datos_json = $3, 
+                    titulo = $2,
+                    latitud = $3,
+                    longitud = $4, 
+                    datos_json = $5, 
                     fecha_actualizacion = CURRENT_TIMESTAMP
                 `,
-                [String(estacion.code), estacion.title, JSON.stringify(estacion)]
+                [
+                    String(estacion.code), 
+                    estacion.title, 
+                    estacion.latitude || null, 
+                    estacion.longitude || null, 
+                    JSON.stringify(estacion)
+                ]
             );
         }
 
@@ -51,14 +87,17 @@ router.post('/refresh', verifyToken, async (req, res) => {
         // Devolver las estaciones actualizadas
         const { rows } = await client.query('SELECT * FROM estaciones_meteorologicas ORDER BY titulo');
         
-        // Procesar los resultados para agregar latitude y longitude desde datos_json
+        // Procesar los resultados
         const processedRows = rows.map(row => {
             try {
-                const datos = JSON.parse(row.datos_json);
+                const datos = typeof row.datos_json === 'string' 
+                    ? JSON.parse(row.datos_json) 
+                    : row.datos_json;
+                
                 return {
                     ...row,
-                    latitude: datos.latitude || null,
-                    longitude: datos.longitude || null,
+                    latitude: row.latitud || datos.latitude || null,
+                    longitude: row.longitud || datos.longitude || null,
                     modules: datos.modules || []
                 };
             } catch (error) {
