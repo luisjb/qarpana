@@ -350,3 +350,16 @@ CREATE TABLE recomendaciones_campo (
 -- Crear índices para mejorar el rendimiento de consultas
 CREATE INDEX idx_recomendaciones_campo_id ON recomendaciones_campo(campo_id);
 CREATE INDEX idx_recomendaciones_fecha ON recomendaciones_campo(fecha);
+
+-- Tabla para almacenar estaciones meteorológicas
+CREATE TABLE estaciones_meteorologicas (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    codigo TEXT NOT NULL UNIQUE,  -- El "code" de la API de OMIXOM
+    titulo TEXT NOT NULL,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    datos_json JSONB  -- Para almacenar todos los datos de la estación incluyendo módulos
+);
+
+-- Agregar campo para asociar estaciones a campos
+ALTER TABLE campos
+ADD COLUMN estacion_id TEXT;  -- Aquí guardamos el código de la estación (no el ID de nuestra tabla)

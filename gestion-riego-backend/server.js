@@ -13,6 +13,8 @@ const estadosFenologicosRoutes = require('./src/routes/estadosFenologicosRoutes'
 const campañasRoutes = require('./src/routes/campañaRoutes');
 const observacionesRoutes = require('./src/routes/observacionesRoutes');
 const recomendacionesRoutes = require('./src/routes/recomendacionesRoutes');
+const estacionesRoutes = require('./routes/estacionesRoutes');
+
 
 
 
@@ -79,6 +81,8 @@ app.use('/api/estados-fenologicos', estadosFenologicosRoutes);
 app.use('/api/campanas', campañasRoutes);
 app.use('/api/observaciones', observacionesRoutes);
 app.use('/api/recomendaciones', recomendacionesRoutes);
+app.use('/api/estaciones', estacionesRoutes);
+
 
 
 app.use((err, req, res, next) => {
