@@ -13,7 +13,7 @@ const estadosFenologicosRoutes = require('./src/routes/estadosFenologicosRoutes'
 const campañasRoutes = require('./src/routes/campañaRoutes');
 const observacionesRoutes = require('./src/routes/observacionesRoutes');
 const recomendacionesRoutes = require('./src/routes/recomendacionesRoutes');
-const estacionesRoutes = require('./routes/estacionesRoutes');
+const estacionesRoutes = require('./src/routes/estacionesRoutes');
 
 
 
