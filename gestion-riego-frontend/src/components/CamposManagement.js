@@ -4,7 +4,7 @@ import axios from '../axiosConfig';
 import {
     Container, Typography, TextField, Button, List, ListItem, ListItemText,
     Select, MenuItem, FormControl, InputLabel, Grid, Dialog, DialogActions,
-    DialogContent, DialogContentText, DialogTitle, IconButton, Box, Chip
+    DialogContent, DialogContentText, DialogTitle, IconButton, Box, Chip, CircularProgress 
 } from '@mui/material';
 import { Edit, Delete, Add, Refresh, Map } from '@mui/icons-material';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
@@ -35,6 +35,7 @@ function CamposManagement() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [estaciones, setEstaciones] = useState([]);
     const [isLoadingEstaciones, setIsLoadingEstaciones] = useState(false);
+    const [isLoadingCampos, setIsLoadingCampos] = useState(false);
     const [openMapDialog, setOpenMapDialog] = useState(false);
     const [selectedEstacion, setSelectedEstacion] = useState(null);
     
@@ -46,20 +47,36 @@ function CamposManagement() {
     };
 
     useEffect(() => {
-        fetchCampos();
-        fetchUsuarios();
-        fetchEstaciones();
+        const loadInitialData = async () => {
+            await Promise.all([
+                fetchUsuarios(),
+                fetchEstaciones()
+            ]);
+            fetchCampos();
+        };
+        
+        loadInitialData();
         checkAdminStatus();
     }, []);
 
     const fetchCampos = async () => {
         try {
+            setIsLoadingCampos(true);
             const userRole = localStorage.getItem('role');
             const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
             const response = await axios.get(endpoint);
-            setCampos(response.data);
+            const camposProcesados = response.data.map(campo => {
+                return {
+                    ...campo,
+                    // Asegurar que usuarios_ids sea un array
+                    usuarios_ids: campo.usuarios_ids || (campo.usuario_id ? [campo.usuario_id] : [])
+                };
+            });
+            setCampos(camposProcesados);
+            setIsLoadingCampos(false);
         } catch (error) {
             console.error('Error al obtener campos:', error);
+            setIsLoadingCampos(false);
         }
     };
 
@@ -77,18 +94,16 @@ function CamposManagement() {
             setIsLoadingEstaciones(true);
             const response = await axios.get('/estaciones');
             
-            // Procesar los datos para unificar los nombres de propiedades
-            const processedEstaciones = response.data.map(estacion => {
+            // Normalizar propiedades de estaciones
+            const estacionesNormalizadas = response.data.map(estacion => {
                 return {
                     ...estacion,
-                    // Asegurar que code y title estén disponibles
-                    code: estacion.code || estacion.codigo,
-                    title: estacion.title || estacion.titulo
+                    code: estacion.code || estacion.codigo || '',
+                    title: estacion.title || estacion.titulo || 'Estación sin nombre'
                 };
             });
             
-            setEstaciones(processedEstaciones);
-            console.log('Estaciones cargadas:', processedEstaciones); // Para depuración
+            setEstaciones(estacionesNormalizadas);
             setIsLoadingEstaciones(false);
         } catch (error) {
             console.error('Error al obtener estaciones:', error);
@@ -100,7 +115,17 @@ function CamposManagement() {
         try {
             setIsLoadingEstaciones(true);
             const response = await axios.post('/estaciones/refresh');
-            setEstaciones(response.data);
+             // Normalizar propiedades
+            const estacionesNormalizadas = response.data.map(estacion => {
+                return {
+                    ...estacion,
+                    code: estacion.code || estacion.codigo || '',
+                    title: estacion.title || estacion.titulo || 'Estación sin nombre'
+                };
+            });
+            
+            setEstaciones(estacionesNormalizadas);
+            fetchCampos();
             setIsLoadingEstaciones(false);
         } catch (error) {
             console.error('Error al actualizar estaciones:', error);
@@ -244,7 +269,8 @@ function CamposManagement() {
         }
         
         // Si tenemos array de usuarios_ids, lo usamos; si no, usamos usuario_id
-        const userIds = campo.usuarios_ids || (campo.usuario_id ? [campo.usuario_id] : []);
+        const userIds =Array.isArray(campo.usuarios_ids) ? campo.usuarios_ids : 
+                            (campo.usuario_id ? [campo.usuario_id] : []);
         
         // Si no hay usuarios asignados
         if (!userIds.length) {
@@ -275,67 +301,71 @@ function CamposManagement() {
                     color="secondary" 
                     onClick={refreshEstaciones} 
                     disabled={isLoadingEstaciones}
-                    startIcon={<Refresh />}
+                    startIcon={isLoadingEstaciones ? <CircularProgress size={24} /> : <Refresh />}
                     >
                         {isLoadingEstaciones ? 'Actualizando...' : 'Actualizar Estaciones'}
                     </Button>
                 )}
             </Box>
-            
-            <List>
-                {campos.map((campo) => {
-                    const estacionAsociada = findEstacionAsociada(campo);
-                    
-                    return (
-                        <ListItem key={campo.id}>
-                            <ListItemText
-                                primary={campo.nombre_campo}
-                                secondary={
+            {isLoadingCampos ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+                    <CircularProgress />
+                </Box>
+            ) : (
+                <List>
+                    {campos.map((campo) => {
+                        const estacionAsociada = findEstacionAsociada(campo);
+                        
+                        return (
+                            <ListItem key={campo.id}>
+                                <ListItemText
+                                    primary={campo.nombre_campo}
+                                    secondary={
+                                        <>
+                                            <span>Ubicación: {campo.ubicacion || 'No especificada'}</span>
+                                            <br />
+                                            <span>Usuarios: {getUsersNamesForCampo(campo)}</span>
+                                            <br />
+                                            <span>Estación: {estacionAsociada ? estacionAsociada.title : 'No asignada'}</span>
+                                        </>
+                                    }
+                                />
+                                <IconButton onClick={() => handleAddLotes(campo.id)}>
+                                    <Add />
+                                </IconButton>
+                                <IconButton onClick={() => handleOpenMapDialog(campo)} color="secondary">
+                                    <Map />
+                                </IconButton>
+                                {isAdmin && (
                                     <>
-                                        <span>Ubicación: {campo.ubicacion || 'No especificada'}</span>
-                                        <br />
-                                        <span>Usuarios: {getUsersNamesForCampo(campo)}</span>
-                                        <br />
-                                        <span>Estación: {estacionAsociada ? estacionAsociada.title : 'No asignada'}</span>
+                                        <IconButton onClick={() => {
+                                            // Preparamos el campo para edición
+                                            const usuariosIds = campo.usuarios_ids || 
+                                                            (campo.usuario_id ? [campo.usuario_id] : []);
+                                            
+                                            setEditingCampo({
+                                                ...campo,
+                                                ubicacion: campo.ubicacion || '',
+                                                estacion_id: campo.estacion_id || '',
+                                                usuarios_ids: usuariosIds
+                                            });
+                                            setOpenDialog(true);
+                                        }} color="primary">
+                                            <Edit />
+                                        </IconButton>
+                                        <IconButton onClick={() => {
+                                            setCampoToDelete(campo);
+                                            setOpenDeleteDialog(true);
+                                        }} color="error">
+                                            <Delete />
+                                        </IconButton>
                                     </>
-                                }
-                            />
-                            <IconButton onClick={() => handleAddLotes(campo.id)}>
-                                <Add />
-                            </IconButton>
-                            <IconButton onClick={() => handleOpenMapDialog(campo)} color="secondary">
-                                <Map />
-                            </IconButton>
-                            {isAdmin && (
-                                <>
-                                    <IconButton onClick={() => {
-                                        // Preparamos el campo para edición
-                                        const usuariosIds = campo.usuarios_ids || 
-                                                          (campo.usuario_id ? [campo.usuario_id] : []);
-                                        
-                                        setEditingCampo({
-                                            ...campo,
-                                            ubicacion: campo.ubicacion || '',
-                                            estacion_id: campo.estacion_id || '',
-                                            usuarios_ids: usuariosIds
-                                        });
-                                        setOpenDialog(true);
-                                    }} color="primary">
-                                        <Edit />
-                                    </IconButton>
-                                    <IconButton onClick={() => {
-                                        setCampoToDelete(campo);
-                                        setOpenDeleteDialog(true);
-                                    }} color="error">
-                                        <Delete />
-                                    </IconButton>
-                                </>
-                            )}
-                        </ListItem>
-                    );
-                })}
-            </List>
-
+                                )}
+                            </ListItem>
+                        );
+                    })}
+                </List>
+            )}
             {/* Diálogo para agregar/editar campo */}
             <Dialog open={openDialog} onClose={() => {
                 setOpenDialog(false);
