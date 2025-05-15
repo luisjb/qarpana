@@ -39,25 +39,38 @@ router.get('/', verifyToken, async (req, res) => {
         console.log('User data from token:', req.user);
 
         if (req.user.role?.toLowerCase() === 'admin') {
+            // Consulta mejorada para administradores
             query = `
-                SELECT c.*, 
-                       ARRAY_AGG(u.id) FILTER (WHERE u.id IS NOT NULL) as usuarios_ids,
-                       STRING_AGG(u.nombre_usuario, ', ') FILTER (WHERE u.nombre_usuario IS NOT NULL) as usuarios_nombres
-                FROM campos c
-                LEFT JOIN usuarios u ON u.id = c.usuario_id
-                GROUP BY c.id
-                ORDER BY c.nombre_campo
+                SELECT 
+                    c.*,
+                    u.nombre_usuario,
+                    e.titulo AS estacion_titulo
+                FROM 
+                    campos c
+                LEFT JOIN 
+                    usuarios u ON c.usuario_id = u.id
+                LEFT JOIN 
+                    estaciones_meteorologicas e ON c.estacion_id = e.codigo
+                ORDER BY 
+                    c.nombre_campo
             `;
         } else {
+            // Consulta para usuarios normales
             query = `
-                SELECT c.*, 
-                       ARRAY_AGG(u.id) FILTER (WHERE u.id IS NOT NULL) as usuarios_ids,
-                       STRING_AGG(u.nombre_usuario, ', ') FILTER (WHERE u.nombre_usuario IS NOT NULL) as usuarios_nombres
-                FROM campos c
-                LEFT JOIN usuarios u ON u.id = c.usuario_id
-                WHERE c.usuario_id = $1
-                GROUP BY c.id
-                ORDER BY c.nombre_campo
+                SELECT 
+                    c.*,
+                    u.nombre_usuario,
+                    e.titulo AS estacion_titulo
+                FROM 
+                    campos c
+                LEFT JOIN 
+                    usuarios u ON c.usuario_id = u.id
+                LEFT JOIN 
+                    estaciones_meteorologicas e ON c.estacion_id = e.codigo
+                WHERE 
+                    c.usuario_id = $1
+                ORDER BY 
+                    c.nombre_campo
             `;
             values = [req.user.userId];
         }
@@ -65,10 +78,17 @@ router.get('/', verifyToken, async (req, res) => {
         console.log('Query:', query);
         const { rows } = await client.query(query, values);
         
-        // Log completo para depuración
-        console.log('Datos retornados:', JSON.stringify(rows, null, 2));
-
-        res.json(rows);
+        console.log('Campos encontrados:', rows.length);
+        
+        // Procesa los resultados para garantizar la consistencia
+        const processed = rows.map(row => ({
+            ...row,
+            usuarios_ids: row.usuario_id ? [row.usuario_id] : [],
+            estacion_id: row.estacion_id || '',
+            estacion_titulo: row.estacion_titulo || null
+        }));
+        
+        res.json(processed);
     } catch (err) {
         console.error('Error al obtener campos:', err);
         res.status(500).json({ error: 'Error del servidor' });

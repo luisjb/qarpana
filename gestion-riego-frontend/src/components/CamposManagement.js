@@ -296,36 +296,35 @@ function CamposManagement() {
 
     // Obtener los nombres de los usuarios asignados a un campo
     const getUsersNamesForCampo = (campo) => {
-        console.log('Obteniendo nombres de usuarios para campo:', campo);
-
-        if (!campo || (!campo.usuarios_ids && !campo.usuario_id) || !usuarios || usuarios.length === 0) {
-            console.log('No hay usuarios asignados o campo no válido');
-            return 'No asignado';
+        // Si campo tiene nombre_usuario, úsalo directamente
+        if (campo.nombre_usuario) {
+            return campo.nombre_usuario;
         }
         
-        // Si tenemos array de usuarios_ids, lo usamos; si no, usamos usuario_id
-        const userIds =Array.isArray(campo.usuarios_ids) ? campo.usuarios_ids : 
-                            (campo.usuario_id ? [campo.usuario_id] : []);
-        
-        // Si no hay usuarios asignados
-        if (!userIds.length) {
-            console.log('No hay IDs de usuarios');
-            return 'No asignado';
+        // Si no, intenta con usuarios_ids (como respaldo)
+        if (Array.isArray(campo.usuarios_ids) && campo.usuarios_ids.length > 0) {
+            const userNames = campo.usuarios_ids
+                .map(id => {
+                    const user = usuarios.find(u => u.id === id);
+                    return user ? user.nombre_usuario : null;
+                })
+                .filter(Boolean)
+                .join(', ');
+            
+            if (userNames) {
+                return userNames;
+            }
         }
         
-        // Obtener nombres de los usuarios
-        // Obtener nombres de los usuarios
-        const userNames = userIds
-            .map(id => {
-                const user = usuarios.find(u => u.id === id);
-                console.log('Buscando usuario con ID:', id, 'Encontrado:', user);
-                return user ? user.nombre_usuario : 'Usuario desconocido';
-            })
-            .filter(name => name !== 'Usuario desconocido')
-            .join(', ');
+        // Como último recurso, usa usuario_id
+        if (campo.usuario_id) {
+            const user = usuarios.find(u => u.id === campo.usuario_id);
+            if (user) {
+                return user.nombre_usuario;
+            }
+        }
         
-        console.log('Nombres de usuarios encontrados:', userNames);
-        return userNames || 'No asignado';
+        return 'No asignado';
     };
 
     return (
@@ -366,9 +365,9 @@ function CamposManagement() {
                                         <>
                                             <span>Ubicación: {campo.ubicacion || 'No especificada'}</span>
                                             <br />
-                                            <span>Usuarios: {getUsersNamesForCampo(campo)}</span>
+                                            <span>Usuarios: {campo.nombre_usuario}</span>
                                             <br />
-                                            <span>Estación: {estacionAsociada ? estacionAsociada.title : 'No asignada'}</span>
+                                            <span>Estación: {campo.estacion_titulo || findEstacionAsociada(campo)?.title || 'No asignada'}</span>
                                         </>
                                     }
                                 />
