@@ -36,40 +36,39 @@ router.get('/', verifyToken, async (req, res) => {
         let query;
         let values = [];
 
+        console.log('User data from token:', req.user);
+
         if (req.user.role?.toLowerCase() === 'admin') {
-            // Administrador puede ver todos los campos
             query = `
                 SELECT c.*, 
-                       (SELECT STRING_AGG(u.nombre_usuario, ', ')
-                        FROM usuarios u
-                        WHERE u.id = ANY(c.usuarios_ids)) as usuarios_nombres
+                       ARRAY_AGG(u.id) FILTER (WHERE u.id IS NOT NULL) as usuarios_ids,
+                       STRING_AGG(u.nombre_usuario, ', ') FILTER (WHERE u.nombre_usuario IS NOT NULL) as usuarios_nombres
                 FROM campos c
+                LEFT JOIN usuarios u ON u.id = c.usuario_id
+                GROUP BY c.id
                 ORDER BY c.nombre_campo
             `;
         } else {
-            // Usuario normal ve solo sus campos
             query = `
                 SELECT c.*, 
-                       (SELECT STRING_AGG(u.nombre_usuario, ', ')
-                        FROM usuarios u
-                        WHERE u.id = ANY(c.usuarios_ids)) as usuarios_nombres
+                       ARRAY_AGG(u.id) FILTER (WHERE u.id IS NOT NULL) as usuarios_ids,
+                       STRING_AGG(u.nombre_usuario, ', ') FILTER (WHERE u.nombre_usuario IS NOT NULL) as usuarios_nombres
                 FROM campos c
-                WHERE $1 = ANY(c.usuarios_ids) OR c.usuario_id = $1
+                LEFT JOIN usuarios u ON u.id = c.usuario_id
+                WHERE c.usuario_id = $1
+                GROUP BY c.id
                 ORDER BY c.nombre_campo
             `;
             values = [req.user.userId];
         }
 
+        console.log('Query:', query);
         const { rows } = await client.query(query, values);
         
-        // Convertir los datos para mantener compatibilidad con el frontend
-        const processedRows = rows.map(row => ({
-            ...row,
-            // Si el campo tiene usuario_id antiguo pero no usuarios_ids, lo convertimos
-            usuarios_ids: row.usuarios_ids || (row.usuario_id ? [row.usuario_id] : [])
-        }));
+        // Log completo para depuración
+        console.log('Datos retornados:', JSON.stringify(rows, null, 2));
 
-        res.json(processedRows);
+        res.json(rows);
     } catch (err) {
         console.error('Error al obtener campos:', err);
         res.status(500).json({ error: 'Error del servidor' });
@@ -96,31 +95,33 @@ router.get('/all', verifyToken, isAdmin, async (req, res) => {
 router.post('/', verifyToken, async (req, res) => {
     const { nombre_campo, ubicacion, usuarios_ids, estacion_id } = req.body;
     
-    // Asegurarnos de que usuarios_ids sea un array
-    const userIdsArray = Array.isArray(usuarios_ids) ? usuarios_ids : [usuarios_ids].filter(Boolean);
+    console.log('Creando campo con datos:', { nombre_campo, ubicacion, usuarios_ids, estacion_id });
     
     try {
-        // Insertar el campo con array de usuarios
+        // Si usuarios_ids es un array, tomamos el primer elemento para usuario_id
+        const usuario_id = Array.isArray(usuarios_ids) && usuarios_ids.length > 0 
+            ? usuarios_ids[0] 
+            : null;
+        
+        // Insertar el campo
         const { rows } = await pool.query(
-            'INSERT INTO campos (nombre_campo, ubicacion, estacion_id, usuarios_ids, usuario_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [
-                nombre_campo, 
-                ubicacion, 
-                estacion_id, 
-                userIdsArray, 
-                userIdsArray.length > 0 ? userIdsArray[0] : null // Mantener compatibilidad con usuario_id
-            ]
+            'INSERT INTO campos (usuario_id, nombre_campo, ubicacion, estacion_id) VALUES ($1, $2, $3, $4) RETURNING *',
+            [usuario_id, nombre_campo, ubicacion, estacion_id]
         );
         
-        // Obtener nombres de usuarios para la respuesta
+        // Log del resultado
+        console.log('Campo creado:', rows[0]);
+        
+        // Añadir datos de usuario para la respuesta
         const userResult = await pool.query(
-            'SELECT id, nombre_usuario FROM usuarios WHERE id = ANY($1)',
-            [userIdsArray]
+            'SELECT id, nombre_usuario FROM usuarios WHERE id = $1',
+            [usuario_id]
         );
         
         const campoWithUsers = {
             ...rows[0],
-            usuarios_nombres: userResult.rows.map(u => u.nombre_usuario).join(', ')
+            usuarios_ids: usuario_id ? [usuario_id] : [],
+            usuarios_nombres: userResult.rows.length > 0 ? userResult.rows[0].nombre_usuario : ''
         };
         
         res.status(201).json(campoWithUsers);
@@ -135,36 +136,37 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     const { id } = req.params;
     const { nombre_campo, ubicacion, usuarios_ids, estacion_id } = req.body;
     
-    // Asegurarnos de que usuarios_ids sea un array
-    const userIdsArray = Array.isArray(usuarios_ids) ? usuarios_ids : [usuarios_ids].filter(Boolean);
+    console.log('Actualizando campo con datos:', { id, nombre_campo, ubicacion, usuarios_ids, estacion_id });
     
     try {
+        // Si usuarios_ids es un array, tomamos el primer elemento para usuario_id
+        const usuario_id = Array.isArray(usuarios_ids) && usuarios_ids.length > 0 
+            ? usuarios_ids[0] 
+            : null;
+        
         // Actualizar el campo
         const { rows } = await pool.query(
-            'UPDATE campos SET nombre_campo = $1, ubicacion = $2, estacion_id = $3, usuarios_ids = $4, usuario_id = $5 WHERE id = $6 RETURNING *',
-            [
-                nombre_campo, 
-                ubicacion, 
-                estacion_id, 
-                userIdsArray,
-                userIdsArray.length > 0 ? userIdsArray[0] : null, // Mantener compatibilidad con usuario_id
-                id
-            ]
+            'UPDATE campos SET nombre_campo = $1, ubicacion = $2, usuario_id = $3, estacion_id = $4 WHERE id = $5 RETURNING *',
+            [nombre_campo, ubicacion, usuario_id, estacion_id, id]
         );
         
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Campo no encontrado' });
         }
         
-        // Obtener nombres de usuarios para la respuesta
+        // Log del resultado
+        console.log('Campo actualizado:', rows[0]);
+        
+        // Añadir datos de usuario para la respuesta
         const userResult = await pool.query(
-            'SELECT id, nombre_usuario FROM usuarios WHERE id = ANY($1)',
-            [userIdsArray]
+            'SELECT id, nombre_usuario FROM usuarios WHERE id = $1',
+            [usuario_id]
         );
         
         const campoWithUsers = {
             ...rows[0],
-            usuarios_nombres: userResult.rows.map(u => u.nombre_usuario).join(', ')
+            usuarios_ids: usuario_id ? [usuario_id] : [],
+            usuarios_nombres: userResult.rows.length > 0 ? userResult.rows[0].nombre_usuario : ''
         };
         
         res.json(campoWithUsers);

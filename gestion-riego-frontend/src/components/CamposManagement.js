@@ -60,6 +60,8 @@ function CamposManagement() {
     }, []);
 
     const fetchCampos = async () => {
+        console.log('Iniciando fetchCampos()');
+
         try {
             setIsLoadingCampos(true);
             const userRole = localStorage.getItem('role');
@@ -72,6 +74,8 @@ function CamposManagement() {
                     usuarios_ids: campo.usuarios_ids || (campo.usuario_id ? [campo.usuario_id] : [])
                 };
             });
+            console.log('Datos de campos obtenidos:', response.data);
+
             setCampos(camposProcesados);
             setIsLoadingCampos(false);
         } catch (error) {
@@ -166,12 +170,32 @@ function CamposManagement() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            let response;
             if (editingCampo) {
-                await axios.put(`/campos/${editingCampo.id}`, editingCampo);
+                console.log('Actualizando campo:', editingCampo);
+
+            response = await axios.put(`/campos/${editingCampo.id}`, editingCampo);
+            console.log('Respuesta de actualización:', response.data);            
             } else {
-                await axios.post('/campos', nuevoCampo);
+                console.log('Creando nuevo campo:', nuevoCampo);
+                response = await axios.post('/campos', nuevoCampo);
+                console.log('Respuesta de creación:', response.data);
             }
-            fetchCampos();
+            if (editingCampo) {
+                // Actualizar el campo en la lista local
+                setCampos(prevCampos => 
+                    prevCampos.map(c => 
+                        c.id === response.data.id ? response.data : c
+                    )
+                );
+            } else {
+                // Añadir el nuevo campo a la lista local
+                setCampos(prevCampos => [...prevCampos, response.data]);
+            }
+            
+            // Luego refrescar toda la lista
+            await fetchCampos();
+            
             setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
             setEditingCampo(null);
             setOpenDialog(false);
@@ -253,18 +277,29 @@ function CamposManagement() {
 
     // Función auxiliar para encontrar una estación asociada segura
     const findEstacionAsociada = (campo) => {
+        console.log('Buscando estación para campo:', campo);
+
         if (!campo || !campo.estacion_id || !estaciones || estaciones.length === 0) {
+            console.log('No hay datos suficientes para buscar estación');
             return null;
         }
         
         // Convertir estacion_id a string para comparar
         const estacionId = String(campo.estacion_id);
-        return estaciones.find(est => est && est.code && String(est.code) === estacionId);
+        console.log('Buscando estación con ID:', estacionId);
+        const estacion = estaciones.find(est => est && 
+            (String(est.code || '') === estacionId || String(est.codigo || '') === estacionId));
+        
+        console.log('Estación encontrada:', estacion);
+        return estacion;
     };
 
     // Obtener los nombres de los usuarios asignados a un campo
     const getUsersNamesForCampo = (campo) => {
+        console.log('Obteniendo nombres de usuarios para campo:', campo);
+
         if (!campo || (!campo.usuarios_ids && !campo.usuario_id) || !usuarios || usuarios.length === 0) {
+            console.log('No hay usuarios asignados o campo no válido');
             return 'No asignado';
         }
         
@@ -274,16 +309,23 @@ function CamposManagement() {
         
         // Si no hay usuarios asignados
         if (!userIds.length) {
+            console.log('No hay IDs de usuarios');
             return 'No asignado';
         }
         
         // Obtener nombres de los usuarios
-        return userIds
+        // Obtener nombres de los usuarios
+        const userNames = userIds
             .map(id => {
                 const user = usuarios.find(u => u.id === id);
+                console.log('Buscando usuario con ID:', id, 'Encontrado:', user);
                 return user ? user.nombre_usuario : 'Usuario desconocido';
             })
+            .filter(name => name !== 'Usuario desconocido')
             .join(', ');
+        
+        console.log('Nombres de usuarios encontrados:', userNames);
+        return userNames || 'No asignado';
     };
 
     return (

@@ -221,7 +221,7 @@ exports.getSimulationData = async (req, res) => {
             const gananciaAgua = parseFloat(lluvia_efectiva || 0) + parseFloat(riego_cantidad || 0)  + parseFloat(correccion_agua || 0);
             const diaNumero = parseInt(dia || '0', 10);
             const esPrimerDiaReal = esPrimerDia || diaNumero === 1;
-            console.log('esPrimerDiaReal:', esPrimerDiaReal, 'dia:', dia);
+            //console.log('esPrimerDiaReal:', esPrimerDiaReal, 'dia:', dia);
             
             // Calculamos el agua útil diaria
             let aguaUtilDiaria;
@@ -272,22 +272,22 @@ exports.getSimulationData = async (req, res) => {
             let aguaUtil1m, aguaUtil2m;
             
 
-            console.log('esPrimerDiaReal:', esPrimerDiaReal);
+            //console.log('esPrimerDiaReal:', esPrimerDiaReal);
             // Calcular agua útil a 1m y 2m
             if (esPrimerDiaReal) {
                 // First day calculation - use initial values
                 aguaUtil1m = Math.max(0, valorAuInicial1m - etr + gananciaAgua);
                 aguaUtil2m = Math.max(0, valorAuInicial2m - etr + gananciaAgua);
-                console.log('------------------------ primer dia aguaUtil1m:', aguaUtil1m);
+                //console.log('------------------------ primer dia aguaUtil1m:', aguaUtil1m);
             } else {
                 // Subsequent days - start with previous day's values
                 // Si el valor anterior es 0 o muy bajo, usamos un valor mínimo
                 const valorBase1m = aguaUtil1mAnterior <= 0 ? valorAuInicial1m * 0.1 : aguaUtil1mAnterior;
                 const valorBase2m = aguaUtil2mAnterior <= 0 ? valorAuInicial2m * 0.1 : aguaUtil2mAnterior;
-                console.log('valores de la base, valor aguaUtil1mAnterior:', aguaUtil1mAnterior, ' valorBase1m:', valorBase1m, 'aguaUtil2mAnterior:', aguaUtil2mAnterior, 'valorBase2m:', valorBase2m);
+                //console.log('valores de la base, valor aguaUtil1mAnterior:', aguaUtil1mAnterior, ' valorBase1m:', valorBase1m, 'aguaUtil2mAnterior:', aguaUtil2mAnterior, 'valorBase2m:', valorBase2m);
                 aguaUtil1m = Math.max(0, valorBase1m - etr + gananciaAgua);
                 aguaUtil2m = Math.max(0, valorBase2m - etr + gananciaAgua);
-                console.log('aguaUtil1m:', aguaUtil1m);
+                //console.log('aguaUtil1m:', aguaUtil1m);
                
             }
             
@@ -708,14 +708,14 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         const aguaUtilTotal2m = capacidad2m || 200; // Valor por defecto: 200mm
         
         // Logging para depuración
-        console.log('Valores iniciales para proyección (valores exactos):', {
+        /*console.log('Valores iniciales para proyección (valores exactos):', {
             loteId,
             aguaUtilInicial,
             aguaUtil1mAnterior,
             aguaUtil2mAnterior,
             capacidad1m,
             capacidad2m
-        });
+        });*/
         
         // Función auxiliar para calcular estrato basado en profundidad
         const calcularEstrato = (profundidadRaiz) => {
@@ -804,13 +804,13 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         };
 
         // Logging final para depuración
-        console.log('Proyección calculada con 1m y 2m:', {
+        /*console.log('Proyección calculada con 1m y 2m:', {
             valorInicial: aguaUtilInicial,
             valorFinal1m: proyeccionFinal.aguaUtil1mDia8,
             valorFinal2m: proyeccionFinal.aguaUtil2mDia8,
             porcentaje1m: proyeccionFinal.porcentajeProyectado,
             porcentaje2m: proyeccionFinal.porcentajeProyectado2m
-        });
+        });*/
 
         return proyeccionFinal;
  
@@ -1010,14 +1010,14 @@ exports.getSummaryData = async (req, res) => {
         };
 
         // Agregamos un log para verificar los valores
-        console.log(`Resumen para lote ${loteId} (usando datos de simulación):`, {
+        /*console.log(`Resumen para lote ${loteId} (usando datos de simulación):`, {
             id: lote.id,
             nombre: lote.nombre_lote,
             aguaUtil1m: resumen.aguaUtil1m,
             aguaUtil2m: resumen.aguaUtil2m,
             porcentajeAu1m: resumen.porcentajeAu1m,
             porcentajeAu2m: resumen.porcentajeAu2m
-        });
+        });*/
 
         res.json(resumen);
     } catch (error) {
@@ -1045,7 +1045,7 @@ exports.corregirDiasLote = async (req, res) => {
         }
         
         const fechaSiembra = lote.fecha_siembra;
-        console.log(`Fecha de siembra para lote ${loteId}: ${fechaSiembra}`);
+        //console.log(`Fecha de siembra para lote ${loteId}: ${fechaSiembra}`);
         
         // 2. Obtener todos los cambios diarios para este lote
         const { rows: cambios } = await client.query(
@@ -1053,7 +1053,7 @@ exports.corregirDiasLote = async (req, res) => {
             [loteId]
         );
         
-        console.log(`Encontrados ${cambios.length} registros para corregir`);
+        //console.log(`Encontrados ${cambios.length} registros para corregir`);
         
         // 3. Actualizar los días para cada registro
         let actualizados = 0;
@@ -1074,7 +1074,7 @@ exports.corregirDiasLote = async (req, res) => {
                     [diasCorrectos, cambio.id]
                 );
                 
-                console.log(`Actualizado registro ${cambio.id}: dias ${cambio.dias} -> ${diasCorrectos}`);
+                //console.log(`Actualizado registro ${cambio.id}: dias ${cambio.dias} -> ${diasCorrectos}`);
                 actualizados++;
             }
         }
