@@ -180,6 +180,15 @@ router.post('/', verifyToken, async (req, res) => {
             correccion_agua = 0,
         } = req.body;
 
+        // Validación básica
+        if (!lote_id) {
+            return res.status(400).json({ error: 'ID de lote requerido' });
+        }
+        
+        if (!fecha_cambio) {
+            return res.status(400).json({ error: 'Fecha de cambio requerida' });
+        }
+
         // Validación de valores numéricos
         const safeRiego = parseFloat(riego_cantidad) || 0;
         const safePrecipitaciones = parseFloat(precipitaciones) || 0;
@@ -188,15 +197,29 @@ router.post('/', verifyToken, async (req, res) => {
         const safeEvapotranspiracion = parseFloat(evapotranspiracion) || 0;
         const safeCorreccion = parseFloat(correccion_agua) || 0;
 
-        // Obtener fecha de siembra
-        const { rows: [loteInfo] } = await client.query(
+        // Obtener fecha de siembra y datos del lote
+        const { rows } = await client.query(
             'SELECT fecha_siembra, cultivo_id FROM lotes WHERE id = $1 AND activo = true',
             [lote_id]
         );
 
-        if (!loteInfo) {
-            return res.status(404).json({ error: 'Lote no encontrado' });
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Lote no encontrado o no está activo' });
         }
+
+        const loteInfo = rows[0];
+
+        // Verificar explícitamente que hay fecha de siembra
+        if (!loteInfo.fecha_siembra) {
+            console.error(`El lote ${lote_id} no tiene fecha de siembra definida`);
+            return res.status(400).json({ 
+                error: 'Fecha de siembra no definida',
+                details: 'Defina una fecha de siembra válida para este lote antes de crear cambios diarios'
+            });
+        }
+
+        // Log para verificar la fecha de siembra
+        console.log(`Lote ${lote_id} - Fecha de siembra: ${loteInfo.fecha_siembra}`);
 
         // Verificar máximo de días
         const { rows: [maxDays] } = await client.query(`
@@ -210,28 +233,46 @@ router.post('/', verifyToken, async (req, res) => {
         // Calcular días desde siembra de forma segura
         let diasDesdeSiembra;
         try {
-            // Usar fechas a medio día para evitar problemas de zona horaria
-            const fechaSiembra = new Date(loteInfo.fecha_siembra + 'T12:00:00Z');
-            const fechaCambio = new Date(fecha_cambio + 'T12:00:00Z');
+            // Normalizar los formatos de fecha (asegurándonos de tratar solo la parte de la fecha)
+            const fechaSiembraStr = loteInfo.fecha_siembra.toISOString 
+                ? loteInfo.fecha_siembra.toISOString().split('T')[0] 
+                : loteInfo.fecha_siembra.split('T')[0];
+                
+            const fechaCambioStr = fecha_cambio.split('T')[0];
+            
+            // Crear objetos de fecha usando el mismo formato para ambos
+            const fechaSiembra = new Date(`${fechaSiembraStr}T12:00:00Z`);
+            const fechaCambio = new Date(`${fechaCambioStr}T12:00:00Z`);
             
             // Validar que las fechas son válidas
-            if (isNaN(fechaSiembra.getTime()) || isNaN(fechaCambio.getTime())) {
-                throw new Error('Fechas inválidas');
+            if (isNaN(fechaSiembra.getTime())) {
+                throw new Error(`Fecha de siembra inválida: ${loteInfo.fecha_siembra}`);
             }
             
-            const diferenciaMilisegundos = fechaCambio.getTime() - fechaSiembra.getTime();
-            diasDesdeSiembra = Math.round(diferenciaMilisegundos / (1000 * 60 * 60 * 24)) + 1;
-            
-            // Validación final
-            if (isNaN(diasDesdeSiembra) || diasDesdeSiembra < 1) {
-                throw new Error(`Cálculo inválido: ${diasDesdeSiembra}`);
+            if (isNaN(fechaCambio.getTime())) {
+                throw new Error(`Fecha de cambio inválida: ${fecha_cambio}`);
             }
             
-            console.log('Días desde siembra calculados:', {
-                fecha_siembra: loteInfo.fecha_siembra,
-                fecha_cambio,
+            // Cálculo de días (desde siembra hasta el cambio)
+            const diferenciaMs = fechaCambio.getTime() - fechaSiembra.getTime();
+            const diferenciaDias = diferenciaMs / (1000 * 60 * 60 * 24);
+            
+            // Redondear a un entero y asegurar que sea al menos 1
+            diasDesdeSiembra = Math.max(1, Math.round(diferenciaDias + 1));
+            
+            console.log('Cálculo de días desde siembra:', {
+                fechaSiembraStr,
+                fechaCambioStr,
+                fechaSiembra: fechaSiembra.toISOString(),
+                fechaCambio: fechaCambio.toISOString(),
+                diferenciaDias,
                 diasDesdeSiembra
             });
+            
+            // Validación final
+            if (isNaN(diasDesdeSiembra)) {
+                throw new Error(`Resultado inválido en el cálculo de días: ${diasDesdeSiembra}`);
+            }
         } catch (error) {
             console.error('Error al calcular días desde siembra:', error);
             // Usar un valor seguro por defecto
@@ -252,7 +293,7 @@ router.post('/', verifyToken, async (req, res) => {
         let kc, etc, lluvia_efectiva;
         try {
             // Consulta SQL para obtener KC
-            const { rows: [kc_data] } = await client.query(`
+            const kc_result = await client.query(`
                 SELECT cc.indice_kc 
                 FROM lotes l
                 JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
@@ -262,16 +303,33 @@ router.post('/', verifyToken, async (req, res) => {
                 LIMIT 1
             `, [lote_id, diasDesdeSiembra]);
             
-            // Validar el KC obtenido
-            kc = parseFloat(kc_data?.indice_kc) || 0.4;
+            // Validar el KC obtenido con más comprobaciones
+            if (kc_result.rows.length > 0 && kc_result.rows[0].indice_kc !== null) {
+                kc = parseFloat(kc_result.rows[0].indice_kc);
+                
+                if (isNaN(kc)) {
+                    console.warn(`KC obtenido no es un número válido: ${kc_result.rows[0].indice_kc}`);
+                    kc = 0.4; // Valor por defecto
+                }
+            } else {
+                console.warn(`No se encontró KC para lote ${lote_id} y día ${diasDesdeSiembra}`);
+                kc = 0.4; // Valor por defecto
+            }
             
             // Calcular ETC y lluvia efectiva
             etc = safeEvapotranspiracion * kc;
             lluvia_efectiva = calcularLluviaEfectiva(safePrecipitaciones);
             
             // Última validación
-            if (isNaN(etc)) etc = 0;
-            if (isNaN(lluvia_efectiva)) lluvia_efectiva = 0;
+            if (isNaN(etc)) {
+                console.warn(`ETC resultó en NaN: ${safeEvapotranspiracion} * ${kc}`);
+                etc = 0;
+            }
+            
+            if (isNaN(lluvia_efectiva)) {
+                console.warn(`Lluvia efectiva resultó en NaN: de ${safePrecipitaciones}`);
+                lluvia_efectiva = 0;
+            }
             
             console.log('Valores calculados:', { kc, etc, lluvia_efectiva });
         } catch (error) {
@@ -284,7 +342,7 @@ router.post('/', verifyToken, async (req, res) => {
         }
 
         // Insertar en la base de datos con valores validados
-        const { rows } = await client.query(
+        const insertResult = await client.query(
             `INSERT INTO cambios_diarios 
             (lote_id, fecha_cambio, riego_cantidad, riego_fecha_inicio, 
              precipitaciones, humedad, temperatura, evapotranspiracion,
@@ -308,9 +366,18 @@ router.post('/', verifyToken, async (req, res) => {
             ]
         );
 
+        if (insertResult.rows.length === 0) {
+            throw new Error('No se pudo insertar el cambio diario');
+        }
+
+        // Verificar que se calculó el día correctamente en el registro insertado
+        if (insertResult.rows[0].dias != diasDesdeSiembra) {
+            console.warn(`Inconsistencia: día calculado (${diasDesdeSiembra}) difiere del día insertado (${insertResult.rows[0].dias})`);
+        }
+
         await client.query('COMMIT');
-        console.log('Cambio diario insertado correctamente:', rows[0]);
-        res.status(201).json(rows[0]);
+        console.log('Cambio diario insertado correctamente:', insertResult.rows[0]);
+        res.status(201).json(insertResult.rows[0]);
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error al crear cambio diario:', err);
