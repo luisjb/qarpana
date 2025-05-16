@@ -205,8 +205,9 @@ router.post('/', verifyToken, async (req, res) => {
         if (isNaN(fechaSiembra.getTime()) || isNaN(fechaCambio.getTime())) {
             throw new Error('Fechas inválidas al calcular días desde siembra');
         }
-        const diasDesdeSiembra = Math.floor(
-            (fechaCambio.getTime() - fechaSiembra.getTime()) / (1000 * 60 * 60 * 24)
+        const diasDesdeSiembra = Math.round(
+            (new Date(fecha_cambio + 'T12:00:00Z').getTime() - new Date(loteInfo.fecha_siembra + 'T12:00:00Z').getTime()) 
+            / (1000 * 60 * 60 * 24)
         ) + 1;
 
         // Rechazar si se excede el máximo de días

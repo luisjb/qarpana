@@ -148,12 +148,19 @@ function LotesManagement() {
                 alert('La capacidad de extracción debe ser un número válido');
                 return;
             }
+
+            let fechaSiembra = loteData.fecha_siembra;
+            if (fechaSiembra) {
+                // Usar format para normalizar al formato YYYY-MM-DD sin zona horaria
+                fechaSiembra = format(parseISO(fechaSiembra), 'yyyy-MM-dd');
+                console.log('Fecha siembra normalizada:', fechaSiembra);
+            }
     
             const dataToSend = {
                 ...loteData,
                 campo_id: parseInt(campoId),
                 cultivo_id: parseInt(loteData.cultivo_id),
-                fecha_siembra: format(parseISO(loteData.fecha_siembra), 'yyyy-MM-dd'),
+                fecha_siembra: fechaSiembra,
                 activo: loteData.activo,
                 porcentaje_agua_util_umbral: parseFloat(loteData.porcentaje_agua_util_umbral),
                 agua_util_total: parseFloat(loteData.agua_util_total),

@@ -52,8 +52,9 @@ exports.getSimulationData = async (req, res) => {
             if (!cambio.fecha_cambio) continue;
             
             const fechaCambio = new Date(cambio.fecha_cambio);
-            const diasCalculados = Math.floor(
-                (fechaCambio.getTime() - fechaSiembra.getTime()) / (1000 * 60 * 60 * 24)
+             const diasCalculados = Math.round(
+                (new Date(cambio.fecha_cambio + 'T12:00:00Z').getTime() - 
+                new Date(lote.fecha_siembra + 'T12:00:00Z').getTime()) / (1000 * 60 * 60 * 24)
             ) + 1;
             
             if (Math.abs(diasCalculados - cambio.dias) > 1) {
@@ -1075,6 +1076,79 @@ exports.corregirDiasLote = async (req, res) => {
                 );
                 
                 //console.log(`Actualizado registro ${cambio.id}: dias ${cambio.dias} -> ${diasCorrectos}`);
+                actualizados++;
+            }
+        }
+        
+        await client.query('COMMIT');
+        
+        return res.json({
+            success: true,
+            message: `Corrección completada. Se actualizaron ${actualizados} de ${cambios.length} registros.`,
+            loteId,
+            fechaSiembra
+        });
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error al corregir días:', error);
+        return res.status(500).json({ 
+            error: 'Error del servidor', 
+            message: error.message 
+        });
+    } finally {
+        client.release();
+    }
+};
+
+exports.corregirDiasLote = async (req, res) => {
+    const { loteId } = req.params;
+    const client = await pool.connect();
+    
+    try {
+        await client.query('BEGIN');
+        
+        // 1. Obtener la fecha de siembra del lote
+        const { rows: [lote] } = await client.query(
+            'SELECT fecha_siembra FROM lotes WHERE id = $1',
+            [loteId]
+        );
+        
+        if (!lote) {
+            return res.status(404).json({ error: 'Lote no encontrado' });
+        }
+        
+        const fechaSiembra = lote.fecha_siembra;
+        console.log(`Fecha de siembra para lote ${loteId}: ${fechaSiembra}`);
+        
+        // 2. Obtener todos los cambios diarios para este lote
+        const { rows: cambios } = await client.query(
+            'SELECT id, fecha_cambio, dias FROM cambios_diarios WHERE lote_id = $1 ORDER BY fecha_cambio',
+            [loteId]
+        );
+        
+        console.log(`Encontrados ${cambios.length} registros para corregir`);
+        
+        // 3. Actualizar los días para cada registro
+        let actualizados = 0;
+        
+        for (const cambio of cambios) {
+            // Usar la misma lógica en PostgreSQL para calcular la diferencia
+            // Esto asegura consistencia entre el cálculo en JavaScript y en la base de datos
+            const { rows: [{ dias_correctos }] } = await client.query(
+                `SELECT (fecha_cambio - $1)::integer + 1 as dias_correctos 
+                 FROM cambios_diarios WHERE id = $2`,
+                [fechaSiembra, cambio.id]
+            );
+            
+            // Solo actualizar si los días son diferentes
+            if (cambio.dias !== parseInt(dias_correctos)) {
+                await client.query(
+                    'UPDATE cambios_diarios SET dias = $1 WHERE id = $2',
+                    [dias_correctos, cambio.id]
+                );
+                
+                console.log(`Actualizado registro ${cambio.id}: dias ${cambio.dias} -> ${dias_correctos}`);
                 actualizados++;
             }
         }
