@@ -52,22 +52,28 @@ exports.getSimulationData = async (req, res) => {
             if (!cambio.fecha_cambio) continue;
             
             const fechaCambio = new Date(cambio.fecha_cambio);
-             const diasCalculados = Math.round(
-                (new Date(cambio.fecha_cambio + 'T12:00:00Z').getTime() - 
-                new Date(lote.fecha_siembra + 'T12:00:00Z').getTime()) / (1000 * 60 * 60 * 24)
+            const fechaSiembra = new Date(lote.fecha_siembra);
+            const diasCalculados = Math.floor(
+                (fechaCambio.getTime() - fechaSiembra.getTime()) / (1000 * 60 * 60 * 24)
             ) + 1;
             
             if (Math.abs(diasCalculados - cambio.dias) > 1) {
                 console.warn(`Inconsistencia en días para lote ${loteId}: fecha=${cambio.fecha_cambio}, dias=${cambio.dias}, calculado=${diasCalculados}`);
                 hayInconsistencias = true;
-                
-                // Opcional: corrección automática
-                cambio.dias = diasCalculados;
+                break; // Basta con encontrar una inconsistencia
             }
         }
         
         if (hayInconsistencias) {
-            console.warn(`Se detectaron inconsistencias en los días del lote ${loteId}. Se recomienda corregirlos con el endpoint /lotes/${loteId}/corregir-dias`);
+            console.warn(`Se detectaron inconsistencias en los días del lote ${loteId}. Corrigiendo automáticamente...`);
+            await corregirDiasSiembraAutomaticamente(loteId);
+            
+            // Volver a cargar los datos actualizados
+            const { rows: cambiosActualizados } = await pool.query(`
+                SELECT * FROM cambios_diarios WHERE lote_id = $1 ORDER BY fecha_cambio
+            `, [loteId]);
+            
+            cambios = cambiosActualizados;
         }
         
         const cambiosFiltrados = cambios.filter(cambio => {
@@ -828,6 +834,46 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
     }
 }
 
+async function corregirDiasSiembraAutomaticamente(loteId) {
+    const client = await pool.connect();
+    try {
+        console.log(`Iniciando corrección automática de días desde siembra para lote ${loteId}`);
+        await client.query('BEGIN');
+        
+        // Obtener fecha de siembra
+        const { rows: [lote] } = await client.query(
+            'SELECT fecha_siembra FROM lotes WHERE id = $1',
+            [loteId]
+        );
+        
+        if (!lote) {
+            console.error(`Lote ${loteId} no encontrado`);
+            return false;
+        }
+        
+        // Corregir días desde siembra con una única consulta SQL
+        const result = await client.query(`
+            UPDATE cambios_diarios
+            SET dias = (fecha_cambio - $1)::integer + 1
+            WHERE lote_id = $2
+            RETURNING id, dias as dias_nuevos, 
+                     (SELECT dias FROM cambios_diarios cd2 WHERE cd2.id = cambios_diarios.id) as dias_anteriores
+        `, [lote.fecha_siembra, loteId]);
+        
+        const actualizados = result.rows.filter(r => r.dias_anteriores !== r.dias_nuevos).length;
+        console.log(`Corrección automática completada: ${actualizados} registros actualizados de ${result.rows.length} totales`);
+        
+        await client.query('COMMIT');
+        return true;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(`Error al corregir días desde siembra para lote ${loteId}:`, error);
+        return false;
+    } finally {
+        client.release();
+    }
+}
+
 async function getLastSimulationData(loteId) {
     try {
         // Obtener los datos más recientes del lote y cambios diarios
@@ -1173,3 +1219,4 @@ exports.corregirDiasLote = async (req, res) => {
         client.release();
     }
 };
+
