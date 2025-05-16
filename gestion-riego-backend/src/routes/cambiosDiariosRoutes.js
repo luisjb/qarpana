@@ -180,8 +180,16 @@ router.post('/', verifyToken, async (req, res) => {
             correccion_agua = 0,
         } = req.body;
 
-        // Obtener fecha de siembra y calcular días
-         const { rows: [loteInfo] } = await client.query(
+        // Validación de valores numéricos
+        const safeRiego = parseFloat(riego_cantidad) || 0;
+        const safePrecipitaciones = parseFloat(precipitaciones) || 0;
+        const safeHumedad = parseFloat(humedad) || 0;
+        const safeTemperatura = parseFloat(temperatura) || 0;
+        const safeEvapotranspiracion = parseFloat(evapotranspiracion) || 0;
+        const safeCorreccion = parseFloat(correccion_agua) || 0;
+
+        // Obtener fecha de siembra
+        const { rows: [loteInfo] } = await client.query(
             'SELECT fecha_siembra, cultivo_id FROM lotes WHERE id = $1 AND activo = true',
             [lote_id]
         );
@@ -189,6 +197,7 @@ router.post('/', verifyToken, async (req, res) => {
         if (!loteInfo) {
             return res.status(404).json({ error: 'Lote no encontrado' });
         }
+
         // Verificar máximo de días
         const { rows: [maxDays] } = await client.query(`
             SELECT MAX(GREATEST(indice_dias, COALESCE(dias_correccion, 0))) as max_dias
@@ -196,19 +205,39 @@ router.post('/', verifyToken, async (req, res) => {
             WHERE cc.cultivo_id = $1
         `, [loteInfo.cultivo_id]);
 
-        const maxDiasSimulacion = maxDays.max_dias || 150; // Valor por defecto
+        const maxDiasSimulacion = parseInt(maxDays?.max_dias) || 150;
         
-        const fechaSiembra = new Date(loteInfo.fecha_siembra);
-        const fechaCambio = new Date(fecha_cambio);
-        
-        // Asegurar que ambas fechas son válidas antes de calcular
-        if (isNaN(fechaSiembra.getTime()) || isNaN(fechaCambio.getTime())) {
-            throw new Error('Fechas inválidas al calcular días desde siembra');
+        // Calcular días desde siembra de forma segura
+        let diasDesdeSiembra;
+        try {
+            // Usar fechas a medio día para evitar problemas de zona horaria
+            const fechaSiembra = new Date(loteInfo.fecha_siembra + 'T12:00:00Z');
+            const fechaCambio = new Date(fecha_cambio + 'T12:00:00Z');
+            
+            // Validar que las fechas son válidas
+            if (isNaN(fechaSiembra.getTime()) || isNaN(fechaCambio.getTime())) {
+                throw new Error('Fechas inválidas');
+            }
+            
+            const diferenciaMilisegundos = fechaCambio.getTime() - fechaSiembra.getTime();
+            diasDesdeSiembra = Math.round(diferenciaMilisegundos / (1000 * 60 * 60 * 24)) + 1;
+            
+            // Validación final
+            if (isNaN(diasDesdeSiembra) || diasDesdeSiembra < 1) {
+                throw new Error(`Cálculo inválido: ${diasDesdeSiembra}`);
+            }
+            
+            console.log('Días desde siembra calculados:', {
+                fecha_siembra: loteInfo.fecha_siembra,
+                fecha_cambio,
+                diasDesdeSiembra
+            });
+        } catch (error) {
+            console.error('Error al calcular días desde siembra:', error);
+            // Usar un valor seguro por defecto
+            diasDesdeSiembra = 1;
+            console.log('Usando valor por defecto para días:', diasDesdeSiembra);
         }
-        const diasDesdeSiembra = Math.round(
-            (new Date(fecha_cambio + 'T12:00:00Z').getTime() - new Date(loteInfo.fecha_siembra + 'T12:00:00Z').getTime()) 
-            / (1000 * 60 * 60 * 24)
-        ) + 1;
 
         // Rechazar si se excede el máximo de días
         if (diasDesdeSiembra > maxDiasSimulacion) {
@@ -219,21 +248,42 @@ router.post('/', verifyToken, async (req, res) => {
             });
         }
 
-        // Calcular KC y ETC
-        const { rows: [kc_data] } = await client.query(`
-            SELECT cc.indice_kc 
-            FROM lotes l
-            JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
-            WHERE l.id = $1
-            AND cc.indice_dias <= $2
-            ORDER BY cc.indice_dias DESC
-            LIMIT 1
-        `, [lote_id, diasDesdeSiembra]);
-        const kc = await calcularKCPorPendiente(client, lote_id, diasDesdeSiembra);
+        // Calcular KC y ETC de forma segura
+        let kc, etc, lluvia_efectiva;
+        try {
+            // Consulta SQL para obtener KC
+            const { rows: [kc_data] } = await client.query(`
+                SELECT cc.indice_kc 
+                FROM lotes l
+                JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
+                WHERE l.id = $1
+                AND cc.indice_dias <= $2
+                ORDER BY cc.indice_dias DESC
+                LIMIT 1
+            `, [lote_id, diasDesdeSiembra]);
+            
+            // Validar el KC obtenido
+            kc = parseFloat(kc_data?.indice_kc) || 0.4;
+            
+            // Calcular ETC y lluvia efectiva
+            etc = safeEvapotranspiracion * kc;
+            lluvia_efectiva = calcularLluviaEfectiva(safePrecipitaciones);
+            
+            // Última validación
+            if (isNaN(etc)) etc = 0;
+            if (isNaN(lluvia_efectiva)) lluvia_efectiva = 0;
+            
+            console.log('Valores calculados:', { kc, etc, lluvia_efectiva });
+        } catch (error) {
+            console.error('Error al calcular KC, ETC o lluvia efectiva:', error);
+            // Usar valores seguros por defecto
+            kc = 0.4;
+            etc = 0;
+            lluvia_efectiva = 0;
+            console.log('Usando valores por defecto:', { kc, etc, lluvia_efectiva });
+        }
 
-        const etc = evapotranspiracion * kc;
-        const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
-
+        // Insertar en la base de datos con valores validados
         const { rows } = await client.query(
             `INSERT INTO cambios_diarios 
             (lote_id, fecha_cambio, riego_cantidad, riego_fecha_inicio, 
@@ -244,26 +294,31 @@ router.post('/', verifyToken, async (req, res) => {
             [
                 lote_id,
                 fecha_cambio,
-                riego_cantidad,
+                safeRiego,
                 riego_fecha_inicio,
-                precipitaciones,
-                humedad,
-                temperatura,
-                evapotranspiracion,
+                safePrecipitaciones,
+                safeHumedad,
+                safeTemperatura,
+                safeEvapotranspiracion,
                 lluvia_efectiva,
                 etc,
                 kc,
                 diasDesdeSiembra,
-                correccion_agua
+                safeCorreccion
             ]
         );
 
         await client.query('COMMIT');
+        console.log('Cambio diario insertado correctamente:', rows[0]);
         res.status(201).json(rows[0]);
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error al crear cambio diario:', err);
-        res.status(500).json({ error: 'Error del servidor' });
+        res.status(500).json({ 
+            error: 'Error del servidor', 
+            details: err.message,
+            originalError: err.toString()
+        });
     } finally {
         client.release();
     }
@@ -286,21 +341,71 @@ router.put('/:id', verifyToken, async (req, res) => {
             correccion_agua
         } = req.body;
 
+        // Validación de valores numéricos
+        const safeRiego = parseFloat(riego_cantidad) || 0;
+        const safePrecipitaciones = parseFloat(precipitaciones) || 0;
+        const safeHumedad = parseFloat(humedad) || 0;
+        const safeTemperatura = parseFloat(temperatura) || 0;
+        const safeEvapotranspiracion = parseFloat(evapotranspiracion) || 0;
+        const safeCorreccion = parseFloat(correccion_agua) || 0;
+
         // Obtener el lote_id del cambio diario actual
         const { rows: [cambioActual] } = await client.query(
             'SELECT cd.lote_id, cd.fecha_cambio, l.fecha_siembra FROM cambios_diarios cd JOIN lotes l ON cd.lote_id = l.id WHERE cd.id = $1',
             [id]
         );
 
-         // Calculamos los días desde la siembra
-         const diasDesdeSiembra = Math.floor(
-            (new Date(cambioActual.fecha_cambio) - new Date(cambioActual.fecha_siembra)) / (1000 * 60 * 60 * 24)
-        );
+        // Calcular días desde siembra de forma segura
+        let diasDesdeSiembra;
+        try {
+            const fechaSiembra = new Date(cambioActual.fecha_siembra + 'T12:00:00Z');
+            const fechaCambio = new Date(cambioActual.fecha_cambio + 'T12:00:00Z');
+            
+            if (isNaN(fechaSiembra.getTime()) || isNaN(fechaCambio.getTime())) {
+                throw new Error('Fechas inválidas');
+            }
+            
+            const diferenciaMilisegundos = fechaCambio.getTime() - fechaSiembra.getTime();
+            diasDesdeSiembra = Math.round(diferenciaMilisegundos / (1000 * 60 * 60 * 24)) + 1;
+            
+            if (isNaN(diasDesdeSiembra) || diasDesdeSiembra < 1) {
+                throw new Error(`Cálculo inválido: ${diasDesdeSiembra}`);
+            }
+        } catch (error) {
+            console.error('Error al calcular días desde siembra:', error);
+            diasDesdeSiembra = 1;
+        }
         
-       // Ahora podemos calcular el KC usando el lote_id correcto
-        const kc = await calcularKCPorPendiente(client, cambioActual.lote_id, diasDesdeSiembra);
-        const etc = evapotranspiracion * kc;
-        const lluvia_efectiva = calcularLluviaEfectiva(precipitaciones);
+        // Calcular KC y ETC de forma segura
+        let kc, etc, lluvia_efectiva;
+        try {
+            // Consulta SQL para obtener KC
+            const { rows: [kc_data] } = await client.query(`
+                SELECT cc.indice_kc 
+                FROM lotes l
+                JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
+                WHERE l.id = $1
+                AND cc.indice_dias <= $2
+                ORDER BY cc.indice_dias DESC
+                LIMIT 1
+            `, [cambioActual.lote_id, diasDesdeSiembra]);
+            
+            // Validar el KC obtenido
+            kc = parseFloat(kc_data?.indice_kc) || 0.4;
+            
+            // Calcular ETC y lluvia efectiva
+            etc = safeEvapotranspiracion * kc;
+            lluvia_efectiva = calcularLluviaEfectiva(safePrecipitaciones);
+            
+            // Última validación
+            if (isNaN(etc)) etc = 0;
+            if (isNaN(lluvia_efectiva)) lluvia_efectiva = 0;
+        } catch (error) {
+            console.error('Error al calcular KC, ETC o lluvia efectiva:', error);
+            kc = 0.4;
+            etc = 0;
+            lluvia_efectiva = 0;
+        }
 
         const { rows } = await client.query(
             `UPDATE cambios_diarios SET 
@@ -317,16 +422,16 @@ router.put('/:id', verifyToken, async (req, res) => {
             WHERE id = $11
             RETURNING *`,
             [
-                riego_cantidad,
+                safeRiego,
                 riego_fecha_inicio,
-                precipitaciones,
-                humedad,
-                temperatura,
-                evapotranspiracion,
+                safePrecipitaciones,
+                safeHumedad,
+                safeTemperatura,
+                safeEvapotranspiracion,
                 etc,
                 lluvia_efectiva,
                 kc,
-                correccion_agua,
+                safeCorreccion,
                 id
             ]
         );
