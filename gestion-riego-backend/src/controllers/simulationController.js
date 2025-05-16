@@ -43,7 +43,7 @@ exports.getSimulationData = async (req, res) => {
         }
 
         const lote = result.rows[0];
-        const cambios = result.rows;
+        let cambios = result.rows;
 
         const fechaSiembra = new Date(lote.fecha_siembra);
         let hayInconsistencias = false;
