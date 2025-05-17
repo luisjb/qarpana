@@ -57,7 +57,7 @@ async function calcularKCPorPendiente(client, loteId, diasDesdeSiembra) {
             const kc = (a * diasDesdeSiembra) + b;
 
             // Para debug
-            console.log('Cálculo KC:', {
+            /*console.log('Cálculo KC:', {
                 diasDesdeSiembra,
                 periodoActual: periodoActual.dias_efectivos,
                 periodoSiguiente: periodoSiguiente.dias_efectivos,
@@ -66,7 +66,7 @@ async function calcularKCPorPendiente(client, loteId, diasDesdeSiembra) {
                 pendiente: a,
                 intercepto: b,
                 kcCalculado: kc
-            });
+            });*/
 
             return kc;
         }
@@ -219,7 +219,7 @@ router.post('/', verifyToken, async (req, res) => {
         }
 
         // Log para verificar la fecha de siembra
-        console.log(`Lote ${lote_id} - Fecha de siembra: ${loteInfo.fecha_siembra}`);
+       // console.log(`Lote ${lote_id} - Fecha de siembra: ${loteInfo.fecha_siembra}`);
 
         // Verificar máximo de días
         const { rows: [maxDays] } = await client.query(`
@@ -260,14 +260,14 @@ router.post('/', verifyToken, async (req, res) => {
             // Redondear a un entero y asegurar que sea al menos 1
             diasDesdeSiembra = Math.max(1, Math.round(diferenciaDias + 1));
             
-            console.log('Cálculo de días desde siembra:', {
+            /*console.log('Cálculo de días desde siembra:', {
                 fechaSiembraStr,
                 fechaCambioStr,
                 fechaSiembra: fechaSiembra.toISOString(),
                 fechaCambio: fechaCambio.toISOString(),
                 diferenciaDias,
                 diasDesdeSiembra
-            });
+            });*/
             
             // Validación final
             if (isNaN(diasDesdeSiembra)) {
@@ -277,7 +277,7 @@ router.post('/', verifyToken, async (req, res) => {
             console.error('Error al calcular días desde siembra:', error);
             // Usar un valor seguro por defecto
             diasDesdeSiembra = 1;
-            console.log('Usando valor por defecto para días:', diasDesdeSiembra);
+            //console.log('Usando valor por defecto para días:', diasDesdeSiembra);
         }
 
         // Rechazar si se excede el máximo de días
@@ -331,14 +331,14 @@ router.post('/', verifyToken, async (req, res) => {
                 lluvia_efectiva = 0;
             }
             
-            console.log('Valores calculados:', { kc, etc, lluvia_efectiva });
+            //console.log('Valores calculados:', { kc, etc, lluvia_efectiva });
         } catch (error) {
             console.error('Error al calcular KC, ETC o lluvia efectiva:', error);
             // Usar valores seguros por defecto
             kc = 0.4;
             etc = 0;
             lluvia_efectiva = 0;
-            console.log('Usando valores por defecto:', { kc, etc, lluvia_efectiva });
+            //console.log('Usando valores por defecto:', { kc, etc, lluvia_efectiva });
         }
 
         // Insertar en la base de datos con valores validados
@@ -376,7 +376,7 @@ router.post('/', verifyToken, async (req, res) => {
         }
 
         await client.query('COMMIT');
-        console.log('Cambio diario insertado correctamente:', insertResult.rows[0]);
+        //console.log('Cambio diario insertado correctamente:', insertResult.rows[0]);
         res.status(201).json(insertResult.rows[0]);
     } catch (err) {
         await client.query('ROLLBACK');

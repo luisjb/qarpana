@@ -505,20 +505,9 @@ exports.getSimulationData = async (req, res) => {
 
 async function getEstadoFenologico(loteId, diasDesdeSiembra) {
     try {
-        //console.log('Calculando estado fenológico para lote:', loteId, 'días:', diasDesdeSiembra);
+        console.log(`Calculando estado fenológico para lote ${loteId}, días desde siembra: ${diasDesdeSiembra}`);
         
-        // Primero verificamos si hay estados fenológicos para este lote
-        const { rows: [count] } = await pool.query(
-            'SELECT COUNT(*) FROM estado_fenologico WHERE lote_id = $1',
-            [loteId]
-        );
-        
-        if (count.count === '0') {
-           // console.log('No hay estados fenológicos registrados para el lote:', loteId);
-            // Aquí podrías insertar estados fenológicos por defecto si lo deseas
-            await insertarEstadosFenologicosDefault(loteId);
-        }
-
+        // Obtener todos los estados fenológicos ordenados por días
         const result = await pool.query(`
             SELECT ef.fenologia, ef.dias
             FROM estado_fenologico ef
@@ -527,23 +516,62 @@ async function getEstadoFenologico(loteId, diasDesdeSiembra) {
             [loteId]
         );
 
-        // Si no hay estados fenológicos después de intentar insertar los default
         if (result.rows.length === 0) {
-            return 'Desconocido';
+            console.warn(`No hay estados fenológicos registrados para el lote ${loteId}`);
+            await insertarEstadosFenologicosDefault(loteId);
+            
+            // Volver a intentar obtener estados
+            const retryResult = await pool.query(`
+                SELECT ef.fenologia, ef.dias
+                FROM estado_fenologico ef
+                WHERE ef.lote_id = $1 
+                ORDER BY ef.dias ASC`,
+                [loteId]
+            );
+            
+            if (retryResult.rows.length === 0) {
+                return 'Desconocido';
+            }
+            
+            // Usar el resultado del segundo intento
+            result.rows = retryResult.rows;
         }
 
-        // Encontrar el estado fenológico correspondiente a los días actuales
-        let estadoActual = result.rows[result.rows.length - 1].fenologia;
-        for (let i = result.rows.length - 1; i >= 0; i--) {
-            if (diasDesdeSiembra >= result.rows[i].dias) {
-                estadoActual = result.rows[i].fenologia;
+        // Log para depuración
+        console.log(`Estados fenológicos disponibles para lote ${loteId}:`, 
+            result.rows.map(r => `${r.fenologia} (${r.dias} días)`).join(', '));
+
+        // CORRECCIÓN: Encontrar el estado fenológico adecuado basado en los días transcurridos
+        // Estado por defecto (primera etapa)
+        let estadoActual = result.rows[0].fenologia;
+        
+        // Iterar por los estados ordenados por días
+        for (let i = 0; i < result.rows.length; i++) {
+            const estadoActualDias = parseInt(result.rows[i].dias);
+            
+            // Si los días desde siembra son menores o iguales a los días de este estado,
+            // entonces estamos en este estado
+            if (diasDesdeSiembra <= estadoActualDias) {
+                if (i === 0) {
+                    // Si es el primer estado, lo usamos directamente
+                    estadoActual = result.rows[0].fenologia;
+                } else {
+                    // Si no es el primer estado, usamos el estado anterior
+                    // ya que los "días hasta" marcan el fin de un estado y el inicio del siguiente
+                    estadoActual = result.rows[i].fenologia;
+                }
                 break;
+            }
+            
+            // Si llegamos al final del bucle sin encontrar un estado adecuado,
+            // entonces usamos el último estado (el más avanzado)
+            if (i === result.rows.length - 1) {
+                estadoActual = result.rows[i].fenologia;
             }
         }
 
-        //console.log('Estado fenológico encontrado para días', diasDesdeSiembra, ':', estadoActual);
+        console.log(`Estado fenológico seleccionado para ${diasDesdeSiembra} días: ${estadoActual}`);
         return estadoActual;
-
     } catch (error) {
         console.error('Error en getEstadoFenologico:', error);
         return 'Desconocido';

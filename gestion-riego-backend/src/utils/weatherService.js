@@ -23,7 +23,7 @@ class WeatherService {
                 AND l.activo = true
                 GROUP BY c.id, c.nombre_campo, c.ubicacion
             `);
-            console.log('Campos y lotes a procesar:', camposResult.rows);
+            //console.log('Campos y lotes a procesar:', camposResult.rows);
 
     
             for (const campo of camposResult.rows) {
@@ -31,7 +31,7 @@ class WeatherService {
                      // Obtener pronóstico para el campo
                     const [lat, lon] = campo.ubicacion.split(',').map(coord => coord.trim());
                     const pronostico = await this.obtenerPronosticoCampo(lat, lon);
-                    console.log(`Pronóstico obtenido para campo ${campo.nombre_campo}`);
+                   // console.log(`Pronóstico obtenido para campo ${campo.nombre_campo}`);
 
     
                      // Obtener lotes activos del campo
@@ -42,14 +42,14 @@ class WeatherService {
                         WHERE l.campo_id = $1 AND l.activo = true
                     `, [campo.id]);
         
-                    console.log(`Procesando ${lotesResult.rows.length} lotes para campo ${campo.nombre_campo}`);
+                    //console.log(`Procesando ${lotesResult.rows.length} lotes para campo ${campo.nombre_campo}`);
     
                     // Procesar cada lote del campo
                     for (const lote of lotesResult.rows) {
                         try {
-                            console.log(`Actualizando pronóstico para lote ${lote.nombre_lote}`);
+                            //console.log(`Actualizando pronóstico para lote ${lote.nombre_lote}`);
                             await this.actualizarPronosticoLote(client, lote, pronostico);
-                            console.log(`Pronóstico actualizado exitosamente para lote ${lote.nombre_lote}`);
+                            //console.log(`Pronóstico actualizado exitosamente para lote ${lote.nombre_lote}`);
                         } catch (loteError) {
                             console.error(`Error procesando lote ${lote.nombre_lote}:`, loteError);
                         }
@@ -77,16 +77,16 @@ class WeatherService {
            
             // Construir URL completa para debugging
             const urlCompleta = `${this.BASE_URL}?lat=${lat}&lon=${lon}&appid=${this.API_KEY}&units=metric`;
-            console.log('URL de consulta:', urlCompleta);
+            //console.log('URL de consulta:', urlCompleta);
 
             const response = await axios.get(urlCompleta);
 
             // Log de la respuesta
-            console.log('Respuesta de la API:', {
+            /*console.log('Respuesta de la API:', {
                 status: response.status,
                 tieneData: !!response.data,
                 cantidadItems: response.data?.list?.length || 0
-            });
+            });*/
 
             const medicionesPorDia = new Map();
 
@@ -204,11 +204,11 @@ class WeatherService {
                     windSpeed: parseFloat(dia.velocidad_viento || 0)
                 };
     
-                console.log('Datos para EToCalculator:', weatherData);
+                //console.log('Datos para EToCalculator:', weatherData);
     
                 // Calcular ETo
                 const eto = calculator.calculateDailyETo(weatherData);
-                console.log('ETo calculado:', eto);
+                //console.log('ETo calculado:', eto);
     
                 // Obtener kc del cultivo
                 const cultivoResult = await client.query(
@@ -219,12 +219,12 @@ class WeatherService {
                 
                 // Calcular ETC
                 const etc = eto * kc;
-                console.log('Datos de cálculo ETC:', {
+                /*console.log('Datos de cálculo ETC:', {
                     eto,
                     kc,
                     etc,
                     fecha: dia.fecha
-                });
+                });*/
     
                 const lluviaEfectiva = this.calcularLluviaEfectiva(parseFloat(dia.precipitaciones || 0));
     
