@@ -14,11 +14,15 @@ services:
       - type: volume
         source: postgres_data
         target: /var/lib/postgresql/data
-
     ports:
       - "5432:5432"
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build: ./gestion-riego-backend
@@ -38,11 +42,15 @@ services:
 
       - CORS_ORIGIN=https://qarpana.com.ar  
       - VIRTUAL_HOST=api.qarpana.com.ar 
-
     depends_on:
       - db
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
     build: ./gestion-riego-frontend
@@ -55,11 +63,15 @@ services:
       #comentar la parte de arriba
       - VIRTUAL_HOST=qarpana.com.ar
       - VIRTUAL_PORT=3000
-
     networks:
       - app-network
     #volumes:
       #- C:\Users\busta\OneDrive\Documentos\Bamboo\Webapp\gestion-riego-pwa\gestion-riego-frontend:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
   
   nginx-proxy:
     image: nginxproxy/nginx-proxy
@@ -73,6 +85,12 @@ services:
       - html:/usr/share/nginx/html
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        
   acme-companion:
     image: nginxproxy/acme-companion
     environment:
@@ -87,6 +105,11 @@ services:
       - nginx-proxy
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   app-network:
