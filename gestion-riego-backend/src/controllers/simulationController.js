@@ -538,8 +538,8 @@ async function getEstadoFenologico(loteId, diasDesdeSiembra) {
         }
 
         // Log para depuración
-        console.log(`Estados fenológicos disponibles para lote ${loteId}:`, 
-            result.rows.map(r => `${r.fenologia} (${r.dias} días)`).join(', '));
+        /*console.log(`Estados fenológicos disponibles para lote ${loteId}:`, 
+            result.rows.map(r => `${r.fenologia} (${r.dias} días)`).join(', '));*/
 
         // CORRECCIÓN: Encontrar el estado fenológico adecuado basado en los días transcurridos
         // Estado por defecto (primera etapa)
@@ -570,7 +570,7 @@ async function getEstadoFenologico(loteId, diasDesdeSiembra) {
             }
         }
 
-        console.log(`Estado fenológico seleccionado para ${diasDesdeSiembra} días: ${estadoActual}`);
+        //console.log(`Estado fenológico seleccionado para ${diasDesdeSiembra} días: ${estadoActual}`);
         return estadoActual;
     } catch (error) {
         console.error('Error en getEstadoFenologico:', error);
