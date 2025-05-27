@@ -650,7 +650,7 @@ function CamposManagement() {
                                                 <div style={{ textAlign: 'center', minWidth: '180px' }}>
                                                     <strong>{estacion.title || estacion.titulo || 'Estación sin nombre'}</strong>
                                                     <br />
-                                                    <small>Código: {estacionCode}</small>
+                                                    <small>Código: {estacion.code}</small>
                                                     <br />
                                                     <div style={{ margin: '8px 0', fontSize: '12px' }}>
                                                         <strong>Sensores:</strong> {getResumenSensores(estacion)}
