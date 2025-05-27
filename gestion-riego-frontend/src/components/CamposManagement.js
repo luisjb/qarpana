@@ -327,6 +327,61 @@ function CamposManagement() {
         return 'No asignado';
     };
 
+    // Funciones auxiliares para trabajar con módulos de estaciones
+    const tieneModuloTemperatura = (estacion) => {
+        if (!estacion || !estacion.modules) return false;
+        return estacion.modules.some(modulo => 
+            modulo.type && modulo.type.toLowerCase().includes('temperatura')
+        );
+    };
+
+    const tieneModuloHumedad = (estacion) => {
+        if (!estacion || !estacion.modules) return false;
+        return estacion.modules.some(modulo => 
+            modulo.type && modulo.type.toLowerCase().includes('humedad')
+        );
+    };
+
+    const tieneModuloLluvia = (estacion) => {
+        if (!estacion || !estacion.modules) return false;
+        return estacion.modules.some(modulo => 
+            modulo.type && (
+                modulo.type.toLowerCase().includes('lluvia') ||
+                modulo.type.toLowerCase().includes('precipitación') ||
+                modulo.type.toLowerCase().includes('registro de lluvia')
+            )
+        );
+    };
+
+    const obtenerModulosPorTipo = (estacion, tipo) => {
+        if (!estacion || !estacion.modules) return [];
+        return estacion.modules.filter(modulo => 
+            modulo.type && modulo.type.toLowerCase().includes(tipo.toLowerCase())
+        );
+    };
+
+    // Función para mostrar qué sensores tiene una estación
+    const getResumenSensores = (estacion) => {
+        if (!estacion || !estacion.modules || estacion.modules.length === 0) {
+            return 'Sin sensores disponibles';
+        }
+        
+        const sensores = [];
+        if (tieneModuloTemperatura(estacion)) sensores.push('Temperatura');
+        if (tieneModuloHumedad(estacion)) sensores.push('Humedad');
+        if (tieneModuloLluvia(estacion)) sensores.push('Lluvia');
+        
+        // Agregar otros tipos importantes
+        const otrosTipos = ['Viento', 'Presión', 'Radiación Solar'];
+        otrosTipos.forEach(tipo => {
+            if (estacion.modules.some(m => m.type && m.type.toLowerCase().includes(tipo.toLowerCase()))) {
+                sensores.push(tipo);
+            }
+        });
+        
+        return sensores.length > 0 ? sensores.join(', ') : 'Otros sensores disponibles';
+    };
+
     return (
         <Container maxWidth="md">
             <Typography variant="h4" gutterBottom>Gestión de Campos</Typography>
@@ -595,6 +650,8 @@ function CamposManagement() {
                                                 <div>
                                                     <strong>{estacion.title}</strong><br />
                                                     Código: {estacion.code}<br />
+                                                    <small>Sensores: {getResumenSensores(estacion)}</small><br />
+
                                                     <Button 
                                                         variant="contained" 
                                                         size="small"

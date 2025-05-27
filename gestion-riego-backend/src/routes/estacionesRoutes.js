@@ -7,42 +7,36 @@ const pool = require('../db');
 // Obtener todas las estaciones de la base de datos
 router.get('/', verifyToken, async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM estaciones_meteorologicas ORDER BY titulo');
+        const { rows } = await pool.query(`
+            SELECT 
+                e.*,
+                COALESCE(
+                    JSON_AGG(
+                        JSON_BUILD_OBJECT(
+                            'id', m.modulo_id,
+                            'title', m.modulo_titulo,
+                            'type', m.modulo_tipo
+                        )
+                    ) FILTER (WHERE m.modulo_id IS NOT NULL),
+                    '[]'::json
+                ) as modules
+            FROM estaciones_meteorologicas e
+            LEFT JOIN estaciones_modulos m ON e.codigo = m.estacion_codigo
+            GROUP BY e.id, e.codigo, e.titulo, e.latitud, e.longitud, e.datos_json, e.fecha_actualizacion
+            ORDER BY e.titulo
+        `);
         
-        // Procesar los datos JSON de cada estación
         const processedEstaciones = rows.map(estacion => {
-            try {
-                // Extraer datos del JSON si existe
-                let datosJson = {};
-                if (estacion.datos_json) {
-                    datosJson = typeof estacion.datos_json === 'string' 
-                        ? JSON.parse(estacion.datos_json) 
-                        : estacion.datos_json;
-                }
-                
-                // Normalizar nombres de propiedades
-                return {
-                    ...estacion,
-                    code: estacion.codigo || (datosJson?.code ? String(datosJson.code) : ''),
-                    title: estacion.titulo || datosJson?.title || 'Estación sin nombre',
-                    latitude: estacion.latitud || datosJson?.latitude || null,
-                    longitude: estacion.longitud || datosJson?.longitude || null,
-                    modules: datosJson?.modules || []
-                };
-            } catch (error) {
-                console.error(`Error procesando datos de estación ${estacion.codigo}:`, error);
-                return {
-                    ...estacion,
-                    code: estacion.codigo || '',
-                    title: estacion.titulo || 'Estación sin nombre',
-                    latitude: estacion.latitud || null,
-                    longitude: estacion.longitud || null,
-                    modules: []
-                };
-            }
+            return {
+                ...estacion,
+                code: estacion.codigo,
+                title: estacion.titulo,
+                latitude: estacion.latitud,
+                longitude: estacion.longitud,
+                modules: estacion.modules || []
+            };
         });
         
-        console.log('Enviando estaciones procesadas:', processedEstaciones.length);
         res.json(processedEstaciones);
     } catch (err) {
         console.error('Error al obtener estaciones:', err);
@@ -54,10 +48,8 @@ router.get('/', verifyToken, async (req, res) => {
 router.post('/refresh', verifyToken, async (req, res) => {
     const client = await pool.connect();
     try {
-        // Obtener el token de OMIXOM
         const OMIXOM_TOKEN = 'fa31ec35bbe0e6684f75e8cc2ebe38dd999f7356';
         
-        // Realizar la solicitud a la API de OMIXOM
         const response = await axios.get('https://new.omixom.com/api/v2/stations', {
             headers: {
                 'Authorization': `Token ${OMIXOM_TOKEN}`
@@ -70,6 +62,7 @@ router.post('/refresh', verifyToken, async (req, res) => {
 
         // Guardar o actualizar cada estación en la base de datos
         for (const estacion of response.data) {
+            // Actualizar la estación
             await client.query(
                 `INSERT INTO estaciones_meteorologicas (
                     codigo, 
@@ -96,39 +89,66 @@ router.post('/refresh', verifyToken, async (req, res) => {
                     JSON.stringify(estacion)
                 ]
             );
+
+            // Eliminar módulos existentes para esta estación
+            await client.query(
+                'DELETE FROM estaciones_modulos WHERE estacion_codigo = $1',
+                [String(estacion.code)]
+            );
+
+            // Insertar los módulos de la estación
+            if (estacion.modules && Array.isArray(estacion.modules)) {
+                for (const modulo of estacion.modules) {
+                    await client.query(
+                        `INSERT INTO estaciones_modulos (
+                            estacion_codigo, 
+                            modulo_id, 
+                            modulo_titulo, 
+                            modulo_tipo,
+                            fecha_actualizacion
+                        ) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+                        [
+                            String(estacion.code),
+                            modulo.id,
+                            modulo.title,
+                            modulo.type
+                        ]
+                    );
+                }
+            }
         }
 
         await client.query('COMMIT');
         
-        // Devolver las estaciones actualizadas
-        const { rows } = await client.query('SELECT * FROM estaciones_meteorologicas ORDER BY titulo');
+        // Devolver las estaciones actualizadas con sus módulos
+        const { rows } = await client.query(`
+            SELECT 
+                e.*,
+                COALESCE(
+                    JSON_AGG(
+                        JSON_BUILD_OBJECT(
+                            'id', m.modulo_id,
+                            'title', m.modulo_titulo,
+                            'type', m.modulo_tipo
+                        )
+                    ) FILTER (WHERE m.modulo_id IS NOT NULL),
+                    '[]'::json
+                ) as modules
+            FROM estaciones_meteorologicas e
+            LEFT JOIN estaciones_modulos m ON e.codigo = m.estacion_codigo
+            GROUP BY e.id, e.codigo, e.titulo, e.latitud, e.longitud, e.datos_json, e.fecha_actualizacion
+            ORDER BY e.titulo
+        `);
         
-        // Procesar los resultados para normalizar propiedades
         const processedRows = rows.map(row => {
-            try {
-                const datos = typeof row.datos_json === 'string' 
-                    ? JSON.parse(row.datos_json) 
-                    : row.datos_json;
-                
-                return {
-                    ...row,
-                    code: row.codigo || '',
-                    title: row.titulo || '',
-                    latitude: row.latitud || datos?.latitude || null,
-                    longitude: row.longitud || datos?.longitude || null,
-                    modules: datos?.modules || []
-                };
-            } catch (error) {
-                console.error('Error al procesar datos JSON de estación:', error);
-                return {
-                    ...row,
-                    code: row.codigo || '',
-                    title: row.titulo || '',
-                    latitude: row.latitud || null,
-                    longitude: row.longitud || null,
-                    modules: []
-                };
-            }
+            return {
+                ...row,
+                code: row.codigo,
+                title: row.titulo,
+                latitude: row.latitud,
+                longitude: row.longitud,
+                modules: row.modules || []
+            };
         });
         
         res.json(processedRows);
@@ -140,6 +160,7 @@ router.post('/refresh', verifyToken, async (req, res) => {
         client.release();
     }
 });
+
 
 // Obtener datos específicos de una estación
 router.get('/:codigo', verifyToken, async (req, res) => {
@@ -167,6 +188,66 @@ router.get('/:codigo', verifyToken, async (req, res) => {
         res.json(estacion);
     } catch (err) {
         console.error('Error al obtener estación:', err);
+        res.status(500).json({ error: 'Error del servidor' });
+    }
+});
+
+//Obtener estaciones que tienen un tipo de módulo específico
+router.get('/por-tipo-modulo/:tipo', verifyToken, async (req, res) => {
+    try {
+        const tipoModulo = req.params.tipo;
+        
+        const { rows } = await pool.query(`
+            SELECT DISTINCT
+                e.*,
+                COALESCE(
+                    JSON_AGG(
+                        JSON_BUILD_OBJECT(
+                            'id', m.modulo_id,
+                            'title', m.modulo_titulo,
+                            'type', m.modulo_tipo
+                        )
+                    ) FILTER (WHERE m.modulo_id IS NOT NULL),
+                    '[]'::json
+                ) as modules
+            FROM estaciones_meteorologicas e
+            INNER JOIN estaciones_modulos m ON e.codigo = m.estacion_codigo
+            WHERE m.modulo_tipo ILIKE $1
+            GROUP BY e.id, e.codigo, e.titulo, e.latitud, e.longitud, e.datos_json, e.fecha_actualizacion
+            ORDER BY e.titulo
+        `, [`%${tipoModulo}%`]);
+        
+        const processedEstaciones = rows.map(estacion => {
+            return {
+                ...estacion,
+                code: estacion.codigo,
+                title: estacion.titulo,
+                latitude: estacion.latitud,
+                longitude: estacion.longitud,
+                modules: estacion.modules || []
+            };
+        });
+        
+        res.json(processedEstaciones);
+    } catch (err) {
+        console.error('Error al obtener estaciones por tipo de módulo:', err);
+        res.status(500).json({ error: 'Error del servidor' });
+    }
+});
+
+// Obtener los tipos de módulos disponibles
+router.get('/tipos-modulos', verifyToken, async (req, res) => {
+    try {
+        const { rows } = await pool.query(`
+            SELECT DISTINCT modulo_tipo, COUNT(*) as cantidad_estaciones
+            FROM estaciones_modulos 
+            GROUP BY modulo_tipo 
+            ORDER BY modulo_tipo
+        `);
+        
+        res.json(rows);
+    } catch (err) {
+        console.error('Error al obtener tipos de módulos:', err);
         res.status(500).json({ error: 'Error del servidor' });
     }
 });

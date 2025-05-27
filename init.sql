@@ -376,3 +376,19 @@ ADD COLUMN IF NOT EXISTS usuarios_ids BIGINT[];
 UPDATE campos 
 SET usuarios_ids = ARRAY[usuario_id]
 WHERE usuario_id IS NOT NULL AND (usuarios_ids IS NULL OR array_length(usuarios_ids, 1) IS NULL);
+
+-- Tabla para los módulos de las estaciones meteorológicas
+CREATE TABLE IF NOT EXISTS estaciones_modulos (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    estacion_codigo TEXT NOT NULL REFERENCES estaciones_meteorologicas(codigo) ON DELETE CASCADE,
+    modulo_id INTEGER NOT NULL,
+    modulo_titulo TEXT NOT NULL,
+    modulo_tipo TEXT NOT NULL,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(estacion_codigo, modulo_id)
+);
+
+-- Índices para mejorar el rendimiento
+CREATE INDEX IF NOT EXISTS idx_estaciones_modulos_codigo ON estaciones_modulos(estacion_codigo);
+CREATE INDEX IF NOT EXISTS idx_estaciones_modulos_tipo ON estaciones_modulos(modulo_tipo);
+CREATE INDEX IF NOT EXISTS idx_estaciones_modulos_id ON estaciones_modulos(modulo_id);
