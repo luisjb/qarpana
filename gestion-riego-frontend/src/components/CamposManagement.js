@@ -647,18 +647,28 @@ function CamposManagement() {
                                             }}
                                         >
                                             <Popup>
-                                                <div>
-                                                    <strong>{estacion.title}</strong><br />
-                                                    Código: {estacion.code}<br />
-                                                    <small>Sensores: {getResumenSensores(estacion)}</small><br />
-
-                                                    <Button 
-                                                        variant="contained" 
-                                                        size="small"
+                                                <div style={{ textAlign: 'center', minWidth: '180px' }}>
+                                                    <strong>{estacion.title || estacion.titulo || 'Estación sin nombre'}</strong>
+                                                    <br />
+                                                    <small>Código: {estacionCode}</small>
+                                                    <br />
+                                                    <div style={{ margin: '8px 0', fontSize: '12px' }}>
+                                                        <strong>Sensores:</strong> {getResumenSensores(estacion)}
+                                                    </div>
+                                                    <button
                                                         onClick={() => handleSelectEstacion(estacion)}
+                                                        style={{
+                                                            backgroundColor: '#007bff',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            padding: '6px 12px',
+                                                            borderRadius: '4px',
+                                                            cursor: 'pointer',
+                                                            fontSize: '12px'
+                                                        }}
                                                     >
                                                         Seleccionar
-                                                    </Button>
+                                                    </button>
                                                 </div>
                                             </Popup>
                                         </Marker>
