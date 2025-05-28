@@ -89,6 +89,13 @@ function CamposManagement() {
         );
     };
 
+    const tieneModuloEvapotranspiracion = (estacion) => {
+        if (!estacion || !estacion.modules) return false;
+        return estacion.modules.some(modulo =>
+            modulo.type && modulo.type.toLowerCase().includes('evapotranspiración')
+        );
+    };
+
     const obtenerModulosPorTipo = (estacion, tipo) => {
         if (!estacion || !estacion.modules) return [];
         return estacion.modules.filter(modulo => 
@@ -610,7 +617,7 @@ function CamposManagement() {
                                 // Crear diferentes íconos según los sensores disponibles
                                 let markerColor = 'blue'; // Por defecto
                                 
-                                if (tieneModuloTemperatura(estacion) && tieneModuloHumedad(estacion) && tieneModuloLluvia(estacion)) {
+                                if (tieneModuloTemperatura(estacion) && tieneModuloHumedad(estacion) && tieneModuloLluvia(estacion) && tieneModuloEvapotranspiracion(estacion)) {
                                     markerColor = 'green'; // Estación completa
                                 } else if (tieneModuloTemperatura(estacion) && tieneModuloHumedad(estacion)) {
                                     markerColor = 'orange'; // Temperatura y humedad
@@ -643,7 +650,7 @@ function CamposManagement() {
                                 const modulosLluvia = obtenerModulosPorTipo(estacion, 'lluvia');
                                 const modulosViento = obtenerModulosPorTipo(estacion, 'viento');
                                 const modulosPresion = obtenerModulosPorTipo(estacion, 'presión');
-                                const modulosEvapotranspiracion = obtenerModulosPorTipo(estacion, 'evapotranspiracion');
+                                const modulosEvapotranspiracion = obtenerModulosPorTipo(estacion, 'evapotranspiración');
                                 
                                 return (
                                     <Marker 
