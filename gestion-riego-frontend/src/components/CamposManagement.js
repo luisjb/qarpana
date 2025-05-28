@@ -830,3 +830,5 @@ function CamposManagement() {
         </Dialog>
     </Container>
 );  }
+
+export default CamposManagement;
