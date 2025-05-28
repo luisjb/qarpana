@@ -643,6 +643,7 @@ function CamposManagement() {
                                 const modulosLluvia = obtenerModulosPorTipo(estacion, 'lluvia');
                                 const modulosViento = obtenerModulosPorTipo(estacion, 'viento');
                                 const modulosPresion = obtenerModulosPorTipo(estacion, 'presión');
+                                const modulosEvapotranspiracion = obtenerModulosPorTipo(estacion, 'evapotranspiracion');
                                 
                                 return (
                                     <Marker 
@@ -747,6 +748,23 @@ function CamposManagement() {
                                                                 </span>
                                                             </div>
                                                         )}
+                                                        {modulosEvapotranspiracion.length > 0 && (
+                                                            <div style={{ marginBottom: '3px' }}>  
+                                                                <span style={{
+                                                                    backgroundColor: '#8e44ad',
+                                                                    color: 'white',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '3px',
+                                                                    fontSize: '10px',
+                                                                    marginRight: '5px'
+                                                                }}>
+                                                                    🌱 EVAP
+                                                                </span>
+                                                                <span style={{ fontSize: '11px' }}>
+                                                                    ({modulosEvapotranspiracion.length} módulo{modulosEvapotranspiracion.length > 1 ? 's' : ''})
+                                                                </span>
+                                                            </div>
+                                                        )} 
                                                         
                                                         {modulosPresion.length > 0 && (
                                                             <div style={{ marginBottom: '3px' }}>
