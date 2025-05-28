@@ -50,7 +50,7 @@ const Header = () => {
         { text: 'Panel', icon: <DashboardIcon />, link: '/simulations' },
         { text: 'Resumen de Círculos', icon: <WaterDrop />, link: '/resumen-circulos' },
         ...(isDemo ? [] : [
-            { text: 'Campos', icon: <LandscapeIcon />, link: '/campos' },
+            ...(isAdmin ? [{ text: 'Campos', icon: <LandscapeIcon />, link: '/campos' }] : []),
             { text: 'Cambios Diarios', icon: <ChangeCircleIcon />, link: '/cambios-diarios' },
             ...(isAdmin ? [{ text: 'Gestión de Usuarios', icon: <PeopleIcon />, link: '/admin/users' }] : []),
         ]),

@@ -362,9 +362,11 @@ function CambiosDiarios() {
                                     <IconButton onClick={() => handleEdit(cambio)} color="primary">
                                         <Edit />
                                     </IconButton>
-                                    <IconButton onClick={() => handleDelete(cambio.id)} color="error">
-                                        <Delete />
-                                    </IconButton>
+                                     {isAdmin && (
+                                        <IconButton onClick={() => handleDelete(cambio.id)} color="error">
+                                            <Delete />
+                                        </IconButton>
+                                     )}
                                 </TableCell>
                             </TableRow>
                         ))}
