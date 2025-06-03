@@ -1,4 +1,5 @@
 const pool = require('../db');
+const omixomService = require('./omixomService');
 
 
 const sanitizeNumeric = (value) => {
@@ -14,6 +15,8 @@ async function actualizacionDiaria() {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+
+        await consultarEstacionesMeteorologicas(client);
 
         // Obtener todos los lotes activos
         const lotesResult = await client.query('SELECT id, cultivo_id, fecha_siembra FROM lotes WHERE activo = true');
@@ -43,6 +46,8 @@ async function actualizacionDiaria() {
                 
                 // Obtener o crear el registro de cambios_diarios para hoy
                 let cambioDiario = await obtenerOCrearCambioDiario(client, lote.id, hoy, diasDesdeSiembra);
+
+                await aplicarDatosEstacionALote(client, lote.id, hoy, cambioDiario);
 
                 const precipitacionesResult = await client.query(
                     'SELECT precipitaciones FROM cambios_diarios WHERE lote_id = $1 AND fecha_cambio = $2',
@@ -80,12 +85,12 @@ async function actualizacionDiaria() {
                 // Actualizar el registro en la base de datos
                 await actualizarCambioDiario(client, cambioDiario);
 
-                console.log('Lluvia efectiva calculada:', {
+                /*console.log('Lluvia efectiva calculada:', {
                     loteId: lote.id,
                     fecha: hoy,
                     precipitaciones: cambioDiario.precipitaciones,
                     lluviaEfectiva: cambioDiario.lluvia_efectiva
-                });
+                });*/
                 
             } catch (error) {
                 console.error(`Error procesando lote ${lote.id}:`, error);
@@ -115,6 +120,41 @@ async function obtenerOCrearCambioDiario(client, loteId, fecha, dias) {
         return { lote_id: loteId, fecha_cambio: fecha, dias: dias };
     }
 }
+
+async function consultarEstacionesMeteorologicas(client) {
+    try {
+        // Obtener todos los campos que tienen estación asociada
+        const { rows: camposConEstacion } = await client.query(`
+            SELECT DISTINCT c.id, c.estacion_id, c.nombre_campo
+            FROM campos c
+            WHERE c.estacion_id IS NOT NULL 
+            AND c.estacion_id != ''
+        `);
+
+        console.log(`Consultando ${camposConEstacion.length} estaciones meteorológicas...`);
+
+        for (const campo of camposConEstacion) {
+            try {
+                const datosEstacion = await omixomService.obtenerUltimoDatoEstacion(campo.estacion_id);
+                
+                if (datosEstacion && datosEstacion.length > 0) {
+                    // Guardar datos en tabla temporal o directamente en cambios_diarios
+                    await guardarDatosEstacion(client, campo.id, datosEstacion);
+                    console.log(`Datos obtenidos para campo ${campo.nombre_campo} - Estación ${campo.estacion_id}`);
+                } else {
+                    console.log(`No se obtuvieron datos para estación ${campo.estacion_id}`);
+                }
+            } catch (error) {
+                console.error(`Error consultando estación ${campo.estacion_id}:`, error);
+                // Continuar con la siguiente estación
+            }
+        }
+    } catch (error) {
+        console.error('Error en consultarEstacionesMeteorologicas:', error);
+        // No lanzar error para que continue la actualización diaria
+    }
+}
+
 
 async function actualizarCrecimientoRadicular(client, lote, diasDesdeSiembra, cambioDiario) {
     if (diasDesdeSiembra > 6) {
@@ -266,6 +306,90 @@ async function obtenerAguaUtilInicialEstrato(client, loteId, estrato) {
     return result.rows.length > 0 ? result.rows[0].valor : 0;
 }
 
+async function guardarDatosEstacion(client, campoId, datosEstacion) {
+    try {
+        // Crear una tabla temporal para datos de estaciones si no existe
+        await client.query(`
+            CREATE TEMP TABLE IF NOT EXISTS temp_datos_estacion (
+                campo_id BIGINT,
+                fecha DATE,
+                evapotranspiracion NUMERIC,
+                temperatura NUMERIC,
+                humedad NUMERIC,
+                precipitaciones NUMERIC,
+                PRIMARY KEY (campo_id, fecha)
+            ) ON COMMIT DELETE ROWS
+        `);
+
+        // Insertar cada dato de la estación
+        for (const dato of datosEstacion) {
+            await client.query(`
+                INSERT INTO temp_datos_estacion 
+                (campo_id, fecha, evapotranspiracion, temperatura, humedad, precipitaciones)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (campo_id, fecha) 
+                DO UPDATE SET
+                    evapotranspiracion = EXCLUDED.evapotranspiracion,
+                    temperatura = EXCLUDED.temperatura,
+                    humedad = EXCLUDED.humedad,
+                    precipitaciones = EXCLUDED.precipitaciones
+            `, [
+                campoId,
+                dato.fecha,
+                dato.evapotranspiracion,
+                dato.temperatura,
+                dato.humedad,
+                dato.precipitaciones
+            ]);
+        }
+    } catch (error) {
+        console.error('Error guardando datos de estación:', error);
+    }
+}
+
+async function aplicarDatosEstacionALote(client, loteId, fecha, cambioDiario) {
+    try {
+        // Obtener el campo del lote y verificar si hay datos de estación
+        const { rows: datosEstacion } = await client.query(`
+            SELECT tde.evapotranspiracion, tde.temperatura, tde.humedad, tde.precipitaciones
+            FROM temp_datos_estacion tde
+            JOIN lotes l ON l.campo_id = tde.campo_id
+            WHERE l.id = $1 AND tde.fecha = $2
+        `, [loteId, fecha.toISOString().split('T')[0]]);
+
+        if (datosEstacion.length > 0) {
+            const datos = datosEstacion[0];
+            
+            // Aplicar datos de la estación al cambio diario
+            if (datos.evapotranspiracion !== null) {
+                cambioDiario.evapotranspiracion = parseFloat(datos.evapotranspiracion);
+            }
+            
+            if (datos.temperatura !== null) {
+                cambioDiario.temperatura = parseFloat(datos.temperatura);
+            }
+            
+            if (datos.humedad !== null) {
+                cambioDiario.humedad = parseFloat(datos.humedad);
+            }
+            
+            if (datos.precipitaciones !== null) {
+                cambioDiario.precipitaciones = parseFloat(datos.precipitaciones);
+            }
+
+            console.log(`Datos de estación aplicados al lote ${loteId}:`, {
+                evapotranspiracion: cambioDiario.evapotranspiracion,
+                temperatura: cambioDiario.temperatura,
+                humedad: cambioDiario.humedad,
+                precipitaciones: cambioDiario.precipitaciones
+            });
+        }
+    } catch (error) {
+        console.error(`Error aplicando datos de estación al lote ${loteId}:`, error);
+        // No lanzar error para que continue el procesamiento
+    }
+}
+
 async function actualizarCambioDiario(client, cambioDiario) {
     const {
         lote_id,
@@ -276,7 +400,11 @@ async function actualizarCambioDiario(client, cambioDiario) {
         capacidad_extraccion,
         lluvia_efectiva,
         agua_util_diaria,
-        estrato_alcanzado
+        estrato_alcanzado,
+        evapotranspiracion,
+        temperatura,
+        humedad,
+        precipitaciones
     } = cambioDiario;
 
     // Asegurar que todos los valores estén sanitizados
@@ -289,10 +417,14 @@ async function actualizarCambioDiario(client, cambioDiario) {
         sanitizeNumeric(capacidad_extraccion),
         sanitizeNumeric(lluvia_efectiva),
         sanitizeNumeric(agua_util_diaria),
-        sanitizeNumeric(estrato_alcanzado)
+        sanitizeNumeric(estrato_alcanzado),
+        sanitizeNumeric(evapotranspiracion),
+        sanitizeNumeric(temperatura),
+        sanitizeNumeric(humedad),
+        sanitizeNumeric(precipitaciones)
     ];
 
-    const query = `
+   const query = `
         INSERT INTO cambios_diarios (
             lote_id,
             fecha_cambio,
@@ -302,9 +434,13 @@ async function actualizarCambioDiario(client, cambioDiario) {
             capacidad_extraccion,
             lluvia_efectiva,
             agua_util_diaria,
-            estrato_alcanzado
+            estrato_alcanzado,
+            evapotranspiracion,
+            temperatura,
+            humedad,
+            precipitaciones
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         ON CONFLICT (lote_id, fecha_cambio)
         DO UPDATE SET
             dias = EXCLUDED.dias,
@@ -313,9 +449,13 @@ async function actualizarCambioDiario(client, cambioDiario) {
             capacidad_extraccion = EXCLUDED.capacidad_extraccion,
             lluvia_efectiva = EXCLUDED.lluvia_efectiva,
             agua_util_diaria = EXCLUDED.agua_util_diaria,
-            estrato_alcanzado = EXCLUDED.estrato_alcanzado
+            estrato_alcanzado = EXCLUDED.estrato_alcanzado,
+            evapotranspiracion = COALESCE(EXCLUDED.evapotranspiracion, cambios_diarios.evapotranspiracion),
+            temperatura = COALESCE(EXCLUDED.temperatura, cambios_diarios.temperatura),
+            humedad = COALESCE(EXCLUDED.humedad, cambios_diarios.humedad),
+            precipitaciones = COALESCE(EXCLUDED.precipitaciones, cambios_diarios.precipitaciones)
     `;
-
+    
     try {
         await client.query(query, valoresParaInsertar);
     } catch (error) {
