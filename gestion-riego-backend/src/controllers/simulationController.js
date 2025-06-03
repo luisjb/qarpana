@@ -191,7 +191,7 @@ exports.getSimulationData = async (req, res) => {
                 diasEfectivos * parseFloat(indice_crecimiento_radicular),
                 numEstratos * PROFUNDIDAD_POR_ESTRATO // máximo total
             );
-            console.log('Profundidad de raíces:', profundidadRaices, 'cm', indice_crecimiento_radicular, 'diasEfectivos:', diasEfectivos, 'dia:', dia);
+            //console.log('Profundidad de raíces:', profundidadRaices, 'cm', indice_crecimiento_radicular, 'diasEfectivos:', diasEfectivos, 'dia:', dia);
             // Calculamos cuántos estratos están disponibles (cambio cada PROFUNDIDAD_POR_ESTRATO cm)
             const estratosDisponibles = Math.max(1, Math.min(
                 Math.floor(profundidadRaices / PROFUNDIDAD_POR_ESTRATO) + 1,
@@ -505,7 +505,7 @@ exports.getSimulationData = async (req, res) => {
 
 async function getEstadoFenologico(loteId, diasDesdeSiembra) {
     try {
-        console.log(`Calculando estado fenológico para lote ${loteId}, días desde siembra: ${diasDesdeSiembra}`);
+        //console.log(`Calculando estado fenológico para lote ${loteId}, días desde siembra: ${diasDesdeSiembra}`);
         
         // Obtener todos los estados fenológicos ordenados por días
         const result = await pool.query(`
@@ -775,7 +775,7 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
             // Calcular profundidad de raíces y estratos disponibles
             const profundidadRaiz = diasAcumulados * indiceCrecimientoRadicular;
             const nuevoEstrato = calcularEstrato(profundidadRaiz);
-            console.log('Profundidad de raíces:', profundidadRaiz, 'dias acumulados:', diasAcumulados, 'indice de crecimiento radicular:', indiceCrecimientoRadicular);
+            //console.log('Profundidad de raíces:', profundidadRaiz, 'dias acumulados:', diasAcumulados, 'indice de crecimiento radicular:', indiceCrecimientoRadicular);
             // Calcular capacidad de extracción basada en el agua útil actual
             const capacidadExtraccion = (aguaUtilZonaRadicular * parseFloat(ultimoCambio.capacidad_extraccion || 5)) / 100;
             
