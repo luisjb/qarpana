@@ -39,34 +39,36 @@ router.get('/', verifyToken, async (req, res) => {
         console.log('User data from token:', req.user);
 
         if (req.user.role?.toLowerCase() === 'admin') {
-            // Consulta mejorada para administradores
+            // Consulta mejorada para administradores con mejor manejo de la unión
             query = `
                 SELECT 
                     c.*,
                     u.nombre_usuario,
-                    e.titulo AS estacion_titulo
+                    e.titulo AS estacion_titulo,
+                    e.codigo AS estacion_codigo_verificado
                 FROM 
                     campos c
                 LEFT JOIN 
                     usuarios u ON c.usuario_id = u.id
                 LEFT JOIN 
-                    estaciones_meteorologicas e ON c.estacion_id = e.codigo
+                    estaciones_meteorologicas e ON TRIM(CAST(c.estacion_id AS TEXT)) = TRIM(CAST(e.codigo AS TEXT))
                 ORDER BY 
                     c.nombre_campo
             `;
         } else {
-            // Consulta para usuarios normales
+            // Consulta para usuarios normales con mejor manejo de la unión
             query = `
                 SELECT 
                     c.*,
                     u.nombre_usuario,
-                    e.titulo AS estacion_titulo
+                    e.titulo AS estacion_titulo,
+                    e.codigo AS estacion_codigo_verificado
                 FROM 
                     campos c
                 LEFT JOIN 
                     usuarios u ON c.usuario_id = u.id
                 LEFT JOIN 
-                    estaciones_meteorologicas e ON c.estacion_id = e.codigo
+                    estaciones_meteorologicas e ON TRIM(CAST(c.estacion_id AS TEXT)) = TRIM(CAST(e.codigo AS TEXT))
                 WHERE 
                     c.usuario_id = $1
                 ORDER BY 
@@ -79,6 +81,13 @@ router.get('/', verifyToken, async (req, res) => {
         const { rows } = await client.query(query, values);
         
         console.log('Campos encontrados:', rows.length);
+        console.log('Datos de campos con estaciones:', rows.map(r => ({
+            id: r.id,
+            nombre: r.nombre_campo,
+            estacion_id: r.estacion_id,
+            estacion_titulo: r.estacion_titulo,
+            estacion_codigo_verificado: r.estacion_codigo_verificado
+        })));
         
         // Procesa los resultados para garantizar la consistencia
         const processed = rows.map(row => ({
@@ -123,14 +132,28 @@ router.post('/', verifyToken, async (req, res) => {
             ? usuarios_ids[0] 
             : null;
         
+        // Limpiar y validar estacion_id
+        const estacion_id_limpio = estacion_id ? String(estacion_id).trim() : null;
+        
+        console.log('Estación ID limpio a guardar:', estacion_id_limpio);
+        
         // Insertar el campo
         const { rows } = await pool.query(
             'INSERT INTO campos (usuario_id, nombre_campo, ubicacion, estacion_id) VALUES ($1, $2, $3, $4) RETURNING *',
-            [usuario_id, nombre_campo, ubicacion, estacion_id]
+            [usuario_id, nombre_campo, ubicacion, estacion_id_limpio]
         );
         
         // Log del resultado
         console.log('Campo creado:', rows[0]);
+        
+        // Verificar si la estación existe
+        if (estacion_id_limpio) {
+            const estacionCheck = await pool.query(
+                'SELECT codigo, titulo FROM estaciones_meteorologicas WHERE TRIM(codigo) = $1',
+                [estacion_id_limpio]
+            );
+            console.log('Verificación de estación:', estacionCheck.rows);
+        }
         
         // Añadir datos de usuario para la respuesta
         const userResult = await pool.query(
@@ -164,10 +187,24 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
             ? usuarios_ids[0] 
             : null;
         
+        // Limpiar y validar estacion_id
+        const estacion_id_limpio = estacion_id ? String(estacion_id).trim() : null;
+        
+        console.log('Estación ID limpio a actualizar:', estacion_id_limpio);
+        
+        // Verificar si la estación existe antes de actualizar
+        if (estacion_id_limpio) {
+            const estacionCheck = await pool.query(
+                'SELECT codigo, titulo FROM estaciones_meteorologicas WHERE TRIM(codigo) = $1',
+                [estacion_id_limpio]
+            );
+            console.log('Verificación de estación antes de actualizar:', estacionCheck.rows);
+        }
+        
         // Actualizar el campo
         const { rows } = await pool.query(
             'UPDATE campos SET nombre_campo = $1, ubicacion = $2, usuario_id = $3, estacion_id = $4 WHERE id = $5 RETURNING *',
-            [nombre_campo, ubicacion, usuario_id, estacion_id, id]
+            [nombre_campo, ubicacion, usuario_id, estacion_id_limpio, id]
         );
         
         if (rows.length === 0) {
@@ -176,6 +213,19 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
         
         // Log del resultado
         console.log('Campo actualizado:', rows[0]);
+        
+        // Verificar la asociación después de actualizar
+        const verificacion = await pool.query(`
+            SELECT 
+                c.*,
+                e.titulo as estacion_titulo,
+                e.codigo as estacion_codigo
+            FROM campos c
+            LEFT JOIN estaciones_meteorologicas e ON TRIM(CAST(c.estacion_id AS TEXT)) = TRIM(CAST(e.codigo AS TEXT))
+            WHERE c.id = $1
+        `, [id]);
+        
+        console.log('Verificación después de actualizar:', verificacion.rows[0]);
         
         // Añadir datos de usuario para la respuesta
         const userResult = await pool.query(
@@ -186,7 +236,8 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
         const campoWithUsers = {
             ...rows[0],
             usuarios_ids: usuario_id ? [usuario_id] : [],
-            usuarios_nombres: userResult.rows.length > 0 ? userResult.rows[0].nombre_usuario : ''
+            usuarios_nombres: userResult.rows.length > 0 ? userResult.rows[0].nombre_usuario : '',
+            estacion_titulo: verificacion.rows[0]?.estacion_titulo || null
         };
         
         res.json(campoWithUsers);

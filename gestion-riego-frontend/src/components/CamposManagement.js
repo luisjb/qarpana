@@ -125,12 +125,47 @@ function CamposManagement() {
 
     const findEstacionAsociada = (campo) => {
         if (!campo || !campo.estacion_id || !estaciones || estaciones.length === 0) {
+            console.log('Sin datos para buscar estación:', { 
+                campo: !!campo, 
+                estacion_id: campo?.estacion_id, 
+                estaciones_length: estaciones?.length 
+            });
             return null;
         }
         
-        const estacionId = String(campo.estacion_id);
-        return estaciones.find(est => est && 
-            (String(est.code || '') === estacionId || String(est.codigo || '') === estacionId));
+        const estacionId = String(campo.estacion_id).trim();
+        console.log('Buscando estación con ID:', estacionId);
+        
+        const estacionEncontrada = estaciones.find(est => {
+            if (!est) return false;
+            
+            const estCode = String(est.code || '').trim();
+            const estCodigo = String(est.codigo || '').trim();
+            
+            const coincide = estCode === estacionId || estCodigo === estacionId;
+            
+            if (coincide) {
+                console.log('Estación encontrada:', { 
+                    titulo: est.title || est.titulo,
+                    code: estCode,
+                    codigo: estCodigo,
+                    buscado: estacionId 
+                });
+            }
+            
+            return coincide;
+        });
+        
+        if (!estacionEncontrada) {
+            console.log('No se encontró estación para ID:', estacionId);
+            console.log('Estaciones disponibles:', estaciones.map(e => ({
+                title: e.title || e.titulo,
+                code: e.code,
+                codigo: e.codigo
+            })));
+        }
+        
+        return estacionEncontrada;
     };
 
     const getUsersNamesForCampo = (campo) => {
@@ -271,12 +306,25 @@ function CamposManagement() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            const dataToSend = editingCampo ? { ...editingCampo } : { ...nuevoCampo };
+            
+            // Asegurar que estacion_id sea una cadena limpia
+            if (dataToSend.estacion_id) {
+                dataToSend.estacion_id = String(dataToSend.estacion_id).trim();
+            }
+            
+            console.log('Datos a enviar:', dataToSend);
+            
             let response;
             if (editingCampo) {
-                response = await axios.put(`/campos/${editingCampo.id}`, editingCampo);
+                console.log('Actualizando campo ID:', editingCampo.id);
+                response = await axios.put(`/campos/${editingCampo.id}`, dataToSend);
             } else {
-                response = await axios.post('/campos', nuevoCampo);
+                console.log('Creando nuevo campo');
+                response = await axios.post('/campos', dataToSend);
             }
+            
+            console.log('Respuesta del servidor:', response.data);
             
             if (editingCampo) {
                 setCampos(prevCampos => 
@@ -288,6 +336,7 @@ function CamposManagement() {
                 setCampos(prevCampos => [...prevCampos, response.data]);
             }
             
+            // Refrescar los campos para obtener los datos actualizados
             await fetchCampos();
             
             setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
@@ -295,6 +344,9 @@ function CamposManagement() {
             setOpenDialog(false);
         } catch (error) {
             console.error('Error al guardar campo:', error);
+            if (error.response) {
+                console.error('Detalles del error:', error.response.data);
+            }
         }
     };
 
@@ -320,17 +372,27 @@ function CamposManagement() {
     };
 
     const handleSelectEstacion = (estacion) => {
+        console.log('Seleccionando estación:', estacion);
+        
+        // Obtener el código de la estación de manera más robusta
+        const estacionCode = estacion.code || estacion.codigo || '';
+        const estacionCodeString = String(estacionCode).trim();
+        
+        console.log('Código de estación procesado:', estacionCodeString);
+        
         setSelectedEstacion(estacion);
         
         if (editingCampo) {
+            console.log('Actualizando campo en edición con estación:', estacionCodeString);
             setEditingCampo(prev => ({
                 ...prev,
-                estacion_id: String(estacion.code)
+                estacion_id: estacionCodeString
             }));
         } else {
+            console.log('Actualizando nuevo campo con estación:', estacionCodeString);
             setNuevoCampo(prev => ({
                 ...prev,
-                estacion_id: String(estacion.code)
+                estacion_id: estacionCodeString
             }));
         }
         
