@@ -39,7 +39,7 @@ router.get('/', verifyToken, async (req, res) => {
         console.log('User data from token:', req.user);
 
         if (req.user.role?.toLowerCase() === 'admin') {
-            // Consulta mejorada para administradores con mejor manejo de la unión
+            // Consulta mejorada para administradores
             query = `
                 SELECT 
                     c.*,
@@ -56,7 +56,7 @@ router.get('/', verifyToken, async (req, res) => {
                     c.nombre_campo
             `;
         } else {
-            // Consulta para usuarios normales con mejor manejo de la unión
+            // Consulta para usuarios normales
             query = `
                 SELECT 
                     c.*,
@@ -84,7 +84,8 @@ router.get('/', verifyToken, async (req, res) => {
         console.log('Datos de campos con estaciones:', rows.map(r => ({
             id: r.id,
             nombre: r.nombre_campo,
-            estacion_id: r.estacion_id,
+            usuario_id: r.usuario_id,        // ← AGREGAR ESTE LOG
+            estacion_id: r.estacion_id,      // ← AGREGAR ESTE LOG
             estacion_titulo: r.estacion_titulo,
             estacion_codigo_verificado: r.estacion_codigo_verificado
         })));
@@ -96,6 +97,14 @@ router.get('/', verifyToken, async (req, res) => {
             estacion_id: row.estacion_id || '',
             estacion_titulo: row.estacion_titulo || null
         }));
+        
+        console.log('Campos procesados:', processed.map(p => ({
+            id: p.id,
+            nombre: p.nombre_campo,
+            usuario_id: p.usuario_id,        // ← AGREGAR ESTE LOG
+            usuarios_ids: p.usuarios_ids,    // ← AGREGAR ESTE LOG
+            estacion_id: p.estacion_id       // ← AGREGAR ESTE LOG
+        })));
         
         res.json(processed);
     } catch (err) {
