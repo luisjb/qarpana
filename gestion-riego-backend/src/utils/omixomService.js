@@ -64,6 +64,7 @@ class OmixomService {
             // Buscar módulos relacionados con evapotranspiración
             const modulosEvapotranspiracion = modules.filter(modulo => 
                 modulo.type && (
+                    modulo.type.toLowerCase().includes('evapotranspiración') ||
                     modulo.type.toLowerCase().includes('evapotranspiracion') ||
                     modulo.type.toLowerCase().includes('evapotranspiration') ||
                     modulo.type.toLowerCase().includes('etp') ||
