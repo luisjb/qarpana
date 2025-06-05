@@ -434,7 +434,17 @@ function CamposManagement() {
         loadInitialData();
         checkAdminStatus();
     }, []);
+    useEffect(() => {
+        console.log('Estado editingCampo actualizado:', editingCampo);
+    }, [editingCampo]);
 
+    useEffect(() => {
+        console.log('Estado usuarios actualizado:', usuarios);
+    }, [usuarios]);
+
+    useEffect(() => {
+        console.log('Estado estaciones actualizado:', estaciones);
+    }, [estaciones]);
     return (
     <Container maxWidth="md">
         <Typography variant="h4" gutterBottom>Gestión de Campos</Typography>
@@ -442,7 +452,12 @@ function CamposManagement() {
         {/* Botones de acción */}
         <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
             {isAdmin && (
-                <Button variant="contained" color="primary" onClick={() => setOpenDialog(true)}>
+                <Button variant="contained" color="primary" onClick={() => {
+                    console.log('Abriendo diálogo para nuevo campo');
+                    setEditingCampo(null);
+                    setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
+                    setOpenDialog(true);
+                }}>
                     Agregar Nuevo Campo
                 </Button>
             )}  
@@ -623,6 +638,9 @@ function CamposManagement() {
                     </Box>
                 </form>
             </DialogContent>
+            <DialogActions>
+                <Button onClick={handleCloseDialog}>Cancelar</Button>
+            </DialogActions>
         </Dialog>
 
         {/* Diálogo para confirmar eliminación */}
