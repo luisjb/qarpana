@@ -205,6 +205,18 @@ function CamposManagement() {
             const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
             const response = await axios.get(endpoint);
             
+            console.log('=== RESPUESTA COMPLETA DEL BACKEND ===');
+            console.log('Response data:', response.data);
+            response.data.forEach(campo => {
+                console.log(`Campo ${campo.id}:`, {
+                    nombre: campo.nombre_campo,
+                    usuario_id: campo.usuario_id,
+                    estacion_id: campo.estacion_id,
+                    usuarios_ids: campo.usuarios_ids
+                });
+            });
+            console.log('=====================================');
+            
             const camposProcesados = response.data.map(campo => {
                 return {
                     ...campo,
@@ -216,7 +228,6 @@ function CamposManagement() {
             setIsLoadingCampos(false);
         } catch (error) {
             console.error('Error al obtener campos:', error);
-            
             setIsLoadingCampos(false);
         }
     };

@@ -39,10 +39,13 @@ router.get('/', verifyToken, async (req, res) => {
         console.log('User data from token:', req.user);
 
         if (req.user.role?.toLowerCase() === 'admin') {
-            // Consulta mejorada para administradores
             query = `
                 SELECT 
-                    c.*,
+                    c.id,
+                    c.nombre_campo,
+                    c.ubicacion,
+                    c.usuario_id,
+                    c.estacion_id,
                     u.nombre_usuario,
                     e.titulo AS estacion_titulo,
                     e.codigo AS estacion_codigo_verificado
@@ -56,10 +59,13 @@ router.get('/', verifyToken, async (req, res) => {
                     c.nombre_campo
             `;
         } else {
-            // Consulta para usuarios normales
             query = `
                 SELECT 
-                    c.*,
+                    c.id,
+                    c.nombre_campo,
+                    c.ubicacion,
+                    c.usuario_id,
+                    c.estacion_id,
                     u.nombre_usuario,
                     e.titulo AS estacion_titulo,
                     e.codigo AS estacion_codigo_verificado
@@ -77,34 +83,43 @@ router.get('/', verifyToken, async (req, res) => {
             values = [req.user.userId];
         }
 
-        console.log('Query:', query);
+        console.log('Query SQL:', query);
         const { rows } = await client.query(query, values);
         
-        console.log('Campos encontrados:', rows.length);
-        console.log('Datos de campos con estaciones:', rows.map(r => ({
-            id: r.id,
-            nombre: r.nombre_campo,
-            usuario_id: r.usuario_id,        // ← AGREGAR ESTE LOG
-            estacion_id: r.estacion_id,      // ← AGREGAR ESTE LOG
-            estacion_titulo: r.estacion_titulo,
-            estacion_codigo_verificado: r.estacion_codigo_verificado
-        })));
+        console.log('=== DATOS BRUTOS DE LA DB ===');
+        rows.forEach(row => {
+            console.log(`Campo ID ${row.id}:`, {
+                nombre: row.nombre_campo,
+                usuario_id: row.usuario_id,
+                estacion_id: row.estacion_id,
+                estacion_titulo: row.estacion_titulo
+            });
+        });
+        console.log('==============================');
         
-        // Procesa los resultados para garantizar la consistencia
+        // Procesa los resultados
         const processed = rows.map(row => ({
-            ...row,
-            usuarios_ids: row.usuario_id ? [row.usuario_id] : [],
-            estacion_id: row.estacion_id || '',
-            estacion_titulo: row.estacion_titulo || null
+            id: row.id,
+            nombre_campo: row.nombre_campo,
+            ubicacion: row.ubicacion,
+            usuario_id: row.usuario_id,
+            estacion_id: row.estacion_id || '',  // Asegurar que no sea null
+            nombre_usuario: row.nombre_usuario,
+            estacion_titulo: row.estacion_titulo,
+            usuarios_ids: row.usuario_id ? [row.usuario_id] : []
         }));
         
-        console.log('Campos procesados:', processed.map(p => ({
-            id: p.id,
-            nombre: p.nombre_campo,
-            usuario_id: p.usuario_id,        // ← AGREGAR ESTE LOG
-            usuarios_ids: p.usuarios_ids,    // ← AGREGAR ESTE LOG
-            estacion_id: p.estacion_id       // ← AGREGAR ESTE LOG
-        })));
+        console.log('=== DATOS PROCESADOS ===');
+        processed.forEach(proc => {
+            console.log(`Campo ID ${proc.id}:`, {
+                nombre: proc.nombre_campo,
+                usuario_id: proc.usuario_id,
+                usuarios_ids: proc.usuarios_ids,
+                estacion_id: proc.estacion_id,
+                estacion_titulo: proc.estacion_titulo
+            });
+        });
+        console.log('========================');
         
         res.json(processed);
     } catch (err) {
