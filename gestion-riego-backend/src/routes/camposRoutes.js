@@ -36,19 +36,22 @@ router.get('/', verifyToken, async (req, res) => {
         let query;
         let values = [];
 
+        console.log('=== INICIO GET CAMPOS ===');
         console.log('User data from token:', req.user);
 
         if (req.user.role?.toLowerCase() === 'admin') {
+            // Consulta para administradores - EXPLÍCITAMENTE seleccionar todas las columnas
             query = `
                 SELECT 
                     c.id,
+                    c.usuario_id,
                     c.nombre_campo,
                     c.ubicacion,
-                    c.usuario_id,
                     c.estacion_id,
+                    c.usuarios_ids,
                     u.nombre_usuario,
                     e.titulo AS estacion_titulo,
-                    e.codigo AS estacion_codigo_verificado
+                    e.codigo AS estacion_codigo
                 FROM 
                     campos c
                 LEFT JOIN 
@@ -59,16 +62,18 @@ router.get('/', verifyToken, async (req, res) => {
                     c.nombre_campo
             `;
         } else {
+            // Consulta para usuarios normales - EXPLÍCITAMENTE seleccionar todas las columnas
             query = `
                 SELECT 
                     c.id,
+                    c.usuario_id,
                     c.nombre_campo,
                     c.ubicacion,
-                    c.usuario_id,
                     c.estacion_id,
+                    c.usuarios_ids,
                     u.nombre_usuario,
                     e.titulo AS estacion_titulo,
-                    e.codigo AS estacion_codigo_verificado
+                    e.codigo AS estacion_codigo
                 FROM 
                     campos c
                 LEFT JOIN 
@@ -84,51 +89,52 @@ router.get('/', verifyToken, async (req, res) => {
         }
 
         console.log('Query SQL:', query);
+        console.log('Values:', values);
+        
         const { rows } = await client.query(query, values);
         
         console.log('=== DATOS BRUTOS DE LA DB ===');
+        console.log('Cantidad de campos encontrados:', rows.length);
+        
+        // Log específico para cada campo
         rows.forEach(row => {
-            console.log(`Campo ID ${row.id}:`, {
-                nombre: row.nombre_campo,
-                usuario_id: row.usuario_id,
-                estacion_id: row.estacion_id,
-                estacion_titulo: row.estacion_titulo
-            });
+            console.log(`\nCampo ID ${row.id} - ${row.nombre_campo}:`);
+            console.log('  - usuario_id:', row.usuario_id);
+            console.log('  - estacion_id:', row.estacion_id);
+            console.log('  - usuarios_ids:', row.usuarios_ids);
+            console.log('  - estacion_titulo:', row.estacion_titulo);
         });
         console.log('==============================');
-        console.log('=== CONSULTA CAMPOS GET ===');
-        console.log('Cantidad de campos encontrados:', rows.length);
-        console.log('Campo ID 8 raw:', rows.find(r => r.id === '8' || r.id === 8));
-        console.log('===========================');
         
-        // Procesa los resultados
-        const processed = rows.map(row => ({
-            id: row.id,
-            nombre_campo: row.nombre_campo,
-            ubicacion: row.ubicacion,
-            usuario_id: row.usuario_id,
-            estacion_id: row.estacion_id || '',  // Asegurar que no sea null
-            nombre_usuario: row.nombre_usuario,
-            estacion_titulo: row.estacion_titulo,
-            usuarios_ids: row.usuario_id ? [row.usuario_id] : []
-        }));
-        
-        console.log('=== DATOS PROCESADOS ===');
-        processed.forEach(proc => {
-            console.log(`Campo ID ${proc.id}:`, {
-                nombre: proc.nombre_campo,
-                usuario_id: proc.usuario_id,
-                usuarios_ids: proc.usuarios_ids,
-                estacion_id: proc.estacion_id,
-                estacion_titulo: proc.estacion_titulo
-            });
+        // Procesar los resultados asegurando que todos los campos estén presentes
+        const processed = rows.map(row => {
+            const campo = {
+                id: row.id,
+                usuario_id: row.usuario_id,
+                nombre_campo: row.nombre_campo,
+                ubicacion: row.ubicacion,
+                estacion_id: row.estacion_id || '',
+                usuarios_ids: row.usuarios_ids || (row.usuario_id ? [row.usuario_id] : []),
+                nombre_usuario: row.nombre_usuario,
+                estacion_titulo: row.estacion_titulo
+            };
+            
+            console.log(`\nCampo procesado ID ${campo.id}:`);
+            console.log('  - usuario_id:', campo.usuario_id);
+            console.log('  - estacion_id:', campo.estacion_id);
+            console.log('  - usuarios_ids:', campo.usuarios_ids);
+            
+            return campo;
         });
-        console.log('========================');
+        
+        console.log('=== DATOS FINALES A ENVIAR ===');
+        console.log('Campos procesados:', processed.length);
+        console.log('================================');
         
         res.json(processed);
     } catch (err) {
         console.error('Error al obtener campos:', err);
-        res.status(500).json({ error: 'Error del servidor' });
+        res.status(500).json({ error: 'Error del servidor', details: err.message });
     } finally {
         client.release();
     }

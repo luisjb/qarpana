@@ -203,28 +203,31 @@ function CamposManagement() {
             setIsLoadingCampos(true);
             const userRole = localStorage.getItem('role');
             const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
+            
             console.log('=== FETCHING CAMPOS ===');
             console.log('Endpoint:', endpoint);
             console.log('User role:', userRole);
             
             const response = await axios.get(endpoint);
             
-            console.log('=== RESPUESTA COMPLETA DEL BACKEND ===');
-            console.log('Response.data completo:', response.data);
+            console.log('=== RESPUESTA DEL BACKEND ===');
+            console.log('Response status:', response.status);
+            console.log('Response data length:', response.data.length);
             
-            // Buscar específicamente el campo con ID 8
-            const campoDEMO = response.data.find(c => c.id === '8' || c.id === 8);
-            console.log('=== CAMPO DEMO (ID 8) ===');
-            console.log('Datos completos:', campoDEMO);
+            // Log específico del campo DEMO
+            const campoDEMO = response.data.find(c => String(c.id) === '8');
             if (campoDEMO) {
+                console.log('=== CAMPO DEMO RECIBIDO ===');
                 console.log('ID:', campoDEMO.id);
                 console.log('Nombre:', campoDEMO.nombre_campo);
                 console.log('Usuario ID:', campoDEMO.usuario_id);
                 console.log('Estacion ID:', campoDEMO.estacion_id);
                 console.log('Usuarios IDs:', campoDEMO.usuarios_ids);
-                console.log('Estacion titulo:', campoDEMO.estacion_titulo);
+                console.log('Nombre usuario:', campoDEMO.nombre_usuario);
+                console.log('============================');
+            } else {
+                console.log('❌ CAMPO DEMO NO ENCONTRADO');
             }
-            console.log('========================');
             
             const camposProcesados = response.data.map(campo => {
                 return {
@@ -232,6 +235,13 @@ function CamposManagement() {
                     usuarios_ids: campo.usuarios_ids || (campo.usuario_id ? [campo.usuario_id] : [])
                 };
             });
+
+            console.log('=== CAMPOS PROCESADOS EN FRONTEND ===');
+            const campoDEMOProcesado = camposProcesados.find(c => String(c.id) === '8');
+            if (campoDEMOProcesado) {
+                console.log('Campo DEMO procesado:', campoDEMOProcesado);
+            }
+            console.log('=====================================');
 
             setCampos(camposProcesados);
             setIsLoadingCampos(false);
