@@ -112,71 +112,65 @@ class OmixomService {
     }
 
     procesarUltimoDatoEstacion(data, esCalculado = false) {
-        if (!data || !data.stations) {
-            console.log('No se recibieron datos de estaciones');
+        if (!data || !Array.isArray(data)) {
+            console.log('No se recibieron datos de estaciones o formato incorrecto');
             return null;
         }
 
         const resultados = [];
         
-        Object.keys(data.stations).forEach(estacionId => {
-            const estacionData = data.stations[estacionId];
-            
-            if (estacionData.samples && Array.isArray(estacionData.samples)) {
-                estacionData.samples.forEach(muestra => {
-                    try {
-                        const fecha = new Date(muestra.datetime);
-                        
-                        // Extraer evapotranspiración directa si está disponible
-                        let evapotranspiracion = null;
-                        
-                        // Buscar evapotranspiración en diferentes formatos de campo
-                        if (muestra.evapotranspiracion !== undefined && muestra.evapotranspiracion !== null) {
-                            evapotranspiracion = parseFloat(muestra.evapotranspiracion);
-                        } else if (muestra.etp !== undefined && muestra.etp !== null) {
-                            evapotranspiracion = parseFloat(muestra.etp);
-                        } else if (muestra.eto !== undefined && muestra.eto !== null) {
-                            evapotranspiracion = parseFloat(muestra.eto);
-                        } else if (muestra['evapotranspiración'] !== undefined && muestra['evapotranspiración'] !== null) {
-                            evapotranspiracion = parseFloat(muestra['evapotranspiración']);
-                        } else {
-                            // Si no hay evapotranspiración directa, intentar calcular con temperatura y humedad
-                            const temp = parseFloat(muestra.temperatura) || null;
-                            const humedad = parseFloat(muestra.humedad) || null;
-                            
-                            if (temp !== null && humedad !== null && esCalculado) {
-                                evapotranspiracion = this.calcularEvapotranspiracionSimplificada(temp, humedad);
-                                console.log(`Evapotranspiración calculada para estación ${estacionId}: ${evapotranspiracion} (T:${temp}°C, H:${humedad}%)`);
-                            }
-                        }
+        // La API private_last_measure devuelve un array directamente
+        data.forEach(muestra => {
+            try {
+                if (!muestra.date || !muestra.station) {
+                    console.log('Muestra sin fecha o estación:', muestra);
+                    return;
+                }
 
-                        if (evapotranspiracion !== null && !isNaN(evapotranspiracion)) {
-                            const resultado = {
-                                fecha: fecha.toISOString().split('T')[0],
-                                evapotranspiracion: Math.max(0, evapotranspiracion), // Asegurar valor positivo
-                                temperatura: parseFloat(muestra.temperatura) || null,
-                                humedad: parseFloat(muestra.humedad) || null,
-                                precipitaciones: parseFloat(muestra.precipitaciones) || parseFloat(muestra.lluvia) || 0
-                            };
-                            
-                            console.log(`Datos procesados para estación ${estacionId}:`, resultado);
-                            resultados.push(resultado);
-                        } else {
-                            console.log(`No se pudo obtener evapotranspiración para estación ${estacionId}:`, {
-                                muestra: Object.keys(muestra),
-                                evapotranspiracion: muestra.evapotranspiracion,
-                                etp: muestra.etp,
-                                eto: muestra.eto,
-                                temperatura: muestra.temperatura,
-                                humedad: muestra.humedad
-                            });
-                        }
-                    } catch (error) {
-                        console.error('Error procesando muestra:', error);
+                const fecha = new Date(muestra.date);
+                const estacionId = muestra.station;
+                
+                // Extraer evapotranspiración del ID del módulo
+                let evapotranspiracion = null;
+                
+                // Buscar el valor en las claves numéricas (IDs de módulos)
+                const moduleIds = Object.keys(muestra).filter(key => 
+                    !isNaN(key) && key !== 'date' && key !== 'station'
+                );
+                
+                if (moduleIds.length > 0) {
+                    // Tomar el primer módulo encontrado (debería ser el de evapotranspiración)
+                    const moduleId = moduleIds[0];
+                    const valor = muestra[moduleId];
+                    
+                    if (valor !== undefined && valor !== null) {
+                        evapotranspiracion = parseFloat(valor);
+                        console.log(`Evapotranspiración obtenida del módulo ${moduleId}: ${evapotranspiracion}`);
                     }
-                });
-            } else {
-                console.log(`Estación ${estacionId} no tiene muestras disponibles:`, estacionData);
+                } else {
+                    console.log('No se encontraron módulos en la muestra:', Object.keys(muestra));
+                }
+
+                if (evapotranspiracion !== null && !isNaN(evapotranspiracion)) {
+                    const resultado = {
+                        fecha: fecha.toISOString().split('T')[0],
+                        evapotranspiracion: Math.max(0, evapotranspiracion), // Asegurar valor positivo
+                        temperatura: null, // La API private_last_measure no incluye temperatura/humedad
+                        humedad: null,
+                        precipitaciones: 0
+                    };
+                    
+                    console.log(`Datos procesados para estación ${estacionId}:`, resultado);
+                    resultados.push(resultado);
+                } else {
+                    console.log(`No se pudo obtener evapotranspiración para estación ${estacionId}:`, {
+                        muestra: muestra,
+                        moduleIds: moduleIds,
+                        evapotranspiracion: evapotranspiracion
+                    });
+                }
+            } catch (error) {
+                console.error('Error procesando muestra:', error);
             }
         });
 
