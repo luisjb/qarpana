@@ -125,11 +125,11 @@ function CamposManagement() {
 
     const findEstacionAsociada = (campo) => {
         if (!campo || !campo.estacion_id || !estaciones || estaciones.length === 0) {
-            console.log('Sin datos para buscar estación:', { 
+            /*console.log('Sin datos para buscar estación:', { 
                 campo: !!campo, 
                 estacion_id: campo?.estacion_id, 
                 estaciones_length: estaciones?.length 
-            });
+            });*/
             return null;
         }
         
