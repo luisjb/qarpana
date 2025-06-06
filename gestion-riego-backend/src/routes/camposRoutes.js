@@ -67,8 +67,7 @@ router.get('/', verifyToken, async (req, res) => {
         let query;
         let values = [];
 
-        console.log('=== INICIO GET CAMPOS ===');
-        console.log('User data from token:', req.user);
+       
 
         if (req.user.role?.toLowerCase() === 'admin') {
             // Consulta para administradores - EXPLÍCITAMENTE seleccionar todas las columnas
@@ -119,23 +118,11 @@ router.get('/', verifyToken, async (req, res) => {
             values = [req.user.userId];
         }
 
-        console.log('Query SQL:', query);
-        console.log('Values:', values);
-        
+      
         const { rows } = await client.query(query, values);
         
-        console.log('=== DATOS BRUTOS DE LA DB ===');
-        console.log('Cantidad de campos encontrados:', rows.length);
+      
         
-        // Log específico para cada campo
-        rows.forEach(row => {
-            console.log(`\nCampo ID ${row.id} - ${row.nombre_campo}:`);
-            console.log('  - usuario_id:', row.usuario_id);
-            console.log('  - estacion_id:', row.estacion_id);
-            console.log('  - usuarios_ids:', row.usuarios_ids);
-            console.log('  - estacion_titulo:', row.estacion_titulo);
-        });
-        console.log('==============================');
         
         // Procesar los resultados asegurando que todos los campos estén presentes
         const processed = rows.map(row => {
@@ -150,17 +137,12 @@ router.get('/', verifyToken, async (req, res) => {
                 estacion_titulo: row.estacion_titulo
             };
             
-            console.log(`\nCampo procesado ID ${campo.id}:`);
-            console.log('  - usuario_id:', campo.usuario_id);
-            console.log('  - estacion_id:', campo.estacion_id);
-            console.log('  - usuarios_ids:', campo.usuarios_ids);
+           
             
             return campo;
         });
         
-        console.log('=== DATOS FINALES A ENVIAR ===');
-        console.log('Campos procesados:', processed.length);
-        console.log('================================');
+       
         
         res.json(processed);
     } catch (err) {
@@ -189,7 +171,6 @@ router.get('/', verifyToken, async (req, res) => {
 router.post('/', verifyToken, async (req, res) => {
     const { nombre_campo, ubicacion, usuarios_ids, estacion_id } = req.body;
     
-    console.log('Creando campo con datos:', { nombre_campo, ubicacion, usuarios_ids, estacion_id });
     
     try {
         // Si usuarios_ids es un array, tomamos el primer elemento para usuario_id
@@ -200,7 +181,6 @@ router.post('/', verifyToken, async (req, res) => {
         // Limpiar y validar estacion_id
         const estacion_id_limpio = estacion_id ? String(estacion_id).trim() : null;
         
-        console.log('Estación ID limpio a guardar:', estacion_id_limpio);
         
         // Insertar el campo
         const { rows } = await pool.query(
@@ -208,8 +188,7 @@ router.post('/', verifyToken, async (req, res) => {
             [usuario_id, nombre_campo, ubicacion, estacion_id_limpio]
         );
         
-        // Log del resultado
-        console.log('Campo creado:', rows[0]);
+       
         
         // Verificar si la estación existe
         if (estacion_id_limpio) {
@@ -217,7 +196,6 @@ router.post('/', verifyToken, async (req, res) => {
                 'SELECT codigo, titulo FROM estaciones_meteorologicas WHERE TRIM(codigo) = $1',
                 [estacion_id_limpio]
             );
-            console.log('Verificación de estación:', estacionCheck.rows);
         }
         
         // Añadir datos de usuario para la respuesta
@@ -244,7 +222,6 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     const { id } = req.params;
     const { nombre_campo, ubicacion, usuarios_ids, estacion_id } = req.body;
     
-    console.log('Actualizando campo con datos:', { id, nombre_campo, ubicacion, usuarios_ids, estacion_id });
     
     try {
         // Si usuarios_ids es un array, tomamos el primer elemento para usuario_id
@@ -255,7 +232,6 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
         // Limpiar y validar estacion_id
         const estacion_id_limpio = estacion_id ? String(estacion_id).trim() : null;
         
-        console.log('Estación ID limpio a actualizar:', estacion_id_limpio);
         
         // Verificar si la estación existe antes de actualizar
         if (estacion_id_limpio) {
@@ -263,7 +239,6 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                 'SELECT codigo, titulo FROM estaciones_meteorologicas WHERE TRIM(codigo) = $1',
                 [estacion_id_limpio]
             );
-            console.log('Verificación de estación antes de actualizar:', estacionCheck.rows);
         }
         
         // Actualizar el campo
@@ -276,9 +251,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
             return res.status(404).json({ error: 'Campo no encontrado' });
         }
         
-        // Log del resultado
-        console.log('Campo actualizado:', rows[0]);
-        
+     
         // Verificar la asociación después de actualizar
         const verificacion = await pool.query(`
             SELECT 
@@ -290,7 +263,6 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
             WHERE c.id = $1
         `, [id]);
         
-        console.log('Verificación después de actualizar:', verificacion.rows[0]);
         
         // Añadir datos de usuario para la respuesta
         const userResult = await pool.query(

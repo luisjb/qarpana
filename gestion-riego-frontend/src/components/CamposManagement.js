@@ -268,14 +268,14 @@ function CamposManagement() {
         }
     };
     const handleCloseDialog = () => {
-        console.log('Cerrando diálogo - Estado actual editingCampo:', editingCampo);
+        //console.log('Cerrando diálogo - Estado actual editingCampo:', editingCampo);
         setOpenDialog(false);
         
         // Resetear después de un pequeño delay
         setTimeout(() => {
             setEditingCampo(null);
             setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
-            console.log('Estados reseteados');
+            //console.log('Estados reseteados');
         }, 100);
     };
 
@@ -337,24 +337,24 @@ function CamposManagement() {
     };
 
     const handleSelectEstacion = (estacion) => {
-        console.log('Seleccionando estación:', estacion);
+        //console.log('Seleccionando estación:', estacion);
         
         // Obtener el código de la estación de manera más robusta
         const estacionCode = estacion.code || estacion.codigo || '';
         const estacionCodeString = String(estacionCode).trim();
         
-        console.log('Código de estación procesado:', estacionCodeString);
+        //console.log('Código de estación procesado:', estacionCodeString);
         
         setSelectedEstacion(estacion);
         
         if (editingCampo) {
-            console.log('Actualizando campo en edición con estación:', estacionCodeString);
+            //console.log('Actualizando campo en edición con estación:', estacionCodeString);
             setEditingCampo(prev => ({
                 ...prev,
                 estacion_id: estacionCodeString
             }));
         } else {
-            console.log('Actualizando nuevo campo con estación:', estacionCodeString);
+            //console.log('Actualizando nuevo campo con estación:', estacionCodeString);
             setNuevoCampo(prev => ({
                 ...prev,
                 estacion_id: estacionCodeString
@@ -408,7 +408,7 @@ function CamposManagement() {
         <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
             {isAdmin && (
                 <Button variant="contained" color="primary" onClick={() => {
-                    console.log('Abriendo diálogo para nuevo campo');
+                    //console.log('Abriendo diálogo para nuevo campo');
                     setEditingCampo(null);
                     setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
                     setOpenDialog(true);
@@ -520,7 +520,7 @@ function CamposManagement() {
                             name="usuarios_ids"
                             value={editingCampo ? (editingCampo.usuarios_ids || []) : (nuevoCampo.usuarios_ids || [])}
                             onChange={(e) => {
-                                console.log('Usuarios cambió:', e.target.value);
+                                //console.log('Usuarios cambió:', e.target.value);
                                 handleUsuariosChange(e);
                             }}
                             onOpen={() => console.log('Select usuarios abierto, valor actual:', editingCampo ? editingCampo.usuarios_ids : nuevoCampo.usuarios_ids)}
@@ -552,7 +552,7 @@ function CamposManagement() {
                             name="estacion_id"
                             value={editingCampo ? (editingCampo.estacion_id || '') : (nuevoCampo.estacion_id || '')}
                             onChange={(e) => {
-                                console.log('Estación cambió:', e.target.value);
+                                //console.log('Estación cambió:', e.target.value);
                                 handleInputChange(e);
                             }}
                             onOpen={() => console.log('Select estaciones abierto, valor actual:', editingCampo ? editingCampo.estacion_id : nuevoCampo.estacion_id)}
