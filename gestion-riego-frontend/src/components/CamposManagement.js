@@ -306,10 +306,15 @@ function CamposManagement() {
         }
     };
     const handleCloseDialog = () => {
-        console.log('Cerrando diálogo');
+        console.log('Cerrando diálogo - Estado actual editingCampo:', editingCampo);
         setOpenDialog(false);
-        setEditingCampo(null);
-        setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
+        
+        // Resetear después de un pequeño delay
+        setTimeout(() => {
+            setEditingCampo(null);
+            setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
+            console.log('Estados reseteados');
+        }, 100);
     };
 
     const handleSubmit = async (e) => {
@@ -347,10 +352,10 @@ function CamposManagement() {
             
             // Refrescar los campos para obtener los datos actualizados
             await fetchCampos();
-            
-            setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
-            setEditingCampo(null);
-            setOpenDialog(false);
+            setTimeout(() => {
+                setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
+                setEditingCampo(null);
+            }, 100);
         } catch (error) {
             console.error('Error al guardar campo:', error);
             if (error.response) {
@@ -576,13 +581,18 @@ function CamposManagement() {
                             value={editingCampo ? (editingCampo.usuarios_ids || []) : (nuevoCampo.usuarios_ids || [])}
                             onChange={handleUsuariosChange}
                             renderValue={(selected) => {
-                                console.log('Rendering selected users:', selected);
-                                console.log('Available usuarios:', usuarios);
+                                console.log('=== RENDER VALUE DEBUG ===');
+                                console.log('Selected IDs:', selected);
+                                console.log('Selected types:', selected.map(s => typeof s));
+                                console.log('Available usuarios:', usuarios.map(u => ({ id: u.id, type: typeof u.id, nombre: u.nombre_usuario })));
+                                console.log('==========================');
+                                
                                 return (
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                         {selected.map((value) => {
-                                            const user = usuarios.find(u => u.id === value);
-                                            console.log('Finding user for ID:', value, 'Found:', user);
+                                            // Intentar búsqueda con conversión de tipos
+                                            const user = usuarios.find(u => String(u.id) === String(value));
+                                            console.log(`Buscando usuario: ${value} (${typeof value}) -> Encontrado:`, user);
                                             return (
                                                 <Chip 
                                                     key={value} 
@@ -607,8 +617,13 @@ function CamposManagement() {
                         <Select
                             name="estacion_id"
                             value={editingCampo ? editingCampo.estacion_id || '' : nuevoCampo.estacion_id}
-                            onChange={handleInputChange}
-                        >
+                            onChange={(e) => {
+                                    console.log('=== ESTACION CHANGE ===');
+                                    console.log('Nuevo valor:', e.target.value);
+                                    console.log('Estado actual editingCampo:', editingCampo);
+                                    console.log('=======================');
+                                    handleInputChange(e);
+                                }}                        >
                             <MenuItem value="">
                                 <em>Ninguna</em>
                             </MenuItem>
