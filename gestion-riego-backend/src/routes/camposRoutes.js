@@ -15,16 +15,75 @@ router.use((req, res, next) => {
 
 // Obtener todos los campos (para admin)
 router.get('/all', verifyToken, async (req, res) => {
+    console.log('=== INICIANDO GET /all ===');
+    console.log('Usuario autenticado:', req.user);
+    
+    const client = await pool.connect();
     try {
-        const { rows } = await pool.query(`
-            SELECT c.id, c.nombre_campo, c.ubicacion, u.nombre_usuario
-            FROM campos c
-            LEFT JOIN usuarios u ON c.usuario_id = u.id
-        `);
-        res.json(rows);
+        const query = `
+            SELECT 
+                c.id,
+                c.usuario_id,
+                c.nombre_campo,
+                c.ubicacion,
+                c.estacion_id,
+                c.usuarios_ids,
+                u.nombre_usuario,
+                e.titulo AS estacion_titulo
+            FROM 
+                campos c
+            LEFT JOIN 
+                usuarios u ON c.usuario_id = u.id
+            LEFT JOIN 
+                estaciones_meteorologicas e ON TRIM(CAST(c.estacion_id AS TEXT)) = TRIM(CAST(e.codigo AS TEXT))
+            ORDER BY 
+                c.nombre_campo
+        `;
+        
+        console.log('Ejecutando query:', query);
+        const { rows } = await client.query(query);
+        
+        console.log('=== DATOS DE LA DB ===');
+        console.log('Campos encontrados:', rows.length);
+        rows.forEach(row => {
+            if (row.id === '8' || row.id === 8) {
+                console.log('CAMPO DEMO (ID 8):', {
+                    id: row.id,
+                    usuario_id: row.usuario_id,
+                    estacion_id: row.estacion_id,
+                    usuarios_ids: row.usuarios_ids,
+                    nombre_usuario: row.nombre_usuario,
+                    estacion_titulo: row.estacion_titulo
+                });
+            }
+        });
+        console.log('=====================');
+        
+        // Procesar resultados
+        const processed = rows.map(row => ({
+            id: row.id,
+            usuario_id: row.usuario_id,
+            nombre_campo: row.nombre_campo,
+            ubicacion: row.ubicacion,
+            estacion_id: row.estacion_id || '',
+            usuarios_ids: row.usuarios_ids || (row.usuario_id ? [row.usuario_id] : []),
+            nombre_usuario: row.nombre_usuario,
+            estacion_titulo: row.estacion_titulo
+        }));
+        
+        console.log('=== DATOS PROCESADOS ===');
+        const campoDEMO = processed.find(p => p.id === '8' || p.id === 8);
+        if (campoDEMO) {
+            console.log('CAMPO DEMO procesado:', campoDEMO);
+        }
+        console.log('========================');
+        
+        res.json(processed);
     } catch (err) {
-        console.error('Error al obtener campos:', err);
-        res.status(500).json({ error: 'Error del servidor', details: err.message });
+        console.error('Error en GET /all:', err);
+        res.status(500).json({ error: 'Error del servidor' });
+    } finally {
+        client.release();
     }
 });
 
@@ -150,19 +209,19 @@ router.get('/', verifyToken, async (req, res) => {
     }
 });
 
-router.get('/all', verifyToken, isAdmin, async (req, res) => {
-    try {
-        const { rows } = await pool.query(`
-            SELECT c.*, u.nombre_usuario 
-            FROM campos c 
-            LEFT JOIN usuarios u ON c.usuario_id = u.id
-        `);
-        res.json(rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Error del servidor' });
-    }
-});
+// router.get('/all', verifyToken, isAdmin, async (req, res) => {
+//     try {
+//         const { rows } = await pool.query(`
+//             SELECT c.*, u.nombre_usuario 
+//             FROM campos c 
+//             LEFT JOIN usuarios u ON c.usuario_id = u.id
+//         `);
+//         res.json(rows);
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).json({ error: 'Error del servidor' });
+//     }
+// });
 
 // Crear un nuevo campo (admin puede asignar a cualquier usuario, usuario normal solo a sí mismo)
 router.post('/', verifyToken, async (req, res) => {
