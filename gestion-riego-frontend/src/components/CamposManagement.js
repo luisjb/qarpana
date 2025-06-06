@@ -209,12 +209,12 @@ function CamposManagement() {
             console.log('URL completa que se va a llamar:', axios.defaults.baseURL + endpoint);
             console.log('========================');
             
-            console.log('✅ GET exitoso, respuesta:', response.data);
-            console.log('=== FETCHING CAMPOS ===');
             console.log('Endpoint:', endpoint);
             console.log('User role:', userRole);
             
             const response = await axios.get(endpoint);
+            console.log('✅ GET exitoso, respuesta:', response.data);
+            console.log('=== FETCHING CAMPOS ===');
             
             console.log('=== RESPUESTA DEL BACKEND ===');
             console.log('Response status:', response.status);
