@@ -340,6 +340,7 @@ function CamposManagement() {
             
             console.log('Respuesta del servidor:', response.data);
             
+            // Actualizar la lista de campos
             if (editingCampo) {
                 setCampos(prevCampos => 
                     prevCampos.map(c => 
@@ -352,10 +353,16 @@ function CamposManagement() {
             
             // Refrescar los campos para obtener los datos actualizados
             await fetchCampos();
+            
+            // CERRAR EL DIÁLOGO DIRECTAMENTE SIN RESETEAR ESTADO
+            setOpenDialog(false);
+            
+            // Resetear estados después de que el diálogo se cierre
             setTimeout(() => {
                 setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
                 setEditingCampo(null);
-            }, 100);
+            }, 300);
+            
         } catch (error) {
             console.error('Error al guardar campo:', error);
             if (error.response) {
@@ -363,7 +370,6 @@ function CamposManagement() {
             }
         }
     };
-
     const handleDelete = async () => {
         try {
             await axios.delete(`/campos/${campoToDelete.id}`);
@@ -415,17 +421,26 @@ function CamposManagement() {
 
     // Componente para centrar el mapa
     function SetViewOnClick({ coords, zoomLevel = 7 }) {
-        const map = useMap();
-        useEffect(() => {
-            if (coords) {
-                map.setView(coords, zoomLevel);
-            } else {
-                map.setView([-31.4201, -64.1888], 7);
+    const map = useMap();
+    useEffect(() => {
+        // Verificar que el mapa esté completamente inicializado
+        if (map && coords && coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+            try {
+                // Pequeño delay para asegurar que el mapa esté listo
+                setTimeout(() => {
+                    if (map.getContainer()) {
+                        map.setView(coords, zoomLevel);
+                    } else {
+                                map.setView([-31.4201, -64.1888], 7);
+                            }
+                }, 100);
+            } catch (error) {
+                console.error('Error al centrar mapa:', error);
             }
-        }, [coords, map, zoomLevel]);
-        return null;
-    }
-
+        }
+    }, [coords, map, zoomLevel]);
+    return null;
+}
     // Efectos
     useEffect(() => {
         const loadInitialData = async () => {
@@ -579,20 +594,18 @@ function CamposManagement() {
                             multiple
                             name="usuarios_ids"
                             value={editingCampo ? (editingCampo.usuarios_ids || []) : (nuevoCampo.usuarios_ids || [])}
-                            onChange={handleUsuariosChange}
+                            onChange={(e) => {
+                                console.log('Usuarios cambió:', e.target.value);
+                                handleUsuariosChange(e);
+                            }}
+                            onOpen={() => console.log('Select usuarios abierto, valor actual:', editingCampo ? editingCampo.usuarios_ids : nuevoCampo.usuarios_ids)}
                             renderValue={(selected) => {
-                                console.log('=== RENDER VALUE DEBUG ===');
-                                console.log('Selected IDs:', selected);
-                                console.log('Selected types:', selected.map(s => typeof s));
-                                console.log('Available usuarios:', usuarios.map(u => ({ id: u.id, type: typeof u.id, nombre: u.nombre_usuario })));
-                                console.log('==========================');
-                                
+                                console.log('=== RENDER VALUE ===');
+                                console.log('Selected:', selected);
                                 return (
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                         {selected.map((value) => {
-                                            // Intentar búsqueda con conversión de tipos
                                             const user = usuarios.find(u => String(u.id) === String(value));
-                                            console.log(`Buscando usuario: ${value} (${typeof value}) -> Encontrado:`, user);
                                             return (
                                                 <Chip 
                                                     key={value} 
@@ -616,14 +629,13 @@ function CamposManagement() {
                         <InputLabel>Estación Meteorológica</InputLabel>
                         <Select
                             name="estacion_id"
-                            value={editingCampo ? editingCampo.estacion_id || '' : nuevoCampo.estacion_id}
+                            value={editingCampo ? (editingCampo.estacion_id || '') : (nuevoCampo.estacion_id || '')}
                             onChange={(e) => {
-                                    console.log('=== ESTACION CHANGE ===');
-                                    console.log('Nuevo valor:', e.target.value);
-                                    console.log('Estado actual editingCampo:', editingCampo);
-                                    console.log('=======================');
-                                    handleInputChange(e);
-                                }}                        >
+                                console.log('Estación cambió:', e.target.value);
+                                handleInputChange(e);
+                            }}
+                            onOpen={() => console.log('Select estaciones abierto, valor actual:', editingCampo ? editingCampo.estacion_id : nuevoCampo.estacion_id)}
+                        >
                             <MenuItem value="">
                                 <em>Ninguna</em>
                             </MenuItem>
