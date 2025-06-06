@@ -203,7 +203,13 @@ function CamposManagement() {
             setIsLoadingCampos(true);
             const userRole = localStorage.getItem('role');
             const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
+            console.log('=== INTENTANDO FETCH ===');
+            console.log('User role:', userRole);
+            console.log('Endpoint calculado:', endpoint);
+            console.log('URL completa que se va a llamar:', axios.defaults.baseURL + endpoint);
+            console.log('========================');
             
+            console.log('✅ GET exitoso, respuesta:', response.data);
             console.log('=== FETCHING CAMPOS ===');
             console.log('Endpoint:', endpoint);
             console.log('User role:', userRole);
@@ -246,7 +252,8 @@ function CamposManagement() {
             setCampos(camposProcesados);
             setIsLoadingCampos(false);
         } catch (error) {
-            console.error('Error al obtener campos:', error);
+            console.error('❌ Error en GET:', error);
+            console.error('Error details:', error.response?.data);
             setIsLoadingCampos(false);
         }
     };

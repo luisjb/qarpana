@@ -3,6 +3,16 @@ const router = express.Router();
 const { verifyToken, isAdmin } = require('../middleware/auth');
 const pool = require('../db');
 
+router.use((req, res, next) => {
+    console.log(`=== CAMPOS ROUTE CALLED ===`);
+    console.log(`Method: ${req.method}`);
+    console.log(`Path: ${req.path}`);
+    console.log(`Full URL: ${req.originalUrl}`);
+    console.log(`User: ${req.user?.userId || 'No user'}`);
+    console.log(`===========================`);
+    next();
+});
+
 // Obtener todos los campos (para admin)
 router.get('/all', verifyToken, async (req, res) => {
     try {
