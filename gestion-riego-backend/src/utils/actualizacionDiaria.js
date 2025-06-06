@@ -21,7 +21,10 @@ async function actualizacionDiaria() {
         // Obtener todos los lotes activos
         const lotesResult = await client.query('SELECT id, cultivo_id, fecha_siembra FROM lotes WHERE activo = true');
         
+        // CORREGIDO: Procesar para la fecha de HOY (los datos de estación ya vienen acumulados para hoy)
         const hoy = new Date();
+
+        console.log(`Procesando datos para la fecha: ${hoy.toISOString().split('T')[0]} (datos acumulados de últimas 24h)`);
 
         for (const lote of lotesResult.rows) {
             try {
@@ -42,7 +45,7 @@ async function actualizacionDiaria() {
                     continue;
                 }
                 
-                // Obtener o crear el registro de cambios_diarios para hoy
+                // Obtener o crear el registro de cambios_diarios para HOY
                 let cambioDiario = await obtenerOCrearCambioDiario(client, lote.id, hoy, diasDesdeSiembra);
 
                 // NUEVA FUNCIONALIDAD: Aplicar datos de estación solo si se consultaron estaciones
@@ -66,7 +69,7 @@ async function actualizacionDiaria() {
                 // Actualizar crecimiento radicular
                 cambioDiario = await actualizarCrecimientoRadicular(client, lote, diasDesdeSiembra, cambioDiario);
 
-                // Actualizar KC
+                // Actualizar KC y ETC
                 cambioDiario = await actualizarKC(client, lote, diasDesdeSiembra, cambioDiario);
 
                 // Actualizar capacidad de extracción
@@ -101,7 +104,7 @@ async function actualizacionDiaria() {
         }
 
         await client.query('COMMIT');
-        //console.log('Actualización diaria completada con éxito');
+        console.log('Actualización diaria completada con éxito');
     } catch (e) {
         await client.query('ROLLBACK');
         console.error('Error en la actualización diaria:', e);
@@ -124,7 +127,7 @@ async function consultarEstacionesMeteorologicas(client) {
         console.log(`Encontrados ${camposConEstacion.length} campos con estaciones meteorológicas asociadas`);
 
         if (camposConEstacion.length === 0) {
-            //console.log('No hay estaciones meteorológicas configuradas. Continuando sin datos de estación.');
+            console.log('No hay estaciones meteorológicas configuradas. Continuando sin datos de estación.');
             return false; // Indica que no se consultaron estaciones
         }
 
@@ -145,15 +148,16 @@ async function consultarEstacionesMeteorologicas(client) {
 
         for (const campo of camposConEstacion) {
             try {
-                //console.log(`Consultando estación ${campo.estacion_id} para campo ${campo.nombre_campo}...`);
+                console.log(`Consultando estación ${campo.estacion_id} para campo ${campo.nombre_campo}...`);
                 const datosEstacion = await omixomService.obtenerUltimoDatoEstacion(campo.estacion_id);
                 
                 if (datosEstacion && datosEstacion.length > 0) {
                     await guardarDatosEstacion(client, campo.id, datosEstacion);
                     estacionesExitosas++;
-                    //console.log(`✓ Datos obtenidos para campo ${campo.nombre_campo} - Estación ${campo.estacion_id}`);
+                    console.log(`✓ Datos obtenidos para campo ${campo.nombre_campo} - Estación ${campo.estacion_id}`);
+                    console.log(`  Evapotranspiración: ${datosEstacion[0].evapotranspiracion} mm/día`);
                 } else {
-                    //console.log(`⚠ No se obtuvieron datos para estación ${campo.estacion_id} (campo: ${campo.nombre_campo})`);
+                    console.log(`⚠ No se obtuvieron datos para estación ${campo.estacion_id} (campo: ${campo.nombre_campo})`);
                 }
             } catch (error) {
                 console.error(`✗ Error consultando estación ${campo.estacion_id} (campo: ${campo.nombre_campo}):`, error.message);
@@ -214,7 +218,7 @@ async function aplicarDatosEstacionALote(client, loteId, fecha, cambioDiario) {
             return;
         }
 
-        // Obtener el campo del lote y verificar si hay datos de estación
+        // Obtener datos de estación para la fecha específica (HOY)
         const { rows: datosEstacion } = await client.query(`
             SELECT tde.evapotranspiracion, tde.temperatura, tde.humedad, tde.precipitaciones
             FROM temp_datos_estacion tde
@@ -225,28 +229,30 @@ async function aplicarDatosEstacionALote(client, loteId, fecha, cambioDiario) {
         if (datosEstacion.length > 0) {
             const datos = datosEstacion[0];
             
+            console.log(`📊 Aplicando datos de estación al lote ${loteId} para fecha ${fecha.toISOString().split('T')[0]}`);
+            
             // Aplicar datos de la estación al cambio diario solo si son válidos
             if (datos.evapotranspiracion !== null && !isNaN(datos.evapotranspiracion)) {
                 cambioDiario.evapotranspiracion = parseFloat(datos.evapotranspiracion);
-                console.log(`✓ Evapotranspiración de estación aplicada al lote ${loteId}: ${cambioDiario.evapotranspiracion}`);
+                console.log(`✅ Evapotranspiración de estación aplicada al lote ${loteId}: ${cambioDiario.evapotranspiracion} mm/día`);
             }
             
             if (datos.temperatura !== null && !isNaN(datos.temperatura)) {
                 cambioDiario.temperatura = parseFloat(datos.temperatura);
-                //console.log(`✓ Temperatura de estación aplicada al lote ${loteId}: ${cambioDiario.temperatura}`);
+                console.log(`✅ Temperatura de estación aplicada al lote ${loteId}: ${cambioDiario.temperatura}°C`);
             }
             
             if (datos.humedad !== null && !isNaN(datos.humedad)) {
                 cambioDiario.humedad = parseFloat(datos.humedad);
-                //console.log(`✓ Humedad de estación aplicada al lote ${loteId}: ${cambioDiario.humedad}`);
+                console.log(`✅ Humedad de estación aplicada al lote ${loteId}: ${cambioDiario.humedad}%`);
             }
             
             if (datos.precipitaciones !== null && !isNaN(datos.precipitaciones)) {
                 cambioDiario.precipitaciones = parseFloat(datos.precipitaciones);
-                //console.log(`✓ Precipitaciones de estación aplicadas al lote ${loteId}: ${cambioDiario.precipitaciones}`);
+                console.log(`✅ Precipitaciones de estación aplicadas al lote ${loteId}: ${cambioDiario.precipitaciones} mm`);
             }
         } else {
-            //console.log(`ℹ No hay datos de estación disponibles para el lote ${loteId} en la fecha ${fecha.toISOString().split('T')[0]}`);
+            console.log(`ℹ No hay datos de estación disponibles para el lote ${loteId} en la fecha ${fecha.toISOString().split('T')[0]}`);
         }
     } catch (error) {
         console.error(`Error aplicando datos de estación al lote ${loteId}:`, error);
@@ -307,30 +313,73 @@ async function actualizarCrecimientoRadicular(client, lote, diasDesdeSiembra, ca
 }
 
 async function actualizarKC(client, lote, diasDesdeSiembra, cambioDiario) {
-    const coeficientesResult = await client.query(
-        'SELECT indice_kc, indice_dias, COALESCE(dias_correccion, indice_dias) as dias_efectivos FROM coeficiente_cultivo WHERE cultivo_id = $1 ORDER BY dias_efectivos',
+    // Usar la función calcularKCPorPendiente mejorada
+    const kc = await calcularKCPorPendiente(client, lote.id, diasDesdeSiembra);
+    cambioDiario.kc = kc;
+    
+    // NUEVO: Calcular ETC automáticamente si hay evapotranspiración
+    if (cambioDiario.evapotranspiracion !== null && cambioDiario.evapotranspiracion !== undefined) {
+        cambioDiario.etc = cambioDiario.evapotranspiracion * kc;
+        console.log(`✅ ETC calculado para lote ${lote.id}: ${cambioDiario.evapotranspiracion} * ${kc} = ${cambioDiario.etc}`);
+    }
+    
+    return cambioDiario;
+}
+
+// Función calcularKCPorPendiente agregada al archivo actualizacionDiaria
+async function calcularKCPorPendiente(client, loteId, diasDesdeSiembra) {
+    // Primero obtenemos el cultivo_id del lote
+    const { rows: [lote] } = await client.query(
+        'SELECT cultivo_id FROM lotes WHERE id = $1',
+        [loteId]
+    );
+
+    if (!lote) return 1; // Valor por defecto si no se encuentra el lote
+
+    // Obtenemos los coeficientes del cultivo, considerando días de corrección
+    const { rows: coeficientes } = await client.query(`
+        SELECT 
+            indice_kc,
+            COALESCE(dias_correccion, indice_dias) as dias_efectivos,
+            indice_dias as dias_originales
+        FROM coeficiente_cultivo 
+        WHERE cultivo_id = $1
+        ORDER BY dias_efectivos ASC`,
         [lote.cultivo_id]
     );
-    const coeficientes = coeficientesResult.rows;
 
-    let puntoAnterior = coeficientes[0];
-    let puntoSiguiente = coeficientes[coeficientes.length - 1];
+    // Si no hay coeficientes, retornamos un valor por defecto
+    if (!coeficientes.length) return 1;
 
+    // Si estamos antes del primer período, usamos el KC inicial
+    if (diasDesdeSiembra <= coeficientes[0].dias_efectivos) {
+        return coeficientes[0].indice_kc;
+    }
+
+    // Buscamos el intervalo correcto para calcular la pendiente
     for (let i = 0; i < coeficientes.length - 1; i++) {
-        if (diasDesdeSiembra >= coeficientes[i].dias_efectivos && diasDesdeSiembra < coeficientes[i+1].dias_efectivos) {
-            puntoAnterior = coeficientes[i];
-            puntoSiguiente = coeficientes[i+1];
-            break;
+        const periodoActual = coeficientes[i];
+        const periodoSiguiente = coeficientes[i + 1];
+
+        if (diasDesdeSiembra > periodoActual.dias_efectivos && 
+            diasDesdeSiembra <= periodoSiguiente.dias_efectivos) {
+            
+            // Calculamos la pendiente (a) entre los dos períodos
+            const a = (periodoSiguiente.indice_kc - periodoActual.indice_kc) / 
+                     (periodoSiguiente.dias_efectivos - periodoActual.dias_efectivos);
+            
+            // Calculamos el intercepto (b)
+            const b = periodoActual.indice_kc - (a * periodoActual.dias_efectivos);
+            
+            // Calculamos el KC para el día actual usando y = ax + b
+            const kc = (a * diasDesdeSiembra) + b;
+
+            return kc;
         }
     }
 
-    const m = (puntoSiguiente.indice_kc - puntoAnterior.indice_kc) / (puntoSiguiente.dias_efectivos - puntoAnterior.dias_efectivos);
-    const b = puntoAnterior.indice_kc - m * puntoAnterior.dias_efectivos;
-
-    const kc = m * diasDesdeSiembra + b;
-
-    cambioDiario.kc = kc;
-    return cambioDiario;
+    // Si estamos después del último período, usamos el último KC
+    return coeficientes[coeficientes.length - 1].indice_kc;
 }
 
 async function actualizarCapacidadExtraccion(client, lote, cambioDiario) {
@@ -439,7 +488,8 @@ async function actualizarCambioDiario(client, cambioDiario) {
         evapotranspiracion,
         temperatura,
         humedad,
-        precipitaciones
+        precipitaciones,
+        etc  // AGREGAR ETC
     } = cambioDiario;
 
     // Asegurar que todos los valores estén sanitizados
@@ -456,7 +506,8 @@ async function actualizarCambioDiario(client, cambioDiario) {
         sanitizeNumeric(evapotranspiracion),
         sanitizeNumeric(temperatura),
         sanitizeNumeric(humedad),
-        sanitizeNumeric(precipitaciones)
+        sanitizeNumeric(precipitaciones),
+        sanitizeNumeric(etc)  // AGREGAR ETC
     ];
 
     const query = `
@@ -473,9 +524,10 @@ async function actualizarCambioDiario(client, cambioDiario) {
             evapotranspiracion,
             temperatura,
             humedad,
-            precipitaciones
+            precipitaciones,
+            etc
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         ON CONFLICT (lote_id, fecha_cambio)
         DO UPDATE SET
             dias = EXCLUDED.dias,
@@ -488,7 +540,8 @@ async function actualizarCambioDiario(client, cambioDiario) {
             evapotranspiracion = COALESCE(EXCLUDED.evapotranspiracion, cambios_diarios.evapotranspiracion),
             temperatura = COALESCE(EXCLUDED.temperatura, cambios_diarios.temperatura),
             humedad = COALESCE(EXCLUDED.humedad, cambios_diarios.humedad),
-            precipitaciones = COALESCE(EXCLUDED.precipitaciones, cambios_diarios.precipitaciones)
+            precipitaciones = COALESCE(EXCLUDED.precipitaciones, cambios_diarios.precipitaciones),
+            etc = COALESCE(EXCLUDED.etc, cambios_diarios.etc)
     `;
 
     try {
