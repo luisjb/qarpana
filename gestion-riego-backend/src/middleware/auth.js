@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 
 const verifyToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'] || req.headers['Authorization'] ;
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     
     if (!token) {
@@ -12,7 +12,7 @@ const verifyToken = (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = {
             userId: decoded.userId,
-            role: decoded.role // Asumiendo que también almacenas el rol en el token
+            role: decoded.role
         };
         next();
     } catch (err) {

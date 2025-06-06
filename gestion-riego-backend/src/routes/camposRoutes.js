@@ -3,21 +3,8 @@ const router = express.Router();
 const { verifyToken, isAdmin } = require('../middleware/auth');
 const pool = require('../db');
 
-router.use((req, res, next) => {
-    console.log(`=== CAMPOS ROUTE CALLED ===`);
-    console.log(`Method: ${req.method}`);
-    console.log(`Path: ${req.path}`);
-    console.log(`Full URL: ${req.originalUrl}`);
-    console.log(`User: ${req.user?.userId || 'No user'}`);
-    console.log(`===========================`);
-    next();
-});
-
 // Obtener todos los campos (para admin)
 router.get('/all', verifyToken, async (req, res) => {
-    console.log('=== INICIANDO GET /all ===');
-    console.log('Usuario autenticado:', req.user);
-    
     const client = await pool.connect();
     try {
         const query = `
@@ -40,26 +27,8 @@ router.get('/all', verifyToken, async (req, res) => {
                 c.nombre_campo
         `;
         
-        console.log('Ejecutando query:', query);
         const { rows } = await client.query(query);
         
-        console.log('=== DATOS DE LA DB ===');
-        console.log('Campos encontrados:', rows.length);
-        rows.forEach(row => {
-            if (row.id === '8' || row.id === 8) {
-                console.log('CAMPO DEMO (ID 8):', {
-                    id: row.id,
-                    usuario_id: row.usuario_id,
-                    estacion_id: row.estacion_id,
-                    usuarios_ids: row.usuarios_ids,
-                    nombre_usuario: row.nombre_usuario,
-                    estacion_titulo: row.estacion_titulo
-                });
-            }
-        });
-        console.log('=====================');
-        
-        // Procesar resultados
         const processed = rows.map(row => ({
             id: row.id,
             usuario_id: row.usuario_id,
@@ -71,16 +40,9 @@ router.get('/all', verifyToken, async (req, res) => {
             estacion_titulo: row.estacion_titulo
         }));
         
-        console.log('=== DATOS PROCESADOS ===');
-        const campoDEMO = processed.find(p => p.id === '8' || p.id === 8);
-        if (campoDEMO) {
-            console.log('CAMPO DEMO procesado:', campoDEMO);
-        }
-        console.log('========================');
-        
         res.json(processed);
     } catch (err) {
-        console.error('Error en GET /all:', err);
+        console.error('Error al obtener campos:', err);
         res.status(500).json({ error: 'Error del servidor' });
     } finally {
         client.release();

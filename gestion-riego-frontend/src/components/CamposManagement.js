@@ -125,47 +125,12 @@ function CamposManagement() {
 
     const findEstacionAsociada = (campo) => {
         if (!campo || !campo.estacion_id || !estaciones || estaciones.length === 0) {
-            /*console.log('Sin datos para buscar estación:', { 
-                campo: !!campo, 
-                estacion_id: campo?.estacion_id, 
-                estaciones_length: estaciones?.length 
-            });*/
             return null;
         }
         
         const estacionId = String(campo.estacion_id).trim();
-        console.log('Buscando estación con ID:', estacionId);
-        
-        const estacionEncontrada = estaciones.find(est => {
-            if (!est) return false;
-            
-            const estCode = String(est.code || '').trim();
-            const estCodigo = String(est.codigo || '').trim();
-            
-            const coincide = estCode === estacionId || estCodigo === estacionId;
-            
-            if (coincide) {
-                console.log('Estación encontrada:', { 
-                    titulo: est.title || est.titulo,
-                    code: estCode,
-                    codigo: estCodigo,
-                    buscado: estacionId 
-                });
-            }
-            
-            return coincide;
-        });
-        
-        if (!estacionEncontrada) {
-            console.log('No se encontró estación para ID:', estacionId);
-            console.log('Estaciones disponibles:', estaciones.map(e => ({
-                title: e.title || e.titulo,
-                code: e.code,
-                codigo: e.codigo
-            })));
-        }
-        
-        return estacionEncontrada;
+        return estaciones.find(est => est && 
+            (String(est.code || '').trim() === estacionId || String(est.codigo || '').trim() === estacionId));
     };
 
     const getUsersNamesForCampo = (campo) => {
@@ -203,37 +168,7 @@ function CamposManagement() {
             setIsLoadingCampos(true);
             const userRole = localStorage.getItem('role');
             const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
-            console.log('=== INTENTANDO FETCH ===');
-            console.log('User role:', userRole);
-            console.log('Endpoint calculado:', endpoint);
-            console.log('URL completa que se va a llamar:', axios.defaults.baseURL + endpoint);
-            console.log('========================');
-            
-            console.log('Endpoint:', endpoint);
-            console.log('User role:', userRole);
-            
             const response = await axios.get(endpoint);
-            console.log('✅ GET exitoso, respuesta:', response.data);
-            console.log('=== FETCHING CAMPOS ===');
-            
-            console.log('=== RESPUESTA DEL BACKEND ===');
-            console.log('Response status:', response.status);
-            console.log('Response data length:', response.data.length);
-            
-            // Log específico del campo DEMO
-            const campoDEMO = response.data.find(c => String(c.id) === '8');
-            if (campoDEMO) {
-                console.log('=== CAMPO DEMO RECIBIDO ===');
-                console.log('ID:', campoDEMO.id);
-                console.log('Nombre:', campoDEMO.nombre_campo);
-                console.log('Usuario ID:', campoDEMO.usuario_id);
-                console.log('Estacion ID:', campoDEMO.estacion_id);
-                console.log('Usuarios IDs:', campoDEMO.usuarios_ids);
-                console.log('Nombre usuario:', campoDEMO.nombre_usuario);
-                console.log('============================');
-            } else {
-                console.log('❌ CAMPO DEMO NO ENCONTRADO');
-            }
             
             const camposProcesados = response.data.map(campo => {
                 return {
@@ -242,18 +177,10 @@ function CamposManagement() {
                 };
             });
 
-            console.log('=== CAMPOS PROCESADOS EN FRONTEND ===');
-            const campoDEMOProcesado = camposProcesados.find(c => String(c.id) === '8');
-            if (campoDEMOProcesado) {
-                console.log('Campo DEMO procesado:', campoDEMOProcesado);
-            }
-            console.log('=====================================');
-
             setCampos(camposProcesados);
             setIsLoadingCampos(false);
         } catch (error) {
-            console.error('❌ Error en GET:', error);
-            console.error('Error details:', error.response?.data);
+            console.error('Error al obtener campos:', error);
             setIsLoadingCampos(false);
         }
     };
@@ -261,7 +188,6 @@ function CamposManagement() {
     const fetchUsuarios = async () => {
         try {
             const response = await axios.get('/usuarios');
-            console.log('Usuarios cargados:', response.data); 
             setUsuarios(response.data);
         } catch (error) {
             console.error('Error al obtener usuarios:', error);
@@ -281,7 +207,6 @@ function CamposManagement() {
                 };
             });
             
-            console.log('Estaciones cargadas:', estacionesNormalizadas); // AGREGAR ESTA LÍNEA
             setEstaciones(estacionesNormalizadas);
             setIsLoadingEstaciones(false);
         } catch (error) {
@@ -359,25 +284,17 @@ function CamposManagement() {
         try {
             const dataToSend = editingCampo ? { ...editingCampo } : { ...nuevoCampo };
             
-            // Asegurar que estacion_id sea una cadena limpia
             if (dataToSend.estacion_id) {
                 dataToSend.estacion_id = String(dataToSend.estacion_id).trim();
             }
             
-            console.log('Datos a enviar:', dataToSend);
-            
             let response;
             if (editingCampo) {
-                console.log('Actualizando campo ID:', editingCampo.id);
                 response = await axios.put(`/campos/${editingCampo.id}`, dataToSend);
             } else {
-                console.log('Creando nuevo campo');
                 response = await axios.post('/campos', dataToSend);
             }
             
-            console.log('Respuesta del servidor:', response.data);
-            
-            // Actualizar la lista de campos
             if (editingCampo) {
                 setCampos(prevCampos => 
                     prevCampos.map(c => 
@@ -388,25 +305,19 @@ function CamposManagement() {
                 setCampos(prevCampos => [...prevCampos, response.data]);
             }
             
-            // Refrescar los campos para obtener los datos actualizados
             await fetchCampos();
             
-            // CERRAR EL DIÁLOGO DIRECTAMENTE SIN RESETEAR ESTADO
             setOpenDialog(false);
-            
-            // Resetear estados después de que el diálogo se cierre
             setTimeout(() => {
                 setNuevoCampo({ nombre_campo: '', ubicacion: '', usuarios_ids: [], estacion_id: '' });
                 setEditingCampo(null);
-            }, 300);
+            }, 100);
             
         } catch (error) {
             console.error('Error al guardar campo:', error);
-            if (error.response) {
-                console.error('Detalles del error:', error.response.data);
-            }
         }
     };
+    
     const handleDelete = async () => {
         try {
             await axios.delete(`/campos/${campoToDelete.id}`);
@@ -488,17 +399,7 @@ function CamposManagement() {
         loadInitialData();
         checkAdminStatus();
     }, []);
-    useEffect(() => {
-        console.log('Estado editingCampo actualizado:', editingCampo);
-    }, [editingCampo]);
-
-    useEffect(() => {
-        console.log('Estado usuarios actualizado:', usuarios);
-    }, [usuarios]);
-
-    useEffect(() => {
-        console.log('Estado estaciones actualizado:', estaciones);
-    }, [estaciones]);
+    
     return (
     <Container maxWidth="md">
         <Typography variant="h4" gutterBottom>Gestión de Campos</Typography>
@@ -558,39 +459,15 @@ function CamposManagement() {
                             {isAdmin && (
                                 <>
                                     <IconButton onClick={() => {
-                                        console.log('=== DEBUG COMPLETO ===');
-                                        console.log('Campo original completo:', campo);
-                                        console.log('Todas las propiedades del campo:');
-                                        Object.keys(campo).forEach(key => {
-                                            console.log(`  ${key}:`, campo[key], `(${typeof campo[key]})`);
-                                        });
-                                        console.log('======================');
+                                        const usuariosIds = campo.usuarios_ids || 
+                                                        (campo.usuario_id ? [campo.usuario_id] : []);
                                         
-                                        // TEMPORAL: Si es el campo con ID 8, forzar los datos
-                                        let campoParaEditar;
-                                        if (campo.id === '8' || campo.id === 8) {
-                                            campoParaEditar = {
-                                                ...campo,
-                                                ubicacion: campo.ubicacion || '',
-                                                estacion_id: '30107',  // HARDCODED TEMPORAL
-                                                usuario_id: '5',       // HARDCODED TEMPORAL
-                                                usuarios_ids: ['5']    // HARDCODED TEMPORAL
-                                            };
-                                            console.log('USANDO DATOS HARDCODED PARA CAMPO 8');
-                                        } else {
-                                            const usuariosIds = campo.usuarios_ids || 
-                                                            (campo.usuario_id ? [campo.usuario_id] : []);
-                                            
-                                            campoParaEditar = {
-                                                ...campo,
-                                                ubicacion: campo.ubicacion || '',
-                                                estacion_id: campo.estacion_id ? String(campo.estacion_id).trim() : '',
-                                                usuarios_ids: usuariosIds
-                                            };
-                                        }
-
-                                        console.log('Campo preparado para edición:', campoParaEditar);
-                                        setEditingCampo(campoParaEditar);
+                                        setEditingCampo({
+                                            ...campo,
+                                            ubicacion: campo.ubicacion || '',
+                                            estacion_id: campo.estacion_id ? String(campo.estacion_id).trim() : '',
+                                            usuarios_ids: usuariosIds
+                                        });
                                         setOpenDialog(true);
                                     }} color="primary">
                                         <Edit />
@@ -647,23 +524,19 @@ function CamposManagement() {
                                 handleUsuariosChange(e);
                             }}
                             onOpen={() => console.log('Select usuarios abierto, valor actual:', editingCampo ? editingCampo.usuarios_ids : nuevoCampo.usuarios_ids)}
-                            renderValue={(selected) => {
-                                console.log('=== RENDER VALUE ===');
-                                console.log('Selected:', selected);
-                                return (
-                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                        {selected.map((value) => {
-                                            const user = usuarios.find(u => String(u.id) === String(value));
-                                            return (
-                                                <Chip 
-                                                    key={value} 
-                                                    label={user ? user.nombre_usuario : `Usuario ${value}`} 
-                                                />
-                                            );
-                                        })}
-                                    </Box>
-                                );
-                            }}
+                            renderValue={(selected) => (
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {selected.map((value) => {
+                                        const user = usuarios.find(u => String(u.id) === String(value));
+                                        return (
+                                            <Chip 
+                                                key={value} 
+                                                label={user ? user.nombre_usuario : `Usuario ${value}`} 
+                                            />
+                                        );
+                                    })}
+                                </Box>
+                            )}
                             required
                         >
                             {usuarios.map((usuario) => (
