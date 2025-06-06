@@ -385,10 +385,7 @@ function CamposManagement() {
     };
 
     const handleOpenMapDialog = (campo = null) => {
-        if (campo) {
-            setEditingCampo(campo);
-        }
-        setOpenMapDialog(true);
+           setOpenMapDialog(true);
     };
 
     const handleSelectEstacion = (estacion) => {
@@ -520,9 +517,6 @@ function CamposManagement() {
                             />
                             <IconButton onClick={() => handleAddLotes(campo.id)}>
                                 <Add />
-                            </IconButton>
-                            <IconButton onClick={() => handleOpenMapDialog(campo)} color="secondary">
-                                <Map />
                             </IconButton>
                             {isAdmin && (
                                 <>
@@ -658,7 +652,7 @@ function CamposManagement() {
                         <Button 
                             variant="outlined" 
                             color="secondary"
-                            onClick={() => handleOpenMapDialog(editingCampo || null)}
+                            onClick={() => handleOpenMapDialog()}
                         >
                             Seleccionar Estación en Mapa
                         </Button>
