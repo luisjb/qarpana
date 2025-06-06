@@ -203,19 +203,28 @@ function CamposManagement() {
             setIsLoadingCampos(true);
             const userRole = localStorage.getItem('role');
             const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
+            console.log('=== FETCHING CAMPOS ===');
+            console.log('Endpoint:', endpoint);
+            console.log('User role:', userRole);
+            
             const response = await axios.get(endpoint);
             
             console.log('=== RESPUESTA COMPLETA DEL BACKEND ===');
-            console.log('Response data:', response.data);
-            response.data.forEach(campo => {
-                console.log(`Campo ${campo.id}:`, {
-                    nombre: campo.nombre_campo,
-                    usuario_id: campo.usuario_id,
-                    estacion_id: campo.estacion_id,
-                    usuarios_ids: campo.usuarios_ids
-                });
-            });
-            console.log('=====================================');
+            console.log('Response.data completo:', response.data);
+            
+            // Buscar específicamente el campo con ID 8
+            const campoDEMO = response.data.find(c => c.id === '8' || c.id === 8);
+            console.log('=== CAMPO DEMO (ID 8) ===');
+            console.log('Datos completos:', campoDEMO);
+            if (campoDEMO) {
+                console.log('ID:', campoDEMO.id);
+                console.log('Nombre:', campoDEMO.nombre_campo);
+                console.log('Usuario ID:', campoDEMO.usuario_id);
+                console.log('Estacion ID:', campoDEMO.estacion_id);
+                console.log('Usuarios IDs:', campoDEMO.usuarios_ids);
+                console.log('Estacion titulo:', campoDEMO.estacion_titulo);
+            }
+            console.log('========================');
             
             const camposProcesados = response.data.map(campo => {
                 return {
@@ -532,24 +541,41 @@ function CamposManagement() {
                             {isAdmin && (
                                 <>
                                     <IconButton onClick={() => {
-                                        console.log('Abriendo diálogo de edición para campo:', campo);
-                                        console.log('Usuarios disponibles:', usuarios);
-                                        console.log('Estaciones disponibles:', estaciones);
-
-                                        const usuariosIds = campo.usuarios_ids || 
-                                                        (campo.usuario_id ? [campo.usuario_id] : []);
-
-                                        const campoParaEditar = {
-                                            ...campo,
-                                            ubicacion: campo.ubicacion || '',
-                                            estacion_id: campo.estacion_id ? String(campo.estacion_id).trim() : '',
-                                            usuarios_ids: usuariosIds
-                                        };
+                                        console.log('=== DEBUG COMPLETO ===');
+                                        console.log('Campo original completo:', campo);
+                                        console.log('Todas las propiedades del campo:');
+                                        Object.keys(campo).forEach(key => {
+                                            console.log(`  ${key}:`, campo[key], `(${typeof campo[key]})`);
+                                        });
+                                        console.log('======================');
+                                        
+                                        // TEMPORAL: Si es el campo con ID 8, forzar los datos
+                                        let campoParaEditar;
+                                        if (campo.id === '8' || campo.id === 8) {
+                                            campoParaEditar = {
+                                                ...campo,
+                                                ubicacion: campo.ubicacion || '',
+                                                estacion_id: '30107',  // HARDCODED TEMPORAL
+                                                usuario_id: '5',       // HARDCODED TEMPORAL
+                                                usuarios_ids: ['5']    // HARDCODED TEMPORAL
+                                            };
+                                            console.log('USANDO DATOS HARDCODED PARA CAMPO 8');
+                                        } else {
+                                            const usuariosIds = campo.usuarios_ids || 
+                                                            (campo.usuario_id ? [campo.usuario_id] : []);
+                                            
+                                            campoParaEditar = {
+                                                ...campo,
+                                                ubicacion: campo.ubicacion || '',
+                                                estacion_id: campo.estacion_id ? String(campo.estacion_id).trim() : '',
+                                                usuarios_ids: usuariosIds
+                                            };
+                                        }
 
                                         console.log('Campo preparado para edición:', campoParaEditar);
                                         setEditingCampo(campoParaEditar);
                                         setOpenDialog(true);
-                                        }} color="primary">
+                                    }} color="primary">
                                         <Edit />
                                     </IconButton>
                                     <IconButton onClick={() => {

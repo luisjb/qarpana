@@ -96,6 +96,10 @@ router.get('/', verifyToken, async (req, res) => {
             });
         });
         console.log('==============================');
+        console.log('=== CONSULTA CAMPOS GET ===');
+        console.log('Cantidad de campos encontrados:', rows.length);
+        console.log('Campo ID 8 raw:', rows.find(r => r.id === '8' || r.id === 8));
+        console.log('===========================');
         
         // Procesa los resultados
         const processed = rows.map(row => ({
