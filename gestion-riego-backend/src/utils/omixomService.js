@@ -14,7 +14,7 @@ class OmixomService {
             const modulosInfo = await this.obtenerModulosEstacion(estacionCodigo);
             
             if (!modulosInfo.tieneEvapotranspiracion) {
-                console.log(`Estación ${estacionCodigo} no tiene módulo de evapotranspiración`);
+                //console.log(`Estación ${estacionCodigo} no tiene módulo de evapotranspiración`);
                 return null;
             }
 
@@ -38,10 +38,10 @@ class OmixomService {
                 }
             };
 
-            console.log(`Consultando datos acumulativos para estación ${estacionCodigo}`);
+            /*console.log(`Consultando datos acumulativos para estación ${estacionCodigo}`);
             console.log(`Rango (últimas 24h): ${fechaInicio} a ${fechaFin}`);
             console.log(`Módulos: ${modulosInfo.modulosEvapotranspiracion}`);
-
+*/
             const response = await axios.post(`${this.BASE_URL}/private_samples_range`, requestBody, {
                 headers: {
                     'Authorization': `Token ${this.API_TOKEN}`,
@@ -54,8 +54,8 @@ class OmixomService {
         } catch (error) {
             console.error(`Error consultando estación ${estacionCodigo}:`, error.message);
             if (error.response) {
-                console.error('Response status:', error.response.status);
-                console.error('Response data:', error.response.data);
+              /*  console.error('Response status:', error.response.status);
+                console.error('Response data:', error.response.data);*/
             }
             return null;
         }
@@ -72,7 +72,7 @@ class OmixomService {
             `, [estacionCodigo]);
 
             if (rows.length === 0) {
-                console.log(`No se encontró configuración para estación ${estacionCodigo}`);
+               // console.log(`No se encontró configuración para estación ${estacionCodigo}`);
                 return { tieneEvapotranspiracion: false, modulosEvapotranspiracion: [] };
             }
 
@@ -93,8 +93,8 @@ class OmixomService {
                 )
             );
 
-            console.log(`Estación ${estacionCodigo} - Módulos de evapotranspiración encontrados:`, 
-                modulosEvapotranspiracion.map(m => `${m.id}: ${m.type}`));
+           /* console.log(`Estación ${estacionCodigo} - Módulos de evapotranspiración encontrados:`, 
+                modulosEvapotranspiracion.map(m => `${m.id}: ${m.type}`));*/
 
             // Si no hay módulos específicos de evapotranspiración, buscar temperatura y humedad
             let modulosAlternativos = [];
@@ -108,8 +108,8 @@ class OmixomService {
                 
                 if (modulosTemperatura.length > 0 && modulosHumedad.length > 0) {
                     modulosAlternativos = [...modulosTemperatura, ...modulosHumedad];
-                    console.log(`Estación ${estacionCodigo} - Usando módulos alternativos (temp + humedad):`, 
-                        modulosAlternativos.map(m => `${m.id}: ${m.type}`));
+                  /*  console.log(`Estación ${estacionCodigo} - Usando módulos alternativos (temp + humedad):`, 
+                        modulosAlternativos.map(m => `${m.id}: ${m.type}`));*/
                 }
             }
 
@@ -127,11 +127,11 @@ class OmixomService {
 
     procesarDatosRangoCompleto(data, moduloIds, fechaObjetivo) {
         if (!data || !Array.isArray(data)) {
-            console.log('No se recibieron datos de estaciones o formato incorrecto');
+           // console.log('No se recibieron datos de estaciones o formato incorrecto');
             return null;
         }
 
-        console.log(`Procesando ${data.length} muestras para acumular en fecha ${fechaObjetivo.toISOString().split('T')[0]}`);
+      //  console.log(`Procesando ${data.length} muestras para acumular en fecha ${fechaObjetivo.toISOString().split('T')[0]}`);
 
         // Acumular TODOS los valores del rango (últimas 24 horas)
         let valoresAcumulados = [];
@@ -164,9 +164,9 @@ class OmixomService {
             const sumaTotal = valoresAcumulados.reduce((sum, val) => sum + val, 0);
             const fechaObjetivoStr = fechaObjetivo.toISOString().split('T')[0];
             
-            console.log(`Estación ${estacionProcesada} - Acumulado para ${fechaObjetivoStr}:`);
+           /* console.log(`Estación ${estacionProcesada} - Acumulado para ${fechaObjetivoStr}:`);
             console.log(`  Total de muestras procesadas: ${valoresAcumulados.length}`);
-            console.log(`  Valores individuales (primeros 10): ${valoresAcumulados.slice(0, 10).join(', ')}${valoresAcumulados.length > 10 ? '...' : ''}`);
+            console.log(`  Valores individuales (primeros 10): ${valoresAcumulados.slice(0, 10).join(', ')}${valoresAcumulados.length > 10 ? '...' : ''}`);*/
             console.log(`  Suma total acumulada: ${sumaTotal} mm/día`);
 
             const resultado = [{
@@ -179,11 +179,11 @@ class OmixomService {
                 rango_procesado: `${data.length} muestras de últimas 24h`
             }];
 
-            console.log(`✅ Resultado final: ${resultado[0].evapotranspiracion} mm para ${fechaObjetivoStr}`);
+           // console.log(`✅ Resultado final: ${resultado[0].evapotranspiracion} mm para ${fechaObjetivoStr}`);
             return resultado;
         }
 
-        console.log('❌ No se encontraron valores válidos para procesar');
+       // console.log('❌ No se encontraron valores válidos para procesar');
         return null;
     }
 
@@ -193,7 +193,7 @@ class OmixomService {
             const modulosInfo = await this.obtenerModulosEstacion(estacionCodigo);
             
             if (!modulosInfo.tieneEvapotranspiracion) {
-                console.log(`Estación ${estacionCodigo} no tiene módulo de evapotranspiración`);
+            //    console.log(`Estación ${estacionCodigo} no tiene módulo de evapotranspiración`);
                 return null;
             }
 
@@ -215,8 +215,8 @@ class OmixomService {
                 }
             };
 
-            console.log(`Consultando ${diasAtras} días de datos para estación ${estacionCodigo}`);
-            console.log(`Rango: ${fechaInicioStr} a ${fechaFinStr}`);
+           /* console.log(`Consultando ${diasAtras} días de datos para estación ${estacionCodigo}`);
+            console.log(`Rango: ${fechaInicioStr} a ${fechaFinStr}`);*/
 
             const response = await axios.post(`${this.BASE_URL}/private_samples_range`, requestBody, {
                 headers: {
@@ -234,11 +234,11 @@ class OmixomService {
 
     procesarDatosRangoMultipleDias(data, moduloIds, diasAtras) {
         if (!data || !Array.isArray(data)) {
-            console.log('No se recibieron datos de estaciones o formato incorrecto');
+        //    console.log('No se recibieron datos de estaciones o formato incorrecto');
             return null;
         }
 
-        console.log(`Procesando ${data.length} muestras para ${diasAtras} días`);
+      //  console.log(`Procesando ${data.length} muestras para ${diasAtras} días`);
 
         // Agrupar datos por fecha
         const datosPorFecha = {};
@@ -273,7 +273,7 @@ class OmixomService {
             const valores = datosPorFecha[fecha];
             const sumaETP = valores.reduce((sum, val) => sum + val, 0);
             
-            console.log(`Fecha ${fecha}: ${valores.length} muestras, suma = ${sumaETP} mm/día`);
+          //  console.log(`Fecha ${fecha}: ${valores.length} muestras, suma = ${sumaETP} mm/día`);
             
             if (sumaETP > 0) {
                 resultados.push({
@@ -316,7 +316,7 @@ class OmixomService {
             const modulosInfo = await this.obtenerModulosEstacion(estacionCodigo);
             
             if (!modulosInfo.tieneEvapotranspiracion) {
-                console.log(`Estación ${estacionCodigo} no tiene módulo de evapotranspiración`);
+           //     console.log(`Estación ${estacionCodigo} no tiene módulo de evapotranspiración`);
                 return null;
             }
 
