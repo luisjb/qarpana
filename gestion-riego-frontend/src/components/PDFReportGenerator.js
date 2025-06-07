@@ -217,31 +217,39 @@ class PDFReportGenerator {
         this.currentY += 15;
         
         if (recomendaciones && recomendaciones.length > 0) {
-            recomendaciones.forEach((rec, index) => {
-                this.checkNewPage(15);
-                
-                this.doc.setFontSize(10);
-                this.doc.setFont('helvetica', 'normal');
-                
-                const bulletPoint = `${index + 1}. `;
-                const texto = rec.texto || rec.descripcion || rec.recomendacion || String(rec);
-                
-                // Dividir texto largo en líneas
-                const lines = this.doc.splitTextToSize(texto, this.contentWidth - 15);
-                
-                this.doc.setFont('helvetica', 'bold');
-                this.doc.text(bulletPoint, this.margin, this.currentY);
-                
-                this.doc.setFont('helvetica', 'normal');
-                this.doc.text(lines, this.margin + 10, this.currentY);
-                
-                this.currentY += (lines.length * 4) + 6;
-            });
+            // Solo mostrar la última recomendación (que debería ser la única que llegue)
+            const recomendacion = recomendaciones[0]; // Tomar la primera (y única) recomendación
+            
+            this.doc.setFontSize(10);
+            this.doc.setFont('helvetica', 'normal');
+            
+            const texto = recomendacion.texto || 
+                         recomendacion.descripcion || 
+                         recomendacion.recomendacion || 
+                         String(recomendacion);
+            
+            // Dividir texto largo en líneas
+            const lines = this.doc.splitTextToSize(texto, this.contentWidth - 10);
+            
+            this.doc.text(lines, this.margin, this.currentY);
+            this.currentY += (lines.length * 4) + 8;
+            
+            // Agregar fecha de la recomendación si está disponible
+            if (recomendacion.fecha_creacion || recomendacion.fecha) {
+                this.doc.setFontSize(8);
+                this.doc.setFont('helvetica', 'italic');
+                this.doc.setTextColor(100, 100, 100);
+                const fecha = recomendacion.fecha_creacion || recomendacion.fecha;
+                const fechaFormateada = new Date(fecha).toLocaleDateString('es-ES');
+                this.doc.text(`Fecha: ${fechaFormateada}`, this.margin, this.currentY);
+                this.doc.setTextColor(0, 0, 0);
+                this.currentY += 6;
+            }
         } else {
             this.doc.setFontSize(10);
             this.doc.setFont('helvetica', 'italic');
             this.doc.setTextColor(150, 150, 150);
-            this.doc.text('No hay recomendaciones específicas disponibles en este momento.', this.margin, this.currentY);
+            this.doc.text('No hay recomendaciones disponibles para este campo en este momento.', this.margin, this.currentY);
             this.doc.setTextColor(0, 0, 0);
             this.currentY += 8;
         }
