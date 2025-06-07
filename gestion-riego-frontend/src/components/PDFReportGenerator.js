@@ -1,7 +1,6 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
-import axios from '../axiosConfig';
 
 class PDFReportGenerator {
     constructor() {
@@ -10,200 +9,266 @@ class PDFReportGenerator {
         this.pageHeight = 297; // A4 height in mm
         this.margin = 20;
         this.contentWidth = 170; // A4 width minus margins
+        this.templatePath = '../assets/hoja membretada 2.pdf'; // Ruta de la plantilla
     }
 
     async generateReport(campoData, lotesData, recomendaciones) {
         this.doc = new jsPDF();
-        this.currentY = this.margin;
-
-        // Agregar header con logo y título
-        await this.addHeader(campoData.nombre_campo);
         
-        // Agregar resumen de círculos
-        await this.addResumenCirculos(lotesData);
+        try {
+            // Intentar cargar la plantilla si existe
+            await this.loadTemplate();
+        } catch (error) {
+            console.warn('No se pudo cargar la plantilla, usando diseño por defecto');
+        }
+        
+        this.currentY = 60; // Comenzar más abajo para respetar el header de la plantilla
+        
+        // Configurar fuente Poppins (usar Helvetica como fallback)
+        this.setupFont();
+        
+        // Agregar título del informe
+        await this.addReportTitle(campoData.nombre_campo);
+        
+        // Agregar resumen de círculos (igual que en la página)
+        await this.addResumenCirculosVisual(lotesData);
         
         // Agregar recomendaciones
         this.addRecomendaciones(recomendaciones);
         
         // Agregar información detallada por lote
         for (const lote of lotesData) {
-            await this.addLoteDetalle(lote);
+            await this.addLoteDetalleCompleto(lote);
         }
-        
-        // Agregar footer en cada página
-        this.addFooter();
         
         // Descargar el PDF
         const fileName = `Informe_Balance_Hidrico_${campoData.nombre_campo}_${format(new Date(), 'dd-MM-yyyy')}.pdf`;
         this.doc.save(fileName);
     }
 
-    async addHeader(nombreCampo) {
-        // Header con estilo QARPANA
-        this.doc.setFillColor(0, 150, 136); // Verde QARPANA
-        this.doc.rect(0, 0, 210, 15, 'F'); // Barra superior verde
+    async loadTemplate() {
+        // Nota: Para usar una plantilla PDF real, necesitarías pdf-lib en lugar de jsPDF
+        // Por ahora, simularemos el diseño de QARPANA
+        this.addQarpanaTemplate();
+    }
+
+    addQarpanaTemplate() {
+        // Recrear el diseño de QARPANA basado en la imagen
+        
+        // Header verde con logo
+        this.doc.setFillColor(67, 160, 71); // Verde QARPANA
+        this.doc.rect(0, 0, 210, 20, 'F');
         
         // Logo/Texto QARPANA
         this.doc.setTextColor(255, 255, 255);
-        this.doc.setFontSize(14);
+        this.doc.setFontSize(16);
         this.doc.setFont('helvetica', 'bold');
-        this.doc.text('QARPANA', this.margin, 10);
+        this.doc.text('QARPANA', this.margin, 12);
+        
+        // Línea decorativa verde
+        this.doc.setDrawColor(139, 195, 74);
+        this.doc.setLineWidth(2);
+        this.doc.line(this.margin, 25, this.margin + this.contentWidth, 25);
+        
+        // Footer con información de contacto
+        this.addFooterTemplate();
+    }
+
+    addFooterTemplate() {
+        const footerY = 270;
+        
+        // Línea separadora
+        this.doc.setDrawColor(139, 195, 74);
+        this.doc.setLineWidth(0.5);
+        this.doc.line(this.margin, footerY, this.margin + this.contentWidth, footerY);
+        
+        // Información de contacto (basada en la imagen del PDF)
+        this.doc.setTextColor(100, 100, 100);
+        this.doc.setFontSize(8);
+        this.doc.setFont('helvetica', 'normal');
+        
+        const contactInfo = [
+            'Teléfono: 3525 640098 / 3525 501392',
+            'Instagram: @qarpana.riego',
+            'Email: info@qarpana.com.ar'
+        ];
+        
+        contactInfo.forEach((info, index) => {
+            this.doc.text(info, this.margin, footerY + 8 + (index * 4));
+        });
         
         // Reset color
         this.doc.setTextColor(0, 0, 0);
-        this.currentY = 25;
-        
-        // Título del informe
+    }
+
+    setupFont() {
+        // Usar Helvetica como Poppins no está disponible por defecto en jsPDF
+        // En un entorno real, necesitarías cargar la fuente Poppins
+        this.doc.setFont('helvetica', 'normal');
+    }
+
+    async addReportTitle(nombreCampo) {
         this.doc.setFontSize(20);
         this.doc.setFont('helvetica', 'bold');
+        this.doc.setTextColor(67, 160, 71);
         this.doc.text('INFORME DE BALANCE HÍDRICO', this.margin, this.currentY);
         
         this.currentY += 12;
         
-        // Nombre del campo
         this.doc.setFontSize(16);
-        this.doc.setFont('helvetica', 'normal');
-        this.doc.setTextColor(0, 150, 136);
+        this.doc.setTextColor(0, 0, 0);
         this.doc.text(`Campo: ${nombreCampo}`, this.margin, this.currentY);
         
-        this.currentY += 10;
+        this.currentY += 8;
         
-        // Fecha del informe
         this.doc.setFontSize(10);
         this.doc.setTextColor(100, 100, 100);
-        this.doc.text(`Fecha de generación: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, this.margin, this.currentY);
+        this.doc.text(`Fecha: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, this.margin, this.currentY);
         
-        // Línea separadora
-        this.doc.setDrawColor(0, 150, 136);
-        this.doc.setLineWidth(0.5);
-        this.doc.line(this.margin, this.currentY + 5, this.margin + this.contentWidth, this.currentY + 5);
-        
-        this.doc.setTextColor(0, 0, 0); // Reset color
         this.currentY += 20;
     }
 
-    async addResumenCirculos(lotesData) {
-        this.checkNewPage(80);
+    async addResumenCirculosVisual(lotesData) {
+        this.checkNewPage(100);
         
         // Título sección
         this.doc.setFontSize(16);
         this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(0, 150, 136);
+        this.doc.setTextColor(67, 160, 71);
         this.doc.text('RESUMEN DE CÍRCULOS', this.margin, this.currentY);
         this.doc.setTextColor(0, 0, 0);
-        this.currentY += 15;
+        this.currentY += 20;
         
-        // Estadísticas generales
-        this.addEstadisticasGenerales(lotesData);
-        
-        // Tabla resumen
-        const headers = ['Lote', 'Cultivo/Variedad', 'Campaña', '% AU 1m', '% AU 2m', 'Estado'];
-        const data = lotesData.map(lote => [
-            lote.nombre_lote.substring(0, 12),
-            `${lote.especie}/${lote.variedad}`.substring(0, 15),
-            lote.campaña,
-            `${Math.round(lote.waterData?.porcentajeAu1m || 0)}%`,
-            `${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`,
-            this.getEstadoTexto(lote.waterData?.porcentajeAu1m || 0)
-        ]);
-        
-        this.addTable(headers, data);
-        this.currentY += 15;
-        
-        // Gráfico de resumen
-        await this.addGraficoResumen(lotesData);
+        // Recrear exactamente las cards como en la imagen
+        await this.addLotesCards(lotesData);
     }
 
-    addEstadisticasGenerales(lotesData) {
-        const totalLotes = lotesData.length;
-        const lotesCriticos = lotesData.filter(l => (l.waterData?.porcentajeAu1m || 0) <= 25).length;
-        const lotesBuenos = lotesData.filter(l => (l.waterData?.porcentajeAu1m || 0) > 75).length;
-        const promedioAU1m = lotesData.reduce((sum, l) => sum + (l.waterData?.porcentajeAu1m || 0), 0) / totalLotes;
-        
-        this.doc.setFontSize(11);
-        this.doc.setFont('helvetica', 'normal');
-        
-        const estadisticas = [
-            `Total de lotes: ${totalLotes}`,
-            `Lotes en estado crítico: ${lotesCriticos} (${Math.round((lotesCriticos/totalLotes)*100)}%)`,
-            `Lotes en buen estado: ${lotesBuenos} (${Math.round((lotesBuenos/totalLotes)*100)}%)`,
-            `Promedio agua útil 1m: ${Math.round(promedioAU1m)}%`
-        ];
-        
-        estadisticas.forEach(stat => {
-            this.doc.text(`• ${stat}`, this.margin, this.currentY);
-            this.currentY += 5;
-        });
-        
-        this.currentY += 10;
-    }
-
-    async addGraficoResumen(lotesData) {
-        this.checkNewPage(100);
-        
-        this.doc.setFontSize(12);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.text('Distribución de Estados de Agua Útil por Lote', this.margin, this.currentY);
-        this.currentY += 15;
-        
-        // Crear gráfico de barras horizontales
-        const maxNombreLength = 15;
-        const barAreaWidth = 100;
-        const barHeight = 6;
+    async addLotesCards(lotesData) {
+        const cardsPerRow = 3;
+        const cardWidth = 50;
+        const cardHeight = 45;
         const spacing = 10;
         
-        lotesData.forEach((lote, index) => {
-            const y = this.currentY + (index * spacing);
+        let currentRow = 0;
+        let currentCol = 0;
+        
+        for (let i = 0; i < lotesData.length; i++) {
+            const lote = lotesData[i];
             
-            // Verificar si necesita nueva página
-            if (y > this.pageHeight - 40) {
+            // Calcular posición de la card
+            const x = this.margin + (currentCol * (cardWidth + spacing));
+            const y = this.currentY + (currentRow * (cardHeight + spacing));
+            
+            // Verificar si necesitamos nueva página
+            if (y + cardHeight > this.pageHeight - 50) {
                 this.doc.addPage();
-                this.currentY = this.margin;
-                return;
+                this.addQarpanaTemplate();
+                this.currentY = 60;
+                currentRow = 0;
+                currentCol = 0;
+                continue;
             }
             
-            // Nombre del lote (truncado)
-            this.doc.setFontSize(8);
-            this.doc.setFont('helvetica', 'normal');
-            const nombreTruncado = lote.nombre_lote.length > maxNombreLength 
-                ? lote.nombre_lote.substring(0, maxNombreLength) + '...'
-                : lote.nombre_lote;
-            this.doc.text(nombreTruncado, this.margin, y + 4);
+            // Dibujar card del lote
+            await this.drawLoteCard(lote, x, y, cardWidth, cardHeight);
             
-            const startX = this.margin + 40;
-            
-            // Barra para 1m
-            const porcentaje1m = lote.waterData?.porcentajeAu1m || 0;
-            const width1m = (porcentaje1m / 100) * (barAreaWidth / 2.2);
-            
-            this.doc.setFillColor(...this.getColorByPercentage(porcentaje1m));
-            this.doc.rect(startX, y, width1m, barHeight, 'F');
-            
-            // Borde de la barra 1m
-            this.doc.setDrawColor(200, 200, 200);
-            this.doc.setLineWidth(0.1);
-            this.doc.rect(startX, y, barAreaWidth / 2.2, barHeight);
-            
-            // Etiqueta 1m
-            this.doc.setFontSize(7);
-            this.doc.text(`1m: ${Math.round(porcentaje1m)}%`, startX + (barAreaWidth / 2.2) + 2, y + 4);
-            
-            // Barra para 2m
-            const porcentaje2m = lote.waterData?.porcentajeAu2m || 0;
-            const width2m = (porcentaje2m / 100) * (barAreaWidth / 2.2);
-            const startX2m = startX + (barAreaWidth / 2.2) + 25;
-            
-            this.doc.setFillColor(...this.getColorByPercentage(porcentaje2m));
-            this.doc.rect(startX2m, y, width2m, barHeight, 'F');
-            
-            // Borde de la barra 2m
-            this.doc.rect(startX2m, y, barAreaWidth / 2.2, barHeight);
-            
-            // Etiqueta 2m
-            this.doc.text(`2m: ${Math.round(porcentaje2m)}%`, startX2m + (barAreaWidth / 2.2) + 2, y + 4);
-        });
+            // Actualizar posición
+            currentCol++;
+            if (currentCol >= cardsPerRow) {
+                currentCol = 0;
+                currentRow++;
+            }
+        }
         
-        this.currentY += (lotesData.length * spacing) + 15;
+        // Actualizar currentY para el siguiente contenido
+        const totalRows = Math.ceil(lotesData.length / cardsPerRow);
+        this.currentY += (totalRows * (cardHeight + spacing)) + 20;
+    }
+
+    async drawLoteCard(lote, x, y, width, height) {
+        // Fondo de la card
+        this.doc.setFillColor(248, 249, 250);
+        this.doc.setDrawColor(230, 230, 230);
+        this.doc.roundedRect(x, y, width, height, 2, 2, 'FD');
+        
+        // Título del lote
+        this.doc.setFontSize(10);
+        this.doc.setFont('helvetica', 'bold');
+        this.doc.setTextColor(0, 0, 0);
+        const nombreTruncado = lote.nombre_lote.length > 12 ? 
+            lote.nombre_lote.substring(0, 12) + '...' : lote.nombre_lote;
+        this.doc.text(nombreTruncado, x + 2, y + 5);
+        
+        // Cultivo y variedad
+        this.doc.setFontSize(7);
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.setTextColor(100, 100, 100);
+        const cultivoTexto = `${lote.especie} - ${lote.variedad}`.substring(0, 20);
+        this.doc.text(cultivoTexto, x + 2, y + 9);
+        
+        // Campaña
+        this.doc.text(`Campaña: ${lote.campaña}`, x + 2, y + 12);
+        
+        // Gauges para 1m y 2m (recrear como en la imagen)
+        const gauge1X = x + 8;
+        const gauge1Y = y + 18;
+        const gauge2X = x + 30;
+        const gauge2Y = y + 18;
+        const gaugeSize = 12;
+        
+        // Gauge 1 Metro
+        this.drawMiniGauge(
+            gauge1X, gauge1Y, gaugeSize, 
+            lote.waterData?.porcentajeAu1m || 0,
+            '1m'
+        );
+        
+        // Gauge 2 Metros
+        this.drawMiniGauge(
+            gauge2X, gauge2Y, gaugeSize, 
+            lote.waterData?.porcentajeAu2m || 0,
+            '2m'
+        );
+        
+        // Valores en mm
+        this.doc.setFontSize(6);
+        this.doc.setTextColor(0, 0, 0);
+        this.doc.text(`${Math.round(lote.waterData?.aguaUtil1m || 0)} mm`, gauge1X - 3, y + height - 3);
+        this.doc.text(`${Math.round(lote.waterData?.aguaUtil2m || 0)} mm`, gauge2X - 3, y + height - 3);
+    }
+
+    drawMiniGauge(x, y, size, percentage, label) {
+        const radius = size / 2;
+        const centerX = x + radius;
+        const centerY = y + radius;
+        
+        // Fondo del gauge
+        this.doc.setFillColor(230, 230, 230);
+        this.doc.circle(centerX, centerY, radius, 'F');
+        
+        // Color según porcentaje
+        const color = this.getColorByPercentage(percentage);
+        this.doc.setFillColor(...color);
+        
+        // Dibujar progreso (simulado con círculo más pequeño)
+        const progressRadius = radius * 0.8;
+        const alpha = (percentage / 100) * 360;
+        
+        // Simular gauge con círculo relleno según porcentaje
+        if (percentage > 0) {
+            this.doc.circle(centerX, centerY, progressRadius, 'F');
+        }
+        
+        // Texto del porcentaje
+        this.doc.setTextColor(255, 255, 255);
+        this.doc.setFontSize(6);
+        this.doc.setFont('helvetica', 'bold');
+        this.doc.text(`${Math.round(percentage)}%`, centerX - 4, centerY + 1);
+        
+        // Label
+        this.doc.setTextColor(0, 0, 0);
+        this.doc.setFontSize(5);
+        this.doc.text(label, centerX - 2, y - 2);
     }
 
     addRecomendaciones(recomendaciones) {
@@ -211,16 +276,15 @@ class PDFReportGenerator {
         
         this.doc.setFontSize(16);
         this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(0, 150, 136);
+        this.doc.setTextColor(67, 160, 71);
         this.doc.text('RECOMENDACIONES', this.margin, this.currentY);
         this.doc.setTextColor(0, 0, 0);
         this.currentY += 15;
         
         if (recomendaciones && recomendaciones.length > 0) {
-            // Solo mostrar la última recomendación (que debería ser la única que llegue)
-            const recomendacion = recomendaciones[0]; // Tomar la primera (y única) recomendación
+            const recomendacion = recomendaciones[0];
             
-            this.doc.setFontSize(10);
+            this.doc.setFontSize(11);
             this.doc.setFont('helvetica', 'normal');
             
             const texto = recomendacion.texto || 
@@ -231,10 +295,14 @@ class PDFReportGenerator {
             // Dividir texto largo en líneas
             const lines = this.doc.splitTextToSize(texto, this.contentWidth - 10);
             
-            this.doc.text(lines, this.margin, this.currentY);
-            this.currentY += (lines.length * 4) + 8;
+            // Fondo para la recomendación
+            this.doc.setFillColor(248, 249, 250);
+            this.doc.roundedRect(this.margin, this.currentY - 5, this.contentWidth, lines.length * 5 + 10, 2, 2, 'F');
             
-            // Agregar fecha de la recomendación si está disponible
+            this.doc.text(lines, this.margin + 5, this.currentY + 2);
+            this.currentY += (lines.length * 5) + 15;
+            
+            // Fecha si está disponible
             if (recomendacion.fecha_creacion || recomendacion.fecha) {
                 this.doc.setFontSize(8);
                 this.doc.setFont('helvetica', 'italic');
@@ -243,186 +311,222 @@ class PDFReportGenerator {
                 const fechaFormateada = new Date(fecha).toLocaleDateString('es-ES');
                 this.doc.text(`Fecha: ${fechaFormateada}`, this.margin, this.currentY);
                 this.doc.setTextColor(0, 0, 0);
-                this.currentY += 6;
+                this.currentY += 10;
             }
         } else {
             this.doc.setFontSize(10);
             this.doc.setFont('helvetica', 'italic');
             this.doc.setTextColor(150, 150, 150);
-            this.doc.text('No hay recomendaciones disponibles para este campo en este momento.', this.margin, this.currentY);
+            this.doc.text('No hay recomendaciones disponibles para este campo.', this.margin, this.currentY);
             this.doc.setTextColor(0, 0, 0);
-            this.currentY += 8;
+            this.currentY += 15;
         }
         
-        this.currentY += 15;
+        this.currentY += 10;
     }
 
-    async addLoteDetalle(lote) {
+    async addLoteDetalleCompleto(lote) {
         // Nueva página para cada lote
         this.doc.addPage();
-        this.currentY = this.margin;
+        this.addQarpanaTemplate();
+        this.currentY = 60;
         
         // Título del lote
         this.doc.setFontSize(16);
         this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(0, 150, 136);
-        this.doc.text(`DETALLE DEL LOTE: ${lote.nombre_lote}`, this.margin, this.currentY);
+        this.doc.setTextColor(67, 160, 71);
+        this.doc.text(`DETALLE: ${lote.nombre_lote}`, this.margin, this.currentY);
         this.doc.setTextColor(0, 0, 0);
         this.currentY += 20;
         
-        // Datos agronómicos y climáticos en dos columnas
-        await this.addDatosLoteEnColumnas(lote);
+        // Recrear las cards como en la imagen de simulaciones
+        await this.addSimulationCards(lote);
         
-        // Balance hídrico
+        // Gráfico de balance hídrico
         if (lote.simulationData) {
-            await this.addBalanceHidricoChart(lote);
+            await this.addBalanceChart(lote);
         }
     }
 
-    async addDatosLoteEnColumnas(lote) {
-        const colWidth = this.contentWidth / 2 - 5;
+    async addSimulationCards(lote) {
+        // Recrear exactamente las cards como aparecen en la página de simulaciones
+        const cardWidth = 40;
+        const cardHeight = 25;
+        const spacing = 5;
         
-        // Columna izquierda - Datos Agronómicos
-        this.doc.setFontSize(12);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(0, 150, 136);
-        this.doc.text('Datos Agronómicos', this.margin, this.currentY);
-        this.doc.setTextColor(0, 0, 0);
-        
-        const startY = this.currentY + 8;
-        let leftY = startY;
-        
-        const datosAgronomicos = [
-            ['Cultivo:', lote.especie || 'N/A'],
-            ['Variedad:', lote.variedad || 'N/A'],
-            ['Campaña:', lote.campaña || 'N/A'],
-            ['Fecha Siembra:', lote.fecha_siembra ? format(new Date(lote.fecha_siembra), 'dd/MM/yyyy') : 'N/A'],
-            ['Estado Fenológico:', lote.simulationData?.estadoFenologico || 'N/A']
+        // Primera fila: Cultivo, Variedad, Fecha Siembra, Estado Fenológico
+        const row1Cards = [
+            { title: 'Cultivo', value: lote.especie || 'N/A', icon: '🌱' },
+            { title: 'Variedad', value: lote.variedad || 'N/A', icon: '🌱' },
+            { title: 'Fecha de Siembra', value: lote.fecha_siembra ? format(new Date(lote.fecha_siembra), 'dd/MM/yyyy') : 'N/A', icon: '📅' },
+            { title: 'Estado Fenológico', value: lote.simulationData?.estadoFenologico || 'N/A', icon: '🌱' }
         ];
         
-        this.doc.setFontSize(9);
-        datosAgronomicos.forEach(([label, value]) => {
-            this.doc.setFont('helvetica', 'bold');
-            this.doc.text(label, this.margin, leftY);
-            this.doc.setFont('helvetica', 'normal');
-            this.doc.text(value, this.margin + 30, leftY);
-            leftY += 5;
-        });
+        this.drawCardRow(row1Cards, this.currentY, cardWidth, cardHeight, spacing);
+        this.currentY += cardHeight + 15;
         
-        // Columna derecha - Estado Hídrico
-        this.doc.setFontSize(12);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(0, 150, 136);
-        this.doc.text('Estado Hídrico Actual', this.margin + colWidth + 10, this.currentY);
-        this.doc.setTextColor(0, 0, 0);
-        
-        let rightY = startY;
-        
-        const datosHidricos = [
-            ['AU 1m:', `${Math.round(lote.waterData?.aguaUtil1m || 0)} mm`],
-            ['% AU 1m:', `${Math.round(lote.waterData?.porcentajeAu1m || 0)}%`],
-            ['AU 2m:', `${Math.round(lote.waterData?.aguaUtil2m || 0)} mm`],
-            ['% AU 2m:', `${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`],
-            ['Estado:', this.getEstadoTexto(lote.waterData?.porcentajeAu1m || 0)]
-        ];
-        
-        this.doc.setFontSize(9);
-        datosHidricos.forEach(([label, value]) => {
-            this.doc.setFont('helvetica', 'bold');
-            this.doc.text(label, this.margin + colWidth + 10, rightY);
-            this.doc.setFont('helvetica', 'normal');
-            this.doc.text(value, this.margin + colWidth + 35, rightY);
-            rightY += 5;
-        });
-        
-        this.currentY = Math.max(leftY, rightY) + 15;
+        // Segunda fila: Cards de agua útil (como en la imagen)
+        await this.addWaterCards(lote);
     }
 
-    async addBalanceHidricoChart(lote) {
+    drawCardRow(cards, startY, cardWidth, cardHeight, spacing) {
+        cards.forEach((card, index) => {
+            const x = this.margin + (index * (cardWidth + spacing));
+            
+            // Fondo de la card
+            this.doc.setFillColor(248, 249, 250);
+            this.doc.setDrawColor(230, 230, 230);
+            this.doc.roundedRect(x, startY, cardWidth, cardHeight, 2, 2, 'FD');
+            
+            // Título
+            this.doc.setFontSize(8);
+            this.doc.setFont('helvetica', 'bold');
+            this.doc.setTextColor(67, 160, 71);
+            this.doc.text(card.title, x + 2, startY + 5);
+            
+            // Valor
+            this.doc.setFontSize(10);
+            this.doc.setFont('helvetica', 'normal');
+            this.doc.setTextColor(0, 0, 0);
+            const lines = this.doc.splitTextToSize(card.value, cardWidth - 4);
+            this.doc.text(lines, x + 2, startY + 12);
+        });
+    }
+
+    async addWaterCards(lote) {
+        // Recrear las cards de agua útil como en la imagen
+        const cardWidth = 50;
+        const cardHeight = 35;
+        const spacing = 8;
+        
+        // Card Agua Útil Inicial
+        this.drawWaterCard(
+            this.margin, this.currentY, cardWidth, cardHeight,
+            'Agua Útil Inicial',
+            [`1 Metro: ${Math.round(lote.simulationData?.auInicial1m || 0)} mm`,
+             `2 Metros: ${Math.round(lote.simulationData?.auInicial2m || 0)} mm`]
+        );
+        
+        // Card % AU Zona Radicular
+        this.drawWaterCard(
+            this.margin + cardWidth + spacing, this.currentY, cardWidth, cardHeight,
+            '%AU Zona Radicular',
+            [`${Math.round(lote.simulationData?.porcentajeAguaUtil || 0)}%`,
+             `${Math.round(lote.simulationData?.aguaUtil?.[lote.simulationData.aguaUtil.length - 1] || 0)}mm`],
+            true // Con gauge
+        );
+        
+        // Card % Agua Útil
+        this.drawWaterCard(
+            this.margin + (cardWidth + spacing) * 2, this.currentY, cardWidth, cardHeight,
+            '% Agua Útil',
+            [`1m: ${Math.round(lote.waterData?.porcentajeAu1m || 0)}%`,
+             `2m: ${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`],
+            false,
+            true // Con mini gauges
+        );
+        
+        this.currentY += cardHeight + 20;
+    }
+
+    drawWaterCard(x, y, width, height, title, content, withMainGauge = false, withMiniGauges = false) {
+        // Fondo de la card
+        this.doc.setFillColor(248, 249, 250);
+        this.doc.setDrawColor(63, 169, 245);
+        this.doc.setLineWidth(0.5);
+        this.doc.roundedRect(x, y, width, height, 2, 2, 'FD');
+        
+        // Título con icono de agua
+        this.doc.setFontSize(9);
+        this.doc.setFont('helvetica', 'bold');
+        this.doc.setTextColor(63, 169, 245);
+        this.doc.text('💧 ' + title, x + 2, y + 5);
+        
+        // Contenido
+        this.doc.setFontSize(8);
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.setTextColor(0, 0, 0);
+        
+        content.forEach((line, index) => {
+            this.doc.text(line, x + 2, y + 12 + (index * 5));
+        });
+        
+        // Agregar gauges si corresponde
+        if (withMiniGauges && content.length >= 2) {
+            // Extraer porcentajes de los strings
+            const perc1m = parseInt(content[0].match(/\d+/)?.[0] || '0');
+            const perc2m = parseInt(content[1].match(/\d+/)?.[0] || '0');
+            
+            this.drawMiniGauge(x + width - 15, y + 8, 8, perc1m, '1m');
+            this.drawMiniGauge(x + width - 15, y + 20, 8, perc2m, '2m');
+        }
+    }
+
+    async addBalanceChart(lote) {
         this.checkNewPage(80);
         
         this.doc.setFontSize(12);
         this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(0, 150, 136);
+        this.doc.setTextColor(67, 160, 71);
         this.doc.text('Balance Hídrico - Últimos 30 días', this.margin, this.currentY);
         this.doc.setTextColor(0, 0, 0);
         this.currentY += 15;
         
-        // Datos del balance (últimos 30 registros)
-        const simulationData = lote.simulationData;
-        if (simulationData && simulationData.fechas && simulationData.fechas.length > 0) {
-            const startIndex = Math.max(0, simulationData.fechas.length - 30);
-            const fechas = simulationData.fechas.slice(startIndex);
-            const aguaUtil = simulationData.aguaUtil.slice(startIndex);
-            const lluvias = simulationData.lluvias.slice(startIndex);
-            const riego = simulationData.riego.slice(startIndex);
-            
-            // Crear un mini gráfico en ASCII/texto
-            this.addSimpleChart(fechas, aguaUtil, lluvias, riego);
-        } else {
-            this.doc.setFontSize(10);
-            this.doc.setFont('helvetica', 'italic');
-            this.doc.text('No hay datos suficientes para mostrar el gráfico de balance hídrico.', this.margin, this.currentY);
-            this.currentY += 10;
-        }
-        
-        // Resumen numérico del período
-        if (lote.simulationData) {
-            this.addResumenNumerico(lote.simulationData);
-        }
-    }
-
-    addSimpleChart(fechas, aguaUtil, lluvias, riego) {
-        // Área del gráfico
+        // Simular el gráfico como en la imagen
         const chartWidth = this.contentWidth;
-        const chartHeight = 50;
-        const chartStartY = this.currentY;
+        const chartHeight = 60;
         
         // Fondo del gráfico
-        this.doc.setFillColor(248, 248, 248);
-        this.doc.rect(this.margin, chartStartY, chartWidth, chartHeight, 'F');
+        this.doc.setFillColor(248, 249, 250);
+        this.doc.setDrawColor(230, 230, 230);
+        this.doc.rect(this.margin, this.currentY, chartWidth, chartHeight, 'FD');
         
-        // Bordes
-        this.doc.setDrawColor(200, 200, 200);
-        this.doc.rect(this.margin, chartStartY, chartWidth, chartHeight);
+        // Simular datos del gráfico
+        this.drawSimulatedChart(this.margin, this.currentY, chartWidth, chartHeight, lote.simulationData);
         
-        // Encontrar valores máximos para escalar
-        const maxAguaUtil = Math.max(...aguaUtil);
-        const maxPrecip = Math.max(...lluvias, ...riego);
+        this.currentY += chartHeight + 20;
         
-        if (maxAguaUtil > 0) {
-            // Dibujar línea de agua útil
-            this.doc.setDrawColor(0, 100, 200);
-            this.doc.setLineWidth(1);
-            
-            for (let i = 0; i < aguaUtil.length - 1; i++) {
-                const x1 = this.margin + (i / (aguaUtil.length - 1)) * chartWidth;
-                const y1 = chartStartY + chartHeight - (aguaUtil[i] / maxAguaUtil) * chartHeight;
-                const x2 = this.margin + ((i + 1) / (aguaUtil.length - 1)) * chartWidth;
-                const y2 = chartStartY + chartHeight - (aguaUtil[i + 1] / maxAguaUtil) * chartHeight;
+        // Resumen numérico
+        this.addBalanceSummary(lote.simulationData);
+    }
+
+    drawSimulatedChart(x, y, width, height, simulationData) {
+        if (!simulationData || !simulationData.aguaUtil) {
+            this.doc.setFontSize(10);
+            this.doc.text('No hay datos suficientes para el gráfico', x + 10, y + height/2);
+            return;
+        }
+        
+        // Simular línea de agua útil
+        this.doc.setDrawColor(47, 128, 237);
+        this.doc.setLineWidth(1);
+        
+        const data = simulationData.aguaUtil.slice(-30); // Últimos 30 datos
+        const maxValue = Math.max(...data);
+        
+        if (data.length > 1) {
+            for (let i = 0; i < data.length - 1; i++) {
+                const x1 = x + (i / (data.length - 1)) * width;
+                const y1 = y + height - (data[i] / maxValue) * height;
+                const x2 = x + ((i + 1) / (data.length - 1)) * width;
+                const y2 = y + height - (data[i + 1] / maxValue) * height;
                 
                 this.doc.line(x1, y1, x2, y2);
             }
         }
         
-        // Etiquetas
+        // Leyenda
         this.doc.setFontSize(8);
-        this.doc.setFont('helvetica', 'normal');
-        this.doc.text('Agua Útil (línea azul)', this.margin, chartStartY + chartHeight + 5);
-        this.doc.text(`Máx: ${Math.round(maxAguaUtil)} mm`, this.margin, chartStartY + chartHeight + 10);
+        this.doc.setTextColor(47, 128, 237);
+        this.doc.text('— Agua Útil', x + 5, y + height + 5);
         
-        // Fechas de referencia
-        if (fechas.length > 0) {
-            const fechaInicio = format(new Date(fechas[0]), 'dd/MM');
-            const fechaFin = format(new Date(fechas[fechas.length - 1]), 'dd/MM');
-            this.doc.text(fechaInicio, this.margin, chartStartY + chartHeight + 15);
-            this.doc.text(fechaFin, this.margin + chartWidth - 15, chartStartY + chartHeight + 15);
-        }
-        
-        this.currentY = chartStartY + chartHeight + 25;
+        this.doc.setTextColor(0, 0, 0);
+        this.doc.text(`Máx: ${Math.round(maxValue)} mm`, x + width - 30, y + height + 5);
     }
 
-    addResumenNumerico(simulationData) {
+    addBalanceSummary(simulationData) {
+        if (!simulationData) return;
+        
         this.doc.setFontSize(10);
         this.doc.setFont('helvetica', 'bold');
         this.doc.text('Resumen del Período:', this.margin, this.currentY);
@@ -432,92 +536,23 @@ class PDFReportGenerator {
         this.doc.setFontSize(9);
         
         const resumen = [
-            `• Lluvia efectiva acumulada: ${Math.round(simulationData.lluviasEfectivasAcumuladas || 0)} mm`,
+            `• Lluvia efectiva: ${Math.round(simulationData.lluviasEfectivasAcumuladas || 0)} mm`,
             `• Riego acumulado: ${Math.round(simulationData.riegoAcumulado || 0)} mm`,
-            `• Agua útil actual: ${Math.round(simulationData.aguaUtil[simulationData.aguaUtil.length - 1] || 0)} mm`,
-            `• Porcentaje de agua útil: ${Math.round(simulationData.porcentajeAguaUtil || 0)}%`
+            `• Agua útil actual: ${Math.round(simulationData.aguaUtil?.[simulationData.aguaUtil.length - 1] || 0)} mm`,
+            `• % Agua útil: ${Math.round(simulationData.porcentajeAguaUtil || 0)}%`
         ];
         
         resumen.forEach(item => {
             this.doc.text(item, this.margin, this.currentY);
-            this.currentY += 4;
+            this.currentY += 5;
         });
-        
-        this.currentY += 10;
-    }
-
-    addTable(headers, data) {
-        const rowHeight = 8;
-        const colWidth = this.contentWidth / headers.length;
-        
-        // Headers
-        this.doc.setFontSize(9);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setFillColor(0, 150, 136);
-        this.doc.setTextColor(255, 255, 255);
-        
-        headers.forEach((header, index) => {
-            const x = this.margin + (index * colWidth);
-            this.doc.rect(x, this.currentY, colWidth, rowHeight, 'F');
-            this.doc.rect(x, this.currentY, colWidth, rowHeight);
-            this.doc.text(header, x + 2, this.currentY + 5);
-        });
-        
-        this.currentY += rowHeight;
-        this.doc.setTextColor(0, 0, 0);
-        
-        // Data rows
-        this.doc.setFont('helvetica', 'normal');
-        this.doc.setFontSize(8);
-        
-        data.forEach((row, rowIndex) => {
-            this.checkNewPage(rowHeight + 5);
-            
-            // Alternar color de fondo
-            if (rowIndex % 2 === 0) {
-                this.doc.setFillColor(250, 250, 250);
-                this.doc.rect(this.margin, this.currentY, this.contentWidth, rowHeight, 'F');
-            }
-            
-            row.forEach((cell, index) => {
-                const x = this.margin + (index * colWidth);
-                this.doc.rect(x, this.currentY, colWidth, rowHeight);
-                
-                const cellText = String(cell);
-                this.doc.text(cellText, x + 2, this.currentY + 5);
-            });
-            
-            this.currentY += rowHeight;
-        });
-    }
-
-    addFooter() {
-        const totalPages = this.doc.internal.getNumberOfPages();
-        
-        for (let i = 1; i <= totalPages; i++) {
-            this.doc.setPage(i);
-            
-            // Línea separadora
-            this.doc.setDrawColor(0, 150, 136);
-            this.doc.setLineWidth(0.3);
-            this.doc.line(this.margin, 280, this.margin + this.contentWidth, 280);
-            
-            // Información de contacto
-            this.doc.setFontSize(8);
-            this.doc.setFont('helvetica', 'normal');
-            this.doc.setTextColor(100, 100, 100);
-            this.doc.text('QARPANA - Tecnología para el Agro', this.margin, 285);
-            this.doc.text('info@qarpana.com.ar | 3525 640098', this.margin, 290);
-            
-            // Número de página
-            this.doc.text(`Página ${i} de ${totalPages}`, this.margin + this.contentWidth - 30, 290);
-        }
     }
 
     checkNewPage(requiredSpace) {
-        if (this.currentY + requiredSpace > this.pageHeight - 30) {
+        if (this.currentY + requiredSpace > this.pageHeight - 50) {
             this.doc.addPage();
-            this.currentY = this.margin;
+            this.addQarpanaTemplate();
+            this.currentY = 60;
         }
     }
 
@@ -526,13 +561,6 @@ class PDFReportGenerator {
         if (percentage <= 50) return [249, 115, 22]; // Naranja
         if (percentage <= 75) return [255, 193, 7]; // Amarillo
         return [34, 197, 94]; // Verde
-    }
-
-    getEstadoTexto(percentage) {
-        if (percentage <= 25) return 'Crítico';
-        if (percentage <= 50) return 'Bajo';
-        if (percentage <= 75) return 'Medio';
-        return 'Bueno';
     }
 }
 

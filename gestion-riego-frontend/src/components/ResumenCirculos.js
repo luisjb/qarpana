@@ -327,46 +327,7 @@ function ResumenCirculos() {
                 <Typography color="error" sx={{ my: 2 }}>{error}</Typography>
             )}
 
-            {/* Mostrar estadísticas generales si hay lotes */}
-            {lotes.length > 0 && (
-                <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-                        Estadísticas del Campo
-                    </Typography>
-                    <Grid container spacing={2}>
-                        <Grid item xs={6} md={3}>
-                            <Box textAlign="center">
-                                <Typography variant="h4" color="primary">{lotes.length}</Typography>
-                                <Typography variant="body2" color="text.secondary">Total Lotes</Typography>
-                            </Box>
-                        </Grid>
-                        <Grid item xs={6} md={3}>
-                            <Box textAlign="center">
-                                <Typography variant="h4" color="error">
-                                    {lotes.filter(l => (l.waterData?.porcentajeAu1m || 0) <= 25).length}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">Críticos</Typography>
-                            </Box>
-                        </Grid>
-                        <Grid item xs={6} md={3}>
-                            <Box textAlign="center">
-                                <Typography variant="h4" color="warning.main">
-                                    {lotes.filter(l => (l.waterData?.porcentajeAu1m || 0) > 25 && (l.waterData?.porcentajeAu1m || 0) <= 50).length}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">Bajos</Typography>
-                            </Box>
-                        </Grid>
-                        <Grid item xs={6} md={3}>
-                            <Box textAlign="center">
-                                <Typography variant="h4" color="success.main">
-                                    {lotes.filter(l => (l.waterData?.porcentajeAu1m || 0) > 75).length}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">Buenos</Typography>
-                            </Box>
-                        </Grid>
-                    </Grid>
-                </Paper>
-            )}
+            
 
             <Grid container spacing={3}>
                 {lotes.map((lote) => (
