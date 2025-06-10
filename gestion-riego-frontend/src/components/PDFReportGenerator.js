@@ -193,12 +193,12 @@ class PDFReportGenerator {
         this.currentY -= 30;
         
         // Capturar el resumen de círculos de la página actual
-        await this.captureResumenCirculos();
+        await this.captureResumenCirculos(lotesData);
         
         this.currentY -= 200; // Espacio para la imagen capturada
     }
 
-    async captureResumenCirculos() {
+    async captureResumenCirculos(lotesData) {
         try {
             // Buscar el contenedor de lotes en el DOM
             const lotesContainer = document.querySelector('[data-testid="lotes-container"]') || 
@@ -254,7 +254,7 @@ class PDFReportGenerator {
         
         let currentRowY = startY - rowHeight;
         
-        lotesData.forEach((lote, index) => {
+        lotesData.forEach((lote) => {
             if (currentRowY < 100) {
                 // Necesitamos nueva página
                 this.addNewPage();
