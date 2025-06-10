@@ -25,8 +25,8 @@ class OmixomService {
             
             // Formatear fechas en horario argentino (UTC-3)
             // Desde ayer a las 00:00:00 hasta hoy a las 23:59:59
-            const fechaInicio = hoy.toISOString().split('T')[0] + 'T00:00:01-03:00';
-            const fechaFin = hoy.toISOString().split('T')[0] + 'T23:59:59-03:00';
+            const fechaInicio = ayer.toISOString().split('T')[0] + 'T00:00:01-03:00';
+            const fechaFin = ayer.toISOString().split('T')[0] + 'T23:59:59-03:00';
 
             const requestBody = {
                 stations: {

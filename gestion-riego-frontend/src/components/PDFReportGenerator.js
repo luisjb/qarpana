@@ -1,566 +1,624 @@
-import jsPDF from 'jspdf';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
 
 class PDFReportGenerator {
     constructor() {
-        this.doc = null;
+        this.pdfDoc = null;
+        this.currentPage = null;
         this.currentY = 0;
-        this.pageHeight = 297; // A4 height in mm
-        this.margin = 20;
-        this.contentWidth = 170; // A4 width minus margins
-        this.templatePath = '../assets/hoja membretada 2.pdf'; // Ruta de la plantilla
+        this.pageHeight = 792; // A4 height in points (72 DPI)
+        this.pageWidth = 612; // A4 width in points
+        this.margin = 57; // 20mm en points
+        this.contentWidth = 498; // A4 width minus margins
+        this.templatePath = '../assets/hoja_membretada_2.pdf';
+        this.font = null;
+        this.boldFont = null;
     }
 
     async generateReport(campoData, lotesData, recomendaciones) {
-        this.doc = new jsPDF();
-        
         try {
-            // Intentar cargar la plantilla si existe
+            // Crear documento PDF
+            this.pdfDoc = await PDFDocument.create();
+            
+            // Cargar fuentes
+            this.font = await this.pdfDoc.embedFont(StandardFonts.Helvetica);
+            this.boldFont = await this.pdfDoc.embedFont(StandardFonts.HelveticaBold);
+            
+            // Cargar y usar la plantilla
             await this.loadTemplate();
+            
+            // Empezar después del header de la plantilla
+            this.currentY = 650; // Ajustar según tu plantilla
+            
+            // Agregar título del informe
+            await this.addReportTitle(campoData.nombre_campo);
+            
+            // Capturar y agregar resumen de círculos
+            await this.addResumenCirculosFromPage(lotesData);
+            
+            // Agregar recomendaciones
+            await this.addRecomendaciones(recomendaciones);
+            
+            // Agregar información detallada por lote
+            for (const lote of lotesData) {
+                await this.addLoteDetalleCompleto(lote);
+            }
+            
+            // Generar y descargar el PDF
+            const pdfBytes = await this.pdfDoc.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Informe_Balance_Hidrico_${campoData.nombre_campo}_${format(new Date(), 'dd-MM-yyyy')}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
         } catch (error) {
-            console.warn('No se pudo cargar la plantilla, usando diseño por defecto');
+            console.error('Error generando PDF:', error);
+            throw error;
         }
-        
-        this.currentY = 60; // Comenzar más abajo para respetar el header de la plantilla
-        
-        // Configurar fuente Poppins (usar Helvetica como fallback)
-        this.setupFont();
-        
-        // Agregar título del informe
-        await this.addReportTitle(campoData.nombre_campo);
-        
-        // Agregar resumen de círculos (igual que en la página)
-        await this.addResumenCirculosVisual(lotesData);
-        
-        // Agregar recomendaciones
-        this.addRecomendaciones(recomendaciones);
-        
-        // Agregar información detallada por lote
-        for (const lote of lotesData) {
-            await this.addLoteDetalleCompleto(lote);
-        }
-        
-        // Descargar el PDF
-        const fileName = `Informe_Balance_Hidrico_${campoData.nombre_campo}_${format(new Date(), 'dd-MM-yyyy')}.pdf`;
-        this.doc.save(fileName);
     }
 
     async loadTemplate() {
-        // Nota: Para usar una plantilla PDF real, necesitarías pdf-lib en lugar de jsPDF
-        // Por ahora, simularemos el diseño de QARPANA
-        this.addQarpanaTemplate();
+        try {
+            // Cargar la plantilla PDF
+            const templateResponse = await fetch(this.templatePath);
+            if (!templateResponse.ok) {
+                throw new Error('No se pudo cargar la plantilla');
+            }
+            
+            const templateBytes = await templateResponse.arrayBuffer();
+            const templateDoc = await PDFDocument.load(templateBytes);
+            
+            // Copiar la primera página de la plantilla
+            const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
+            this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+            
+            // Dibujar la plantilla en la página actual
+            const { width, height } = templatePage.getSize();
+            this.currentPage.drawPage(templatePage, {
+                x: 0,
+                y: 0,
+                width: this.pageWidth,
+                height: this.pageHeight,
+            });
+            
+        } catch (error) {
+            console.warn('No se pudo cargar la plantilla, creando página en blanco:', error);
+            // Si no se puede cargar la plantilla, crear página en blanco
+            this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+            await this.addFallbackHeader();
+        }
     }
 
-    addQarpanaTemplate() {
-        // Recrear el diseño de QARPANA basado en la imagen
-        
-        // Header verde con logo
-        this.doc.setFillColor(67, 160, 71); // Verde QARPANA
-        this.doc.rect(0, 0, 210, 20, 'F');
-        
-        // Logo/Texto QARPANA
-        this.doc.setTextColor(255, 255, 255);
-        this.doc.setFontSize(16);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.text('QARPANA', this.margin, 12);
-        
-        // Línea decorativa verde
-        this.doc.setDrawColor(139, 195, 74);
-        this.doc.setLineWidth(2);
-        this.doc.line(this.margin, 25, this.margin + this.contentWidth, 25);
-        
-        // Footer con información de contacto
-        this.addFooterTemplate();
-    }
-
-    addFooterTemplate() {
-        const footerY = 270;
-        
-        // Línea separadora
-        this.doc.setDrawColor(139, 195, 74);
-        this.doc.setLineWidth(0.5);
-        this.doc.line(this.margin, footerY, this.margin + this.contentWidth, footerY);
-        
-        // Información de contacto (basada en la imagen del PDF)
-        this.doc.setTextColor(100, 100, 100);
-        this.doc.setFontSize(8);
-        this.doc.setFont('helvetica', 'normal');
-        
-        const contactInfo = [
-            'Teléfono: 3525 640098 / 3525 501392',
-            'Instagram: @qarpana.riego',
-            'Email: info@qarpana.com.ar'
-        ];
-        
-        contactInfo.forEach((info, index) => {
-            this.doc.text(info, this.margin, footerY + 8 + (index * 4));
+    async addFallbackHeader() {
+        // Header de respaldo si no se puede cargar la plantilla
+        this.currentPage.drawRectangle({
+            x: 0,
+            y: this.pageHeight - 60,
+            width: this.pageWidth,
+            height: 60,
+            color: rgb(0.26, 0.63, 0.28), // Verde QARPANA
         });
         
-        // Reset color
-        this.doc.setTextColor(0, 0, 0);
+        this.currentPage.drawText('QARPANA', {
+            x: this.margin,
+            y: this.pageHeight - 35,
+            size: 20,
+            font: this.boldFont,
+            color: rgb(1, 1, 1),
+        });
     }
 
-    setupFont() {
-        // Usar Helvetica como Poppins no está disponible por defecto en jsPDF
-        // En un entorno real, necesitarías cargar la fuente Poppins
-        this.doc.setFont('helvetica', 'normal');
+    async addNewPage() {
+        // Agregar nueva página con plantilla
+        try {
+            const templateResponse = await fetch(this.templatePath);
+            if (templateResponse.ok) {
+                const templateBytes = await templateResponse.arrayBuffer();
+                const templateDoc = await PDFDocument.load(templateBytes);
+                const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
+                
+                this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+                this.currentPage.drawPage(templatePage, {
+                    x: 0,
+                    y: 0,
+                    width: this.pageWidth,
+                    height: this.pageHeight,
+                });
+            } else {
+                this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+                await this.addFallbackHeader();
+            }
+        } catch (error) {
+            this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+            await this.addFallbackHeader();
+        }
+        
+        this.currentY = 650; // Reset Y position
     }
 
     async addReportTitle(nombreCampo) {
-        this.doc.setFontSize(20);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(67, 160, 71);
-        this.doc.text('INFORME DE BALANCE HÍDRICO', this.margin, this.currentY);
+        this.currentPage.drawText('INFORME DE BALANCE HÍDRICO', {
+            x: this.margin,
+            y: this.currentY,
+            size: 18,
+            font: this.boldFont,
+            color: rgb(0.26, 0.63, 0.28),
+        });
         
-        this.currentY += 12;
+        this.currentY -= 30;
         
-        this.doc.setFontSize(16);
-        this.doc.setTextColor(0, 0, 0);
-        this.doc.text(`Campo: ${nombreCampo}`, this.margin, this.currentY);
+        this.currentPage.drawText(`Campo: ${nombreCampo}`, {
+            x: this.margin,
+            y: this.currentY,
+            size: 14,
+            font: this.boldFont,
+            color: rgb(0, 0, 0),
+        });
         
-        this.currentY += 8;
+        this.currentY -= 20;
         
-        this.doc.setFontSize(10);
-        this.doc.setTextColor(100, 100, 100);
-        this.doc.text(`Fecha: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, this.margin, this.currentY);
+        this.currentPage.drawText(`Fecha: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, {
+            x: this.margin,
+            y: this.currentY,
+            size: 10,
+            font: this.font,
+            color: rgb(0.4, 0.4, 0.4),
+        });
         
-        this.currentY += 20;
+        this.currentY -= 40;
     }
 
-    async addResumenCirculosVisual(lotesData) {
-        this.checkNewPage(100);
+    async addResumenCirculosFromPage(lotesData) {
+        // Verificar si necesitamos nueva página
+        if (this.currentY < 300) {
+            await this.addNewPage();
+        }
         
         // Título sección
-        this.doc.setFontSize(16);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(67, 160, 71);
-        this.doc.text('RESUMEN DE CÍRCULOS', this.margin, this.currentY);
-        this.doc.setTextColor(0, 0, 0);
-        this.currentY += 20;
+        this.currentPage.drawText('RESUMEN DE CÍRCULOS', {
+            x: this.margin,
+            y: this.currentY,
+            size: 16,
+            font: this.boldFont,
+            color: rgb(0.26, 0.63, 0.28),
+        });
         
-        // Recrear exactamente las cards como en la imagen
-        await this.addLotesCards(lotesData);
+        this.currentY -= 30;
+        
+        // Capturar el resumen de círculos de la página actual
+        await this.captureResumenCirculos();
+        
+        this.currentY -= 200; // Espacio para la imagen capturada
     }
 
-    async addLotesCards(lotesData) {
-        const cardsPerRow = 3;
-        const cardWidth = 50;
-        const cardHeight = 45;
-        const spacing = 10;
-        
-        let currentRow = 0;
-        let currentCol = 0;
-        
-        for (let i = 0; i < lotesData.length; i++) {
-            const lote = lotesData[i];
+    async captureResumenCirculos() {
+        try {
+            // Buscar el contenedor de lotes en el DOM
+            const lotesContainer = document.querySelector('[data-testid="lotes-container"]') || 
+                                 document.querySelector('.MuiGrid-container') ||
+                                 document.querySelector('#resumen-circulos');
             
-            // Calcular posición de la card
-            const x = this.margin + (currentCol * (cardWidth + spacing));
-            const y = this.currentY + (currentRow * (cardHeight + spacing));
-            
-            // Verificar si necesitamos nueva página
-            if (y + cardHeight > this.pageHeight - 50) {
-                this.doc.addPage();
-                this.addQarpanaTemplate();
-                this.currentY = 60;
-                currentRow = 0;
-                currentCol = 0;
-                continue;
+            if (lotesContainer) {
+                // Capturar el contenedor
+                const canvas = await html2canvas(lotesContainer, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                });
+                
+                // Convertir canvas a imagen
+                const imgData = canvas.toDataURL('image/png');
+                const imgBytes = this.dataURLtoUint8Array(imgData);
+                
+                // Embedder imagen en PDF
+                const image = await this.pdfDoc.embedPng(imgBytes);
+                const imageDims = image.scale(0.5); // Escalar al 50%
+                
+                // Dibujar imagen en el PDF
+                this.currentPage.drawImage(image, {
+                    x: this.margin,
+                    y: this.currentY - imageDims.height,
+                    width: imageDims.width,
+                    height: imageDims.height,
+                });
+                
+                this.currentY -= imageDims.height + 20;
+            } else {
+                // Fallback: crear tabla simple si no se puede capturar
+                await this.addLotesTableFallback(lotesData);
+            }
+        } catch (error) {
+            console.error('Error capturando resumen de círculos:', error);
+            await this.addLotesTableFallback(lotesData);
+        }
+    }
+
+    async addLotesTableFallback(lotesData) {
+        // Fallback: crear tabla simple de lotes
+        const rowHeight = 20;
+        const startY = this.currentY;
+        
+        // Headers
+        this.currentPage.drawText('Lote', { x: this.margin, y: startY, size: 10, font: this.boldFont });
+        this.currentPage.drawText('Cultivo', { x: this.margin + 80, y: startY, size: 10, font: this.boldFont });
+        this.currentPage.drawText('% AU 1m', { x: this.margin + 160, y: startY, size: 10, font: this.boldFont });
+        this.currentPage.drawText('% AU 2m', { x: this.margin + 220, y: startY, size: 10, font: this.boldFont });
+        
+        let currentRowY = startY - rowHeight;
+        
+        lotesData.forEach((lote, index) => {
+            if (currentRowY < 100) {
+                // Necesitamos nueva página
+                this.addNewPage();
+                currentRowY = 650;
             }
             
-            // Dibujar card del lote
-            await this.drawLoteCard(lote, x, y, cardWidth, cardHeight);
+            this.currentPage.drawText(lote.nombre_lote.substring(0, 12), { 
+                x: this.margin, y: currentRowY, size: 9, font: this.font 
+            });
+            this.currentPage.drawText(`${lote.especie}`, { 
+                x: this.margin + 80, y: currentRowY, size: 9, font: this.font 
+            });
+            this.currentPage.drawText(`${Math.round(lote.waterData?.porcentajeAu1m || 0)}%`, { 
+                x: this.margin + 160, y: currentRowY, size: 9, font: this.font 
+            });
+            this.currentPage.drawText(`${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`, { 
+                x: this.margin + 220, y: currentRowY, size: 9, font: this.font 
+            });
             
-            // Actualizar posición
-            currentCol++;
-            if (currentCol >= cardsPerRow) {
-                currentCol = 0;
-                currentRow++;
-            }
+            currentRowY -= rowHeight;
+        });
+        
+        this.currentY = currentRowY - 20;
+    }
+
+    async addRecomendaciones(recomendaciones) {
+        if (this.currentY < 150) {
+            await this.addNewPage();
         }
         
-        // Actualizar currentY para el siguiente contenido
-        const totalRows = Math.ceil(lotesData.length / cardsPerRow);
-        this.currentY += (totalRows * (cardHeight + spacing)) + 20;
-    }
-
-    async drawLoteCard(lote, x, y, width, height) {
-        // Fondo de la card
-        this.doc.setFillColor(248, 249, 250);
-        this.doc.setDrawColor(230, 230, 230);
-        this.doc.roundedRect(x, y, width, height, 2, 2, 'FD');
+        this.currentPage.drawText('RECOMENDACIONES', {
+            x: this.margin,
+            y: this.currentY,
+            size: 16,
+            font: this.boldFont,
+            color: rgb(0.26, 0.63, 0.28),
+        });
         
-        // Título del lote
-        this.doc.setFontSize(10);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(0, 0, 0);
-        const nombreTruncado = lote.nombre_lote.length > 12 ? 
-            lote.nombre_lote.substring(0, 12) + '...' : lote.nombre_lote;
-        this.doc.text(nombreTruncado, x + 2, y + 5);
-        
-        // Cultivo y variedad
-        this.doc.setFontSize(7);
-        this.doc.setFont('helvetica', 'normal');
-        this.doc.setTextColor(100, 100, 100);
-        const cultivoTexto = `${lote.especie} - ${lote.variedad}`.substring(0, 20);
-        this.doc.text(cultivoTexto, x + 2, y + 9);
-        
-        // Campaña
-        this.doc.text(`Campaña: ${lote.campaña}`, x + 2, y + 12);
-        
-        // Gauges para 1m y 2m (recrear como en la imagen)
-        const gauge1X = x + 8;
-        const gauge1Y = y + 18;
-        const gauge2X = x + 30;
-        const gauge2Y = y + 18;
-        const gaugeSize = 12;
-        
-        // Gauge 1 Metro
-        this.drawMiniGauge(
-            gauge1X, gauge1Y, gaugeSize, 
-            lote.waterData?.porcentajeAu1m || 0,
-            '1m'
-        );
-        
-        // Gauge 2 Metros
-        this.drawMiniGauge(
-            gauge2X, gauge2Y, gaugeSize, 
-            lote.waterData?.porcentajeAu2m || 0,
-            '2m'
-        );
-        
-        // Valores en mm
-        this.doc.setFontSize(6);
-        this.doc.setTextColor(0, 0, 0);
-        this.doc.text(`${Math.round(lote.waterData?.aguaUtil1m || 0)} mm`, gauge1X - 3, y + height - 3);
-        this.doc.text(`${Math.round(lote.waterData?.aguaUtil2m || 0)} mm`, gauge2X - 3, y + height - 3);
-    }
-
-    drawMiniGauge(x, y, size, percentage, label) {
-        const radius = size / 2;
-        const centerX = x + radius;
-        const centerY = y + radius;
-        
-        // Fondo del gauge
-        this.doc.setFillColor(230, 230, 230);
-        this.doc.circle(centerX, centerY, radius, 'F');
-        
-        // Color según porcentaje
-        const color = this.getColorByPercentage(percentage);
-        this.doc.setFillColor(...color);
-        
-        // Dibujar progreso (simulado con círculo más pequeño)
-        const progressRadius = radius * 0.8;
-        const alpha = (percentage / 100) * 360;
-        
-        // Simular gauge con círculo relleno según porcentaje
-        if (percentage > 0) {
-            this.doc.circle(centerX, centerY, progressRadius, 'F');
-        }
-        
-        // Texto del porcentaje
-        this.doc.setTextColor(255, 255, 255);
-        this.doc.setFontSize(6);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.text(`${Math.round(percentage)}%`, centerX - 4, centerY + 1);
-        
-        // Label
-        this.doc.setTextColor(0, 0, 0);
-        this.doc.setFontSize(5);
-        this.doc.text(label, centerX - 2, y - 2);
-    }
-
-    addRecomendaciones(recomendaciones) {
-        this.checkNewPage(60);
-        
-        this.doc.setFontSize(16);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(67, 160, 71);
-        this.doc.text('RECOMENDACIONES', this.margin, this.currentY);
-        this.doc.setTextColor(0, 0, 0);
-        this.currentY += 15;
+        this.currentY -= 25;
         
         if (recomendaciones && recomendaciones.length > 0) {
             const recomendacion = recomendaciones[0];
-            
-            this.doc.setFontSize(11);
-            this.doc.setFont('helvetica', 'normal');
-            
             const texto = recomendacion.texto || 
                          recomendacion.descripcion || 
                          recomendacion.recomendacion || 
                          String(recomendacion);
             
-            // Dividir texto largo en líneas
-            const lines = this.doc.splitTextToSize(texto, this.contentWidth - 10);
+            // Dividir texto en líneas
+            const lines = this.splitTextToLines(texto, this.contentWidth - 20, 11);
             
-            // Fondo para la recomendación
-            this.doc.setFillColor(248, 249, 250);
-            this.doc.roundedRect(this.margin, this.currentY - 5, this.contentWidth, lines.length * 5 + 10, 2, 2, 'F');
+            // Dibujar fondo para la recomendación
+            this.currentPage.drawRectangle({
+                x: this.margin,
+                y: this.currentY - (lines.length * 15) - 10,
+                width: this.contentWidth,
+                height: (lines.length * 15) + 20,
+                color: rgb(0.97, 0.97, 0.97),
+            });
             
-            this.doc.text(lines, this.margin + 5, this.currentY + 2);
-            this.currentY += (lines.length * 5) + 15;
+            // Dibujar texto
+            lines.forEach((line, index) => {
+                this.currentPage.drawText(line, {
+                    x: this.margin + 10,
+                    y: this.currentY - (index * 15),
+                    size: 11,
+                    font: this.font,
+                    color: rgb(0, 0, 0),
+                });
+            });
+            
+            this.currentY -= (lines.length * 15) + 30;
             
             // Fecha si está disponible
             if (recomendacion.fecha_creacion || recomendacion.fecha) {
-                this.doc.setFontSize(8);
-                this.doc.setFont('helvetica', 'italic');
-                this.doc.setTextColor(100, 100, 100);
                 const fecha = recomendacion.fecha_creacion || recomendacion.fecha;
                 const fechaFormateada = new Date(fecha).toLocaleDateString('es-ES');
-                this.doc.text(`Fecha: ${fechaFormateada}`, this.margin, this.currentY);
-                this.doc.setTextColor(0, 0, 0);
-                this.currentY += 10;
+                
+                this.currentPage.drawText(`Fecha: ${fechaFormateada}`, {
+                    x: this.margin,
+                    y: this.currentY,
+                    size: 9,
+                    font: this.font,
+                    color: rgb(0.4, 0.4, 0.4),
+                });
+                
+                this.currentY -= 20;
             }
         } else {
-            this.doc.setFontSize(10);
-            this.doc.setFont('helvetica', 'italic');
-            this.doc.setTextColor(150, 150, 150);
-            this.doc.text('No hay recomendaciones disponibles para este campo.', this.margin, this.currentY);
-            this.doc.setTextColor(0, 0, 0);
-            this.currentY += 15;
+            this.currentPage.drawText('No hay recomendaciones disponibles para este campo.', {
+                x: this.margin,
+                y: this.currentY,
+                size: 10,
+                font: this.font,
+                color: rgb(0.6, 0.6, 0.6),
+            });
+            this.currentY -= 30;
         }
-        
-        this.currentY += 10;
     }
 
     async addLoteDetalleCompleto(lote) {
         // Nueva página para cada lote
-        this.doc.addPage();
-        this.addQarpanaTemplate();
-        this.currentY = 60;
+        await this.addNewPage();
         
         // Título del lote
-        this.doc.setFontSize(16);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(67, 160, 71);
-        this.doc.text(`DETALLE: ${lote.nombre_lote}`, this.margin, this.currentY);
-        this.doc.setTextColor(0, 0, 0);
-        this.currentY += 20;
+        this.currentPage.drawText(`DETALLE: ${lote.nombre_lote}`, {
+            x: this.margin,
+            y: this.currentY,
+            size: 16,
+            font: this.boldFont,
+            color: rgb(0.26, 0.63, 0.28),
+        });
         
-        // Recrear las cards como en la imagen de simulaciones
-        await this.addSimulationCards(lote);
+        this.currentY -= 40;
         
-        // Gráfico de balance hídrico
+        // Capturar las cards de simulación
+        await this.captureSimulationCards(lote);
+        
+        // Capturar el gráfico de balance hídrico
         if (lote.simulationData) {
-            await this.addBalanceChart(lote);
+            await this.captureBalanceChart();
         }
     }
 
-    async addSimulationCards(lote) {
-        // Recrear exactamente las cards como aparecen en la página de simulaciones
-        const cardWidth = 40;
-        const cardHeight = 25;
-        const spacing = 5;
-        
-        // Primera fila: Cultivo, Variedad, Fecha Siembra, Estado Fenológico
-        const row1Cards = [
-            { title: 'Cultivo', value: lote.especie || 'N/A', icon: '🌱' },
-            { title: 'Variedad', value: lote.variedad || 'N/A', icon: '🌱' },
-            { title: 'Fecha de Siembra', value: lote.fecha_siembra ? format(new Date(lote.fecha_siembra), 'dd/MM/yyyy') : 'N/A', icon: '📅' },
-            { title: 'Estado Fenológico', value: lote.simulationData?.estadoFenologico || 'N/A', icon: '🌱' }
-        ];
-        
-        this.drawCardRow(row1Cards, this.currentY, cardWidth, cardHeight, spacing);
-        this.currentY += cardHeight + 15;
-        
-        // Segunda fila: Cards de agua útil (como en la imagen)
-        await this.addWaterCards(lote);
+    async captureSimulationCards(lote) {
+        try {
+            // Intentar capturar las cards de la página de simulaciones
+            // Primero necesitamos navegar a la página de simulaciones para este lote
+            // Como esto es complejo, vamos a crear cards simples por ahora
+            await this.createSimulationCardsFallback(lote);
+        } catch (error) {
+            console.error('Error capturando cards de simulación:', error);
+            await this.createSimulationCardsFallback(lote);
+        }
     }
 
-    drawCardRow(cards, startY, cardWidth, cardHeight, spacing) {
+    async createSimulationCardsFallback(lote) {
+        // Crear cards simples para los datos de simulación
+        const cardWidth = 120;
+        const cardHeight = 60;
+        const spacing = 10;
+        
+        // Primera fila de cards
+        const cards = [
+            { title: 'Cultivo', value: lote.especie || 'N/A' },
+            { title: 'Variedad', value: lote.variedad || 'N/A' },
+            { title: 'Campaña', value: lote.campaña || 'N/A' },
+            { title: 'Estado Fenológico', value: lote.simulationData?.estadoFenologico || 'N/A' }
+        ];
+        
         cards.forEach((card, index) => {
             const x = this.margin + (index * (cardWidth + spacing));
+            const y = this.currentY;
             
             // Fondo de la card
-            this.doc.setFillColor(248, 249, 250);
-            this.doc.setDrawColor(230, 230, 230);
-            this.doc.roundedRect(x, startY, cardWidth, cardHeight, 2, 2, 'FD');
+            this.currentPage.drawRectangle({
+                x: x,
+                y: y - cardHeight,
+                width: cardWidth,
+                height: cardHeight,
+                color: rgb(0.97, 0.98, 0.99),
+                borderColor: rgb(0.9, 0.9, 0.9),
+                borderWidth: 1,
+            });
             
             // Título
-            this.doc.setFontSize(8);
-            this.doc.setFont('helvetica', 'bold');
-            this.doc.setTextColor(67, 160, 71);
-            this.doc.text(card.title, x + 2, startY + 5);
+            this.currentPage.drawText(card.title, {
+                x: x + 5,
+                y: y - 15,
+                size: 9,
+                font: this.boldFont,
+                color: rgb(0.26, 0.63, 0.28),
+            });
             
             // Valor
-            this.doc.setFontSize(10);
-            this.doc.setFont('helvetica', 'normal');
-            this.doc.setTextColor(0, 0, 0);
-            const lines = this.doc.splitTextToSize(card.value, cardWidth - 4);
-            this.doc.text(lines, x + 2, startY + 12);
-        });
-    }
-
-    async addWaterCards(lote) {
-        // Recrear las cards de agua útil como en la imagen
-        const cardWidth = 50;
-        const cardHeight = 35;
-        const spacing = 8;
-        
-        // Card Agua Útil Inicial
-        this.drawWaterCard(
-            this.margin, this.currentY, cardWidth, cardHeight,
-            'Agua Útil Inicial',
-            [`1 Metro: ${Math.round(lote.simulationData?.auInicial1m || 0)} mm`,
-             `2 Metros: ${Math.round(lote.simulationData?.auInicial2m || 0)} mm`]
-        );
-        
-        // Card % AU Zona Radicular
-        this.drawWaterCard(
-            this.margin + cardWidth + spacing, this.currentY, cardWidth, cardHeight,
-            '%AU Zona Radicular',
-            [`${Math.round(lote.simulationData?.porcentajeAguaUtil || 0)}%`,
-             `${Math.round(lote.simulationData?.aguaUtil?.[lote.simulationData.aguaUtil.length - 1] || 0)}mm`],
-            true // Con gauge
-        );
-        
-        // Card % Agua Útil
-        this.drawWaterCard(
-            this.margin + (cardWidth + spacing) * 2, this.currentY, cardWidth, cardHeight,
-            '% Agua Útil',
-            [`1m: ${Math.round(lote.waterData?.porcentajeAu1m || 0)}%`,
-             `2m: ${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`],
-            false,
-            true // Con mini gauges
-        );
-        
-        this.currentY += cardHeight + 20;
-    }
-
-    drawWaterCard(x, y, width, height, title, content, withMainGauge = false, withMiniGauges = false) {
-        // Fondo de la card
-        this.doc.setFillColor(248, 249, 250);
-        this.doc.setDrawColor(63, 169, 245);
-        this.doc.setLineWidth(0.5);
-        this.doc.roundedRect(x, y, width, height, 2, 2, 'FD');
-        
-        // Título con icono de agua
-        this.doc.setFontSize(9);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(63, 169, 245);
-        this.doc.text('💧 ' + title, x + 2, y + 5);
-        
-        // Contenido
-        this.doc.setFontSize(8);
-        this.doc.setFont('helvetica', 'normal');
-        this.doc.setTextColor(0, 0, 0);
-        
-        content.forEach((line, index) => {
-            this.doc.text(line, x + 2, y + 12 + (index * 5));
+            const valueLines = this.splitTextToLines(card.value, cardWidth - 10, 10);
+            valueLines.forEach((line, lineIndex) => {
+                this.currentPage.drawText(line, {
+                    x: x + 5,
+                    y: y - 30 - (lineIndex * 12),
+                    size: 10,
+                    font: this.font,
+                    color: rgb(0, 0, 0),
+                });
+            });
         });
         
-        // Agregar gauges si corresponde
-        if (withMiniGauges && content.length >= 2) {
-            // Extraer porcentajes de los strings
-            const perc1m = parseInt(content[0].match(/\d+/)?.[0] || '0');
-            const perc2m = parseInt(content[1].match(/\d+/)?.[0] || '0');
-            
-            this.drawMiniGauge(x + width - 15, y + 8, 8, perc1m, '1m');
-            this.drawMiniGauge(x + width - 15, y + 20, 8, perc2m, '2m');
-        }
+        this.currentY -= cardHeight + 20;
+        
+        // Segunda fila - Cards de agua útil
+        await this.addWaterCardsDetailed(lote);
     }
 
-    async addBalanceChart(lote) {
-        this.checkNewPage(80);
+    async addWaterCardsDetailed(lote) {
+        const cardWidth = 160;
+        const cardHeight = 80;
+        const spacing = 10;
         
-        this.doc.setFontSize(12);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(67, 160, 71);
-        this.doc.text('Balance Hídrico - Últimos 30 días', this.margin, this.currentY);
-        this.doc.setTextColor(0, 0, 0);
-        this.currentY += 15;
-        
-        // Simular el gráfico como en la imagen
-        const chartWidth = this.contentWidth;
-        const chartHeight = 60;
-        
-        // Fondo del gráfico
-        this.doc.setFillColor(248, 249, 250);
-        this.doc.setDrawColor(230, 230, 230);
-        this.doc.rect(this.margin, this.currentY, chartWidth, chartHeight, 'FD');
-        
-        // Simular datos del gráfico
-        this.drawSimulatedChart(this.margin, this.currentY, chartWidth, chartHeight, lote.simulationData);
-        
-        this.currentY += chartHeight + 20;
-        
-        // Resumen numérico
-        this.addBalanceSummary(lote.simulationData);
-    }
-
-    drawSimulatedChart(x, y, width, height, simulationData) {
-        if (!simulationData || !simulationData.aguaUtil) {
-            this.doc.setFontSize(10);
-            this.doc.text('No hay datos suficientes para el gráfico', x + 10, y + height/2);
-            return;
-        }
-        
-        // Simular línea de agua útil
-        this.doc.setDrawColor(47, 128, 237);
-        this.doc.setLineWidth(1);
-        
-        const data = simulationData.aguaUtil.slice(-30); // Últimos 30 datos
-        const maxValue = Math.max(...data);
-        
-        if (data.length > 1) {
-            for (let i = 0; i < data.length - 1; i++) {
-                const x1 = x + (i / (data.length - 1)) * width;
-                const y1 = y + height - (data[i] / maxValue) * height;
-                const x2 = x + ((i + 1) / (data.length - 1)) * width;
-                const y2 = y + height - (data[i + 1] / maxValue) * height;
-                
-                this.doc.line(x1, y1, x2, y2);
+        // Cards de agua útil
+        const waterCards = [
+            {
+                title: 'Agua Útil Inicial',
+                content: [
+                    `1 Metro: ${Math.round(lote.simulationData?.auInicial1m || 0)} mm`,
+                    `2 Metros: ${Math.round(lote.simulationData?.auInicial2m || 0)} mm`
+                ]
+            },
+            {
+                title: '% Agua Útil Actual',
+                content: [
+                    `1m: ${Math.round(lote.waterData?.porcentajeAu1m || 0)}%`,
+                    `2m: ${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`
+                ]
+            },
+            {
+                title: 'Proyección 7 días',
+                content: [
+                    `1m: ${Math.round(lote.simulationData?.proyeccionAU1mDia8 || 0)} mm`,
+                    `2m: ${Math.round(lote.simulationData?.proyeccionAU2mDia8 || 0)} mm`
+                ]
             }
-        }
-        
-        // Leyenda
-        this.doc.setFontSize(8);
-        this.doc.setTextColor(47, 128, 237);
-        this.doc.text('— Agua Útil', x + 5, y + height + 5);
-        
-        this.doc.setTextColor(0, 0, 0);
-        this.doc.text(`Máx: ${Math.round(maxValue)} mm`, x + width - 30, y + height + 5);
-    }
-
-    addBalanceSummary(simulationData) {
-        if (!simulationData) return;
-        
-        this.doc.setFontSize(10);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.text('Resumen del Período:', this.margin, this.currentY);
-        this.currentY += 8;
-        
-        this.doc.setFont('helvetica', 'normal');
-        this.doc.setFontSize(9);
-        
-        const resumen = [
-            `• Lluvia efectiva: ${Math.round(simulationData.lluviasEfectivasAcumuladas || 0)} mm`,
-            `• Riego acumulado: ${Math.round(simulationData.riegoAcumulado || 0)} mm`,
-            `• Agua útil actual: ${Math.round(simulationData.aguaUtil?.[simulationData.aguaUtil.length - 1] || 0)} mm`,
-            `• % Agua útil: ${Math.round(simulationData.porcentajeAguaUtil || 0)}%`
         ];
         
-        resumen.forEach(item => {
-            this.doc.text(item, this.margin, this.currentY);
-            this.currentY += 5;
+        waterCards.forEach((card, index) => {
+            const x = this.margin + (index * (cardWidth + spacing));
+            const y = this.currentY;
+            
+            // Fondo de la card
+            this.currentPage.drawRectangle({
+                x: x,
+                y: y - cardHeight,
+                width: cardWidth,
+                height: cardHeight,
+                color: rgb(0.97, 0.98, 0.99),
+                borderColor: rgb(0.25, 0.66, 0.96),
+                borderWidth: 1,
+            });
+            
+            // Título con icono de agua (simulado)
+            this.currentPage.drawText(`💧 ${card.title}`, {
+                x: x + 5,
+                y: y - 15,
+                size: 10,
+                font: this.boldFont,
+                color: rgb(0.25, 0.66, 0.96),
+            });
+            
+            // Contenido
+            card.content.forEach((line, lineIndex) => {
+                this.currentPage.drawText(line, {
+                    x: x + 5,
+                    y: y - 35 - (lineIndex * 15),
+                    size: 9,
+                    font: this.font,
+                    color: rgb(0, 0, 0),
+                });
+            });
         });
+        
+        this.currentY -= cardHeight + 30;
     }
 
-    checkNewPage(requiredSpace) {
-        if (this.currentY + requiredSpace > this.pageHeight - 50) {
-            this.doc.addPage();
-            this.addQarpanaTemplate();
-            this.currentY = 60;
+    async captureBalanceChart() {
+        try {
+            // Buscar el canvas del gráfico de Chart.js
+            const chartCanvas = document.querySelector('canvas') || 
+                              document.querySelector('[data-testid="balance-chart"] canvas');
+            
+            if (chartCanvas) {
+                const canvas = await html2canvas(chartCanvas, {
+                    backgroundColor: '#ffffff',
+                    scale: 1,
+                });
+                
+                const imgData = canvas.toDataURL('image/png');
+                const imgBytes = this.dataURLtoUint8Array(imgData);
+                
+                const image = await this.pdfDoc.embedPng(imgBytes);
+                const imageDims = image.scale(0.6);
+                
+                // Verificar si necesitamos nueva página
+                if (this.currentY - imageDims.height < 100) {
+                    await this.addNewPage();
+                }
+                
+                // Título del gráfico
+                this.currentPage.drawText('Balance Hídrico - Últimos 30 días', {
+                    x: this.margin,
+                    y: this.currentY,
+                    size: 12,
+                    font: this.boldFont,
+                    color: rgb(0.26, 0.63, 0.28),
+                });
+                
+                this.currentY -= 25;
+                
+                // Dibujar imagen del gráfico
+                this.currentPage.drawImage(image, {
+                    x: this.margin,
+                    y: this.currentY - imageDims.height,
+                    width: imageDims.width,
+                    height: imageDims.height,
+                });
+                
+                this.currentY -= imageDims.height + 20;
+            } else {
+                // Fallback si no se puede capturar el gráfico
+                this.currentPage.drawText('Gráfico de Balance Hídrico', {
+                    x: this.margin,
+                    y: this.currentY,
+                    size: 12,
+                    font: this.boldFont,
+                    color: rgb(0.26, 0.63, 0.28),
+                });
+                
+                this.currentY -= 20;
+                
+                this.currentPage.drawText('(Gráfico no disponible - datos no capturados)', {
+                    x: this.margin,
+                    y: this.currentY,
+                    size: 10,
+                    font: this.font,
+                    color: rgb(0.6, 0.6, 0.6),
+                });
+                
+                this.currentY -= 30;
+            }
+        } catch (error) {
+            console.error('Error capturando gráfico:', error);
         }
     }
 
-    getColorByPercentage(percentage) {
-        if (percentage <= 25) return [239, 68, 68]; // Rojo
-        if (percentage <= 50) return [249, 115, 22]; // Naranja
-        if (percentage <= 75) return [255, 193, 7]; // Amarillo
-        return [34, 197, 94]; // Verde
+    // Utilidades
+    dataURLtoUint8Array(dataURL) {
+        const arr = dataURL.split(',');
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return u8arr;
+    }
+
+    splitTextToLines(text, maxWidth, fontSize) {
+        const words = text.split(' ');
+        const lines = [];
+        let currentLine = '';
+        
+        // Aproximación simple para dividir texto
+        const avgCharWidth = fontSize * 0.6;
+        const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth);
+        
+        words.forEach(word => {
+            if ((currentLine + word).length <= maxCharsPerLine) {
+                currentLine += (currentLine ? ' ' : '') + word;
+            } else {
+                if (currentLine) lines.push(currentLine);
+                currentLine = word;
+            }
+        });
+        
+        if (currentLine) lines.push(currentLine);
+        return lines;
     }
 }
 

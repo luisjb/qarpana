@@ -37,7 +37,7 @@ app.use(cors({
 }));
 
 app.use((req, res, next) => {
-    console.log('CORS_ORIGIN:', process.env.CORS_ORIGIN);
+    //console.log('CORS_ORIGIN:', process.env.CORS_ORIGIN);
     next();
 });
 
