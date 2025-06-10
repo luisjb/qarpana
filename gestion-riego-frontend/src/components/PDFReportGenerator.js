@@ -66,13 +66,20 @@ class PDFReportGenerator {
 
     async loadTemplate() {
         try {
-            // Cargar la plantilla PDF
+            // Intentar cargar la plantilla PDF
             const templateResponse = await fetch(this.templatePath);
+            
             if (!templateResponse.ok) {
-                throw new Error('No se pudo cargar la plantilla');
+                throw new Error(`HTTP error! status: ${templateResponse.status}`);
             }
             
             const templateBytes = await templateResponse.arrayBuffer();
+            
+            // Verificar que el archivo no esté vacío
+            if (templateBytes.byteLength === 0) {
+                throw new Error('El archivo de plantilla está vacío');
+            }
+            
             const templateDoc = await PDFDocument.load(templateBytes);
             
             // Copiar la primera página de la plantilla
@@ -80,7 +87,6 @@ class PDFReportGenerator {
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
             
             // Dibujar la plantilla en la página actual
-            const { width, height } = templatePage.getSize();
             this.currentPage.drawPage(templatePage, {
                 x: 0,
                 y: 0,
@@ -88,8 +94,10 @@ class PDFReportGenerator {
                 height: this.pageHeight,
             });
             
+            console.log('Plantilla cargada exitosamente');
+            
         } catch (error) {
-            console.warn('No se pudo cargar la plantilla, creando página en blanco:', error);
+            console.warn('No se pudo cargar la plantilla, creando página en blanco:', error.message);
             // Si no se puede cargar la plantilla, crear página en blanco
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
             await this.addFallbackHeader();
@@ -113,27 +121,64 @@ class PDFReportGenerator {
             font: this.boldFont,
             color: rgb(1, 1, 1),
         });
+
+        // Línea decorativa
+        this.currentPage.drawRectangle({
+            x: this.margin,
+            y: this.pageHeight - 70,
+            width: this.contentWidth,
+            height: 2,
+            color: rgb(0.54, 0.76, 0.29),
+        });
+
+        // Footer simple
+        this.addSimpleFooter();
+    }
+
+    addSimpleFooter() {
+        const footerY = 50;
+        
+        // Línea separadora
+        this.currentPage.drawRectangle({
+            x: this.margin,
+            y: footerY,
+            width: this.contentWidth,
+            height: 1,
+            color: rgb(0.54, 0.76, 0.29),
+        });
+        
+        // Información de contacto
+        this.currentPage.drawText('QARPANA - Tel: 3525 640098 - Email: info@qarpana.com.ar', {
+            x: this.margin,
+            y: footerY - 15,
+            size: 8,
+            font: this.font,
+            color: rgb(0.4, 0.4, 0.4),
+        });
     }
 
     async addNewPage() {
         // Agregar nueva página con plantilla
         try {
             const templateResponse = await fetch(this.templatePath);
-            if (templateResponse.ok) {
+            if (templateResponse.ok && templateResponse.headers.get('content-length') !== '0') {
                 const templateBytes = await templateResponse.arrayBuffer();
-                const templateDoc = await PDFDocument.load(templateBytes);
-                const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
-                
-                this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
-                this.currentPage.drawPage(templatePage, {
-                    x: 0,
-                    y: 0,
-                    width: this.pageWidth,
-                    height: this.pageHeight,
-                });
+                if (templateBytes.byteLength > 0) {
+                    const templateDoc = await PDFDocument.load(templateBytes);
+                    const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
+                    
+                    this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+                    this.currentPage.drawPage(templatePage, {
+                        x: 0,
+                        y: 0,
+                        width: this.pageWidth,
+                        height: this.pageHeight,
+                    });
+                } else {
+                    throw new Error('Archivo vacío');
+                }
             } else {
-                this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
-                await this.addFallbackHeader();
+                throw new Error('No se pudo cargar');
             }
         } catch (error) {
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
@@ -144,7 +189,7 @@ class PDFReportGenerator {
     }
 
     async addReportTitle(nombreCampo) {
-        this.currentPage.drawText('INFORME DE BALANCE HÍDRICO', {
+        this.currentPage.drawText('INFORME DE BALANCE HIDRICO', {
             x: this.margin,
             y: this.currentY,
             size: 18,
@@ -182,7 +227,7 @@ class PDFReportGenerator {
         }
         
         // Título sección
-        this.currentPage.drawText('RESUMEN DE CÍRCULOS', {
+        this.currentPage.drawText('RESUMEN DE CIRCULOS', {
             x: this.margin,
             y: this.currentY,
             size: 16,
@@ -202,16 +247,21 @@ class PDFReportGenerator {
         try {
             // Buscar el contenedor de lotes en el DOM
             const lotesContainer = document.querySelector('[data-testid="lotes-container"]') || 
-                                 document.querySelector('.MuiGrid-container') ||
-                                 document.querySelector('#resumen-circulos');
+                                 document.querySelector('#resumen-circulos') ||
+                                 document.querySelector('.MuiGrid-container');
             
             if (lotesContainer) {
+                console.log('Capturando contenedor de lotes...');
+                
                 // Capturar el contenedor
                 const canvas = await html2canvas(lotesContainer, {
                     backgroundColor: '#ffffff',
-                    scale: 2,
+                    scale: 1.5,
                     useCORS: true,
                     allowTaint: true,
+                    logging: false,
+                    width: lotesContainer.scrollWidth,
+                    height: lotesContainer.scrollHeight,
                 });
                 
                 // Convertir canvas a imagen
@@ -220,7 +270,12 @@ class PDFReportGenerator {
                 
                 // Embedder imagen en PDF
                 const image = await this.pdfDoc.embedPng(imgBytes);
-                const imageDims = image.scale(0.5); // Escalar al 50%
+                const imageDims = image.scale(0.4); // Escalar para que entre en la página
+                
+                // Verificar que la imagen entre en la página
+                if (this.currentY - imageDims.height < 100) {
+                    await this.addNewPage();
+                }
                 
                 // Dibujar imagen en el PDF
                 this.currentPage.drawImage(image, {
@@ -231,8 +286,10 @@ class PDFReportGenerator {
                 });
                 
                 this.currentY -= imageDims.height + 20;
+                console.log('Imagen del resumen capturada exitosamente');
+                
             } else {
-                // Fallback: crear tabla simple si no se puede capturar
+                console.log('No se encontró contenedor, usando fallback');
                 await this.addLotesTableFallback(lotesData);
             }
         } catch (error) {
@@ -369,28 +426,16 @@ class PDFReportGenerator {
         
         this.currentY -= 40;
         
-        // Capturar las cards de simulación
-        await this.captureSimulationCards(lote);
+        // Datos básicos del lote
+        await this.addLoteBasicInfo(lote);
         
-        // Capturar el gráfico de balance hídrico
+        // Capturar el gráfico de balance hídrico si está disponible
         if (lote.simulationData) {
             await this.captureBalanceChart();
         }
     }
 
-    async captureSimulationCards(lote) {
-        try {
-            // Intentar capturar las cards de la página de simulaciones
-            // Primero necesitamos navegar a la página de simulaciones para este lote
-            // Como esto es complejo, vamos a crear cards simples por ahora
-            await this.createSimulationCardsFallback(lote);
-        } catch (error) {
-            console.error('Error capturando cards de simulación:', error);
-            await this.createSimulationCardsFallback(lote);
-        }
-    }
-
-    async createSimulationCardsFallback(lote) {
+    async addLoteBasicInfo(lote) {
         // Crear cards simples para los datos de simulación
         const cardWidth = 120;
         const cardHeight = 60;
@@ -400,8 +445,8 @@ class PDFReportGenerator {
         const cards = [
             { title: 'Cultivo', value: lote.especie || 'N/A' },
             { title: 'Variedad', value: lote.variedad || 'N/A' },
-            { title: 'Campaña', value: lote.campaña || 'N/A' },
-            { title: 'Estado Fenológico', value: lote.simulationData?.estadoFenologico || 'N/A' }
+            { title: 'Campana', value: lote.campaña || 'N/A' },
+            { title: 'Estado Fenologico', value: lote.simulationData?.estadoFenologico || 'N/A' }
         ];
         
         cards.forEach((card, index) => {
@@ -443,7 +488,7 @@ class PDFReportGenerator {
         
         this.currentY -= cardHeight + 20;
         
-        // Segunda fila - Cards de agua útil
+        // Segunda fila - Cards de agua útil (sin emojis)
         await this.addWaterCardsDetailed(lote);
     }
 
@@ -452,24 +497,24 @@ class PDFReportGenerator {
         const cardHeight = 80;
         const spacing = 10;
         
-        // Cards de agua útil
+        // Cards de agua útil (SIN EMOJIS para evitar errores de encoding)
         const waterCards = [
             {
-                title: 'Agua Útil Inicial',
+                title: 'Agua Util Inicial',
                 content: [
                     `1 Metro: ${Math.round(lote.simulationData?.auInicial1m || 0)} mm`,
                     `2 Metros: ${Math.round(lote.simulationData?.auInicial2m || 0)} mm`
                 ]
             },
             {
-                title: '% Agua Útil Actual',
+                title: '% Agua Util Actual',
                 content: [
                     `1m: ${Math.round(lote.waterData?.porcentajeAu1m || 0)}%`,
                     `2m: ${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`
                 ]
             },
             {
-                title: 'Proyección 7 días',
+                title: 'Proyeccion 7 dias',
                 content: [
                     `1m: ${Math.round(lote.simulationData?.proyeccionAU1mDia8 || 0)} mm`,
                     `2m: ${Math.round(lote.simulationData?.proyeccionAU2mDia8 || 0)} mm`
@@ -492,8 +537,8 @@ class PDFReportGenerator {
                 borderWidth: 1,
             });
             
-            // Título con icono de agua (simulado)
-            this.currentPage.drawText(`💧 ${card.title}`, {
+            // Título (SIN EMOJI)
+            this.currentPage.drawText(card.title, {
                 x: x + 5,
                 y: y - 15,
                 size: 10,
@@ -518,21 +563,41 @@ class PDFReportGenerator {
 
     async captureBalanceChart() {
         try {
-            // Buscar el canvas del gráfico de Chart.js
-            const chartCanvas = document.querySelector('canvas') || 
-                              document.querySelector('[data-testid="balance-chart"] canvas');
+            // Buscar el canvas del gráfico de Chart.js de manera más específica
+            const chartCanvases = document.querySelectorAll('canvas');
+            let chartCanvas = null;
+            
+            // Buscar el canvas que probablemente sea el gráfico
+            for (let canvas of chartCanvases) {
+                const parent = canvas.closest('[data-testid="balance-chart"]') || 
+                              canvas.closest('.MuiPaper-root');
+                if (parent && canvas.width > 300) { // Asumimos que el gráfico es más grande
+                    chartCanvas = canvas;
+                    break;
+                }
+            }
+            
+            if (!chartCanvas && chartCanvases.length > 0) {
+                // Si no encontramos uno específico, usar el más grande
+                chartCanvas = Array.from(chartCanvases).reduce((prev, current) => {
+                    return (current.width * current.height) > (prev.width * prev.height) ? current : prev;
+                });
+            }
             
             if (chartCanvas) {
+                console.log('Capturando gráfico de balance...');
+                
                 const canvas = await html2canvas(chartCanvas, {
                     backgroundColor: '#ffffff',
                     scale: 1,
+                    logging: false,
                 });
                 
                 const imgData = canvas.toDataURL('image/png');
                 const imgBytes = this.dataURLtoUint8Array(imgData);
                 
                 const image = await this.pdfDoc.embedPng(imgBytes);
-                const imageDims = image.scale(0.6);
+                const imageDims = image.scale(0.7);
                 
                 // Verificar si necesitamos nueva página
                 if (this.currentY - imageDims.height < 100) {
@@ -540,7 +605,7 @@ class PDFReportGenerator {
                 }
                 
                 // Título del gráfico
-                this.currentPage.drawText('Balance Hídrico - Últimos 30 días', {
+                this.currentPage.drawText('Balance Hidrico - Ultimos 30 dias', {
                     x: this.margin,
                     y: this.currentY,
                     size: 12,
@@ -559,9 +624,12 @@ class PDFReportGenerator {
                 });
                 
                 this.currentY -= imageDims.height + 20;
+                console.log('Gráfico capturado exitosamente');
+                
             } else {
+                console.log('No se encontró canvas del gráfico');
                 // Fallback si no se puede capturar el gráfico
-                this.currentPage.drawText('Gráfico de Balance Hídrico', {
+                this.currentPage.drawText('Grafico de Balance Hidrico', {
                     x: this.margin,
                     y: this.currentY,
                     size: 12,
@@ -571,7 +639,7 @@ class PDFReportGenerator {
                 
                 this.currentY -= 20;
                 
-                this.currentPage.drawText('(Gráfico no disponible - datos no capturados)', {
+                this.currentPage.drawText('(Grafico no disponible - no se pudo capturar)', {
                     x: this.margin,
                     y: this.currentY,
                     size: 10,
@@ -589,7 +657,6 @@ class PDFReportGenerator {
     // Utilidades
     dataURLtoUint8Array(dataURL) {
         const arr = dataURL.split(',');
-        const mime = arr[0].match(/:(.*?);/)[1];
         const bstr = atob(arr[1]);
         let n = bstr.length;
         const u8arr = new Uint8Array(n);

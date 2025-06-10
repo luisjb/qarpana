@@ -1171,9 +1171,7 @@ function Simulations() {
                 </Typography>
                 
                 <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
-                    <div id="balance-chart" data-testid="balance-chart">
                         {chartData && <Chart type="bar" data={chartData} options={chartOptions} />}
-                    </div>
                 </Paper>
                 {simulationData && isAdmin && (
                 <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
