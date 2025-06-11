@@ -11,9 +11,10 @@ class PDFReportGenerator {
         this.pageWidth = 612; // A4 width in points
         this.margin = 57; // 20mm en points
         this.contentWidth = 498; // A4 width minus margins
-        this.templatePath = '../assets/hoja_membretada_2.pdf';
+        this.templatePath = '/assets/hoja_membretada_2.pdf';
         this.font = null;
         this.boldFont = null;
+        this.usingTemplate = false;
     }
 
     async generateReport(campoData, lotesData, recomendaciones) {
@@ -25,16 +26,16 @@ class PDFReportGenerator {
             this.font = await this.pdfDoc.embedFont(StandardFonts.Helvetica);
             this.boldFont = await this.pdfDoc.embedFont(StandardFonts.HelveticaBold);
             
-            // Cargar y usar la plantilla
+            // Verificar y cargar plantilla
             await this.loadTemplate();
             
             // Empezar después del header de la plantilla
-            this.currentY = 650; // Ajustar según tu plantilla
+            this.currentY = this.usingTemplate ? 600 : 650;
             
             // Agregar título del informe
             await this.addReportTitle(campoData.nombre_campo);
             
-            // Capturar y agregar resumen de círculos
+            // Capturar y agregar resumen de círculos (solo las cards)
             await this.addResumenCirculosFromPage(lotesData);
             
             // Agregar recomendaciones
@@ -64,29 +65,68 @@ class PDFReportGenerator {
         }
     }
 
+    async verifyTemplate() {
+        try {
+            const response = await fetch(this.templatePath);
+            
+            if (!response.ok) {
+                console.warn(`Template response not ok: ${response.status}`);
+                return false;
+            }
+            
+            const contentLength = response.headers.get('content-length');
+            if (contentLength === '0') {
+                console.warn('Template file is empty');
+                return false;
+            }
+            
+            const arrayBuffer = await response.arrayBuffer();
+            if (arrayBuffer.byteLength === 0) {
+                console.warn('Template arrayBuffer is empty');
+                return false;
+            }
+            
+            // Verificar header PDF
+            const bytes = new Uint8Array(arrayBuffer);
+            const pdfHeader = String.fromCharCode(...bytes.slice(0, 4));
+            
+            if (pdfHeader !== '%PDF') {
+                console.warn(`Invalid PDF header: ${pdfHeader}`);
+                return false;
+            }
+            
+            console.log('✅ Template verified successfully');
+            return { valid: true, arrayBuffer };
+            
+        } catch (error) {
+            console.warn('Error verifying template:', error);
+            return false;
+        }
+    }
+
     async loadTemplate() {
         try {
-            // Intentar cargar la plantilla PDF
-            const templateResponse = await fetch(this.templatePath);
+            console.log('Loading template from:', this.templatePath);
             
-            if (!templateResponse.ok) {
-                throw new Error(`HTTP error! status: ${templateResponse.status}`);
+            const verification = await this.verifyTemplate();
+            
+            if (!verification) {
+                throw new Error('Template verification failed');
             }
             
-            const templateBytes = await templateResponse.arrayBuffer();
+            const templateDoc = await PDFDocument.load(verification.arrayBuffer);
+            const templatePages = templateDoc.getPages();
             
-            // Verificar que el archivo no esté vacío
-            if (templateBytes.byteLength === 0) {
-                throw new Error('El archivo de plantilla está vacío');
+            if (templatePages.length === 0) {
+                throw new Error('Template has no pages');
             }
-            
-            const templateDoc = await PDFDocument.load(templateBytes);
             
             // Copiar la primera página de la plantilla
             const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
             
             // Dibujar la plantilla en la página actual
+            const templateDims = templatePage.getSize();
             this.currentPage.drawPage(templatePage, {
                 x: 0,
                 y: 0,
@@ -94,18 +134,19 @@ class PDFReportGenerator {
                 height: this.pageHeight,
             });
             
-            console.log('Plantilla cargada exitosamente');
+            this.usingTemplate = true;
+            console.log('✅ Template loaded successfully');
             
         } catch (error) {
-            console.warn('No se pudo cargar la plantilla, creando página en blanco:', error.message);
-            // Si no se puede cargar la plantilla, crear página en blanco
+            console.warn('Failed to load template, using fallback:', error.message);
+            this.usingTemplate = false;
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
             await this.addFallbackHeader();
         }
     }
 
     async addFallbackHeader() {
-        // Header de respaldo si no se puede cargar la plantilla
+        // Header de respaldo estilo QARPANA
         this.currentPage.drawRectangle({
             x: 0,
             y: this.pageHeight - 60,
@@ -122,16 +163,16 @@ class PDFReportGenerator {
             color: rgb(1, 1, 1),
         });
 
-        // Línea decorativa
+        // Línea decorativa verde
         this.currentPage.drawRectangle({
             x: this.margin,
             y: this.pageHeight - 70,
             width: this.contentWidth,
-            height: 2,
+            height: 3,
             color: rgb(0.54, 0.76, 0.29),
         });
 
-        // Footer simple
+        // Footer
         this.addSimpleFooter();
     }
 
@@ -158,13 +199,11 @@ class PDFReportGenerator {
     }
 
     async addNewPage() {
-        // Agregar nueva página con plantilla
         try {
-            const templateResponse = await fetch(this.templatePath);
-            if (templateResponse.ok && templateResponse.headers.get('content-length') !== '0') {
-                const templateBytes = await templateResponse.arrayBuffer();
-                if (templateBytes.byteLength > 0) {
-                    const templateDoc = await PDFDocument.load(templateBytes);
+            if (this.usingTemplate) {
+                const verification = await this.verifyTemplate();
+                if (verification) {
+                    const templateDoc = await PDFDocument.load(verification.arrayBuffer);
                     const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
                     
                     this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
@@ -175,17 +214,19 @@ class PDFReportGenerator {
                         height: this.pageHeight,
                     });
                 } else {
-                    throw new Error('Archivo vacío');
+                    this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+                    await this.addFallbackHeader();
                 }
             } else {
-                throw new Error('No se pudo cargar');
+                this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+                await this.addFallbackHeader();
             }
         } catch (error) {
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
             await this.addFallbackHeader();
         }
         
-        this.currentY = 650; // Reset Y position
+        this.currentY = this.usingTemplate ? 600 : 650;
     }
 
     async addReportTitle(nombreCampo) {
@@ -237,104 +278,285 @@ class PDFReportGenerator {
         
         this.currentY -= 30;
         
-        // Capturar el resumen de círculos de la página actual
-        await this.captureResumenCirculos(lotesData);
-        
-        this.currentY -= 200; // Espacio para la imagen capturada
+        // Capturar SOLO las cards, no el selector
+        await this.captureOnlyLotesCards(lotesData);
     }
 
-    async captureResumenCirculos(lotesData) {
+    async captureOnlyLotesCards(lotesData) {
         try {
-            // Buscar el contenedor de lotes en el DOM
-            const lotesContainer = document.querySelector('[data-testid="lotes-container"]') || 
-                                 document.querySelector('#resumen-circulos') ||
-                                 document.querySelector('.MuiGrid-container');
+            // Buscar específicamente el grid de cards, evitando el selector
+            const selectors = [
+                '.MuiGrid-container > .MuiGrid-item', // Los items individuales
+                '[data-testid="lotes-container"] > .MuiGrid-item',
+                '.MuiCard-root' // Las cards directamente
+            ];
             
-            if (lotesContainer) {
-                console.log('Capturando contenedor de lotes...');
-                
-                // Capturar el contenedor
-                const canvas = await html2canvas(lotesContainer, {
-                    backgroundColor: '#ffffff',
-                    scale: 1.5,
-                    useCORS: true,
-                    allowTaint: true,
-                    logging: false,
-                    width: lotesContainer.scrollWidth,
-                    height: lotesContainer.scrollHeight,
-                });
-                
-                // Convertir canvas a imagen
-                const imgData = canvas.toDataURL('image/png');
-                const imgBytes = this.dataURLtoUint8Array(imgData);
-                
-                // Embedder imagen en PDF
-                const image = await this.pdfDoc.embedPng(imgBytes);
-                const imageDims = image.scale(0.4); // Escalar para que entre en la página
-                
-                // Verificar que la imagen entre en la página
-                if (this.currentY - imageDims.height < 100) {
-                    await this.addNewPage();
+            let lotesCards = null;
+            
+            for (const selector of selectors) {
+                const elements = document.querySelectorAll(selector);
+                if (elements.length > 0 && elements.length === lotesData.length) {
+                    // Crear un contenedor temporal solo con las cards
+                    const tempContainer = document.createElement('div');
+                    tempContainer.style.display = 'flex';
+                    tempContainer.style.flexWrap = 'wrap';
+                    tempContainer.style.gap = '16px';
+                    tempContainer.style.backgroundColor = '#ffffff';
+                    tempContainer.style.padding = '20px';
+                    
+                    // Clonar y agregar las cards al contenedor temporal
+                    elements.forEach(card => {
+                        const clone = card.cloneNode(true);
+                        clone.style.flex = '0 0 300px'; // Tamaño fijo para las cards
+                        tempContainer.appendChild(clone);
+                    });
+                    
+                    // Agregar temporalmente al DOM
+                    document.body.appendChild(tempContainer);
+                    
+                    try {
+                        console.log('Capturando cards de lotes...');
+                        
+                        const canvas = await html2canvas(tempContainer, {
+                            backgroundColor: '#ffffff',
+                            scale: 1.5,
+                            useCORS: true,
+                            allowTaint: true,
+                            logging: false,
+                            width: tempContainer.scrollWidth,
+                            height: tempContainer.scrollHeight,
+                        });
+                        
+                        // Remover el contenedor temporal
+                        document.body.removeChild(tempContainer);
+                        
+                        // Convertir y agregar al PDF
+                        const imgData = canvas.toDataURL('image/png');
+                        const imgBytes = this.dataURLtoUint8Array(imgData);
+                        
+                        const image = await this.pdfDoc.embedPng(imgBytes);
+                        const imageDims = image.scale(0.35); // Escalar para que entre bien
+                        
+                        // Verificar que la imagen entre en la página
+                        if (this.currentY - imageDims.height < 100) {
+                            await this.addNewPage();
+                        }
+                        
+                        // Dibujar imagen en el PDF
+                        this.currentPage.drawImage(image, {
+                            x: this.margin,
+                            y: this.currentY - imageDims.height,
+                            width: imageDims.width,
+                            height: imageDims.height,
+                        });
+                        
+                        this.currentY -= imageDims.height + 20;
+                        console.log('✅ Cards de lotes capturadas exitosamente');
+                        return;
+                        
+                    } catch (error) {
+                        // Remover el contenedor temporal si hay error
+                        if (document.body.contains(tempContainer)) {
+                            document.body.removeChild(tempContainer);
+                        }
+                        throw error;
+                    }
                 }
-                
-                // Dibujar imagen en el PDF
-                this.currentPage.drawImage(image, {
-                    x: this.margin,
-                    y: this.currentY - imageDims.height,
-                    width: imageDims.width,
-                    height: imageDims.height,
-                });
-                
-                this.currentY -= imageDims.height + 20;
-                console.log('Imagen del resumen capturada exitosamente');
-                
-            } else {
-                console.log('No se encontró contenedor, usando fallback');
-                await this.addLotesTableFallback(lotesData);
             }
+            
+            // Si no se pudieron capturar, usar fallback visual mejorado
+            console.log('No se pudieron capturar las cards, usando fallback visual');
+            await this.createVisualLotesCards(lotesData);
+            
         } catch (error) {
-            console.error('Error capturando resumen de círculos:', error);
-            await this.addLotesTableFallback(lotesData);
+            console.error('Error capturando cards de lotes:', error);
+            await this.createVisualLotesCards(lotesData);
         }
     }
 
-    async addLotesTableFallback(lotesData) {
-        // Fallback: crear tabla simple de lotes
-        const rowHeight = 20;
-        const startY = this.currentY;
+    async createVisualLotesCards(lotesData) {
+        // Crear cards visuales similares a las de la página
+        const cardWidth = 160;
+        const cardHeight = 120;
+        const spacing = 15;
+        const cardsPerRow = 3;
         
-        // Headers
-        this.currentPage.drawText('Lote', { x: this.margin, y: startY, size: 10, font: this.boldFont });
-        this.currentPage.drawText('Cultivo', { x: this.margin + 80, y: startY, size: 10, font: this.boldFont });
-        this.currentPage.drawText('% AU 1m', { x: this.margin + 160, y: startY, size: 10, font: this.boldFont });
-        this.currentPage.drawText('% AU 2m', { x: this.margin + 220, y: startY, size: 10, font: this.boldFont });
+        let currentRow = 0;
+        let currentCol = 0;
         
-        let currentRowY = startY - rowHeight;
-        
-        lotesData.forEach((lote) => {
-            if (currentRowY < 100) {
-                // Necesitamos nueva página
-                this.addNewPage();
-                currentRowY = 650;
+        for (let i = 0; i < lotesData.length; i++) {
+            const lote = lotesData[i];
+            
+            // Calcular posición
+            const x = this.margin + (currentCol * (cardWidth + spacing));
+            const y = this.currentY - (currentRow * (cardHeight + spacing));
+            
+            // Verificar si necesitamos nueva página
+            if (y - cardHeight < 100) {
+                await this.addNewPage();
+                currentRow = 0;
+                currentCol = 0;
+                continue;
             }
             
-            this.currentPage.drawText(lote.nombre_lote.substring(0, 12), { 
-                x: this.margin, y: currentRowY, size: 9, font: this.font 
-            });
-            this.currentPage.drawText(`${lote.especie}`, { 
-                x: this.margin + 80, y: currentRowY, size: 9, font: this.font 
-            });
-            this.currentPage.drawText(`${Math.round(lote.waterData?.porcentajeAu1m || 0)}%`, { 
-                x: this.margin + 160, y: currentRowY, size: 9, font: this.font 
-            });
-            this.currentPage.drawText(`${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`, { 
-                x: this.margin + 220, y: currentRowY, size: 9, font: this.font 
-            });
+            // Dibujar card estilo Material-UI
+            await this.drawMaterialCard(lote, x, y - cardHeight, cardWidth, cardHeight);
             
-            currentRowY -= rowHeight;
+            // Actualizar posición
+            currentCol++;
+            if (currentCol >= cardsPerRow) {
+                currentCol = 0;
+                currentRow++;
+            }
+        }
+        
+        // Actualizar currentY
+        const totalRows = Math.ceil(lotesData.length / cardsPerRow);
+        this.currentY -= (totalRows * (cardHeight + spacing)) + 20;
+    }
+
+    async drawMaterialCard(lote, x, y, width, height) {
+        // Fondo de la card con sombra simulada
+        this.currentPage.drawRectangle({
+            x: x + 2,
+            y: y - 2,
+            width: width,
+            height: height,
+            color: rgb(0.9, 0.9, 0.9), // Sombra
         });
         
-        this.currentY = currentRowY - 20;
+        this.currentPage.drawRectangle({
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            color: rgb(1, 1, 1), // Fondo blanco
+            borderColor: rgb(0.85, 0.85, 0.85),
+            borderWidth: 1,
+        });
+        
+        // Título del lote
+        this.currentPage.drawText(lote.nombre_lote, {
+            x: x + 10,
+            y: y + height - 20,
+            size: 12,
+            font: this.boldFont,
+            color: rgb(0, 0, 0),
+        });
+        
+        // Subtítulo (cultivo - variedad)
+        const subtitulo = `${lote.especie} - ${lote.variedad}`.substring(0, 25);
+        this.currentPage.drawText(subtitulo, {
+            x: x + 10,
+            y: y + height - 35,
+            size: 8,
+            font: this.font,
+            color: rgb(0.4, 0.4, 0.4),
+        });
+        
+        // Campaña
+        this.currentPage.drawText(`Campana: ${lote.campaña}`, {
+            x: x + 10,
+            y: y + height - 48,
+            size: 8,
+            font: this.font,
+            color: rgb(0.4, 0.4, 0.4),
+        });
+        
+        // Línea separadora
+        this.currentPage.drawRectangle({
+            x: x + 10,
+            y: y + height - 55,
+            width: width - 20,
+            height: 1,
+            color: rgb(0.9, 0.9, 0.9),
+        });
+        
+        // Gauges visuales
+        const gauge1X = x + 25;
+        const gauge1Y = y + 35;
+        const gauge2X = x + 95;
+        const gauge2Y = y + 35;
+        
+        // Gauge 1 Metro
+        this.drawVisualGauge(
+            gauge1X, gauge1Y, 20,
+            lote.waterData?.porcentajeAu1m || 0,
+            '1 Metro'
+        );
+        
+        // Gauge 2 Metros  
+        this.drawVisualGauge(
+            gauge2X, gauge2Y, 20,
+            lote.waterData?.porcentajeAu2m || 0,
+            '2 Metros'
+        );
+        
+        // Valores en mm
+        this.currentPage.drawText(`${Math.round(lote.waterData?.aguaUtil1m || 0)} mm`, {
+            x: gauge1X - 8,
+            y: y + 10,
+            size: 7,
+            font: this.font,
+            color: rgb(0, 0, 0),
+        });
+        
+        this.currentPage.drawText(`${Math.round(lote.waterData?.aguaUtil2m || 0)} mm`, {
+            x: gauge2X - 8,
+            y: y + 10,
+            size: 7,
+            font: this.font,
+            color: rgb(0, 0, 0),
+        });
+    }
+
+    drawVisualGauge(centerX, centerY, radius, percentage, label) {
+        // Fondo del gauge
+        this.currentPage.drawCircle({
+            x: centerX,
+            y: centerY,
+            size: radius,
+            color: rgb(0.9, 0.9, 0.9),
+        });
+        
+        // Color según porcentaje
+        const color = this.getColorByPercentage(percentage);
+        
+        // Círculo de progreso (simplificado)
+        const progressRadius = radius * (percentage / 100);
+        if (percentage > 0) {
+            this.currentPage.drawCircle({
+                x: centerX,
+                y: centerY,
+                size: Math.max(2, progressRadius),
+                color: rgb(...color.map(c => c / 255)),
+            });
+        }
+        
+        // Texto del porcentaje
+        this.currentPage.drawText(`${Math.round(percentage)}%`, {
+            x: centerX - 8,
+            y: centerY - 3,
+            size: 8,
+            font: this.boldFont,
+            color: rgb(1, 1, 1),
+        });
+        
+        // Label
+        this.currentPage.drawText(label, {
+            x: centerX - 15,
+            y: centerY + radius + 5,
+            size: 7,
+            font: this.font,
+            color: rgb(0.25, 0.66, 0.96),
+        });
+    }
+
+    getColorByPercentage(percentage) {
+        if (percentage <= 25) return [239, 68, 68]; // Rojo
+        if (percentage <= 50) return [249, 115, 22]; // Naranja
+        if (percentage <= 75) return [255, 193, 7]; // Amarillo
+        return [34, 197, 94]; // Verde
     }
 
     async addRecomendaciones(recomendaciones) {
@@ -426,178 +648,151 @@ class PDFReportGenerator {
         
         this.currentY -= 40;
         
-        // Datos básicos del lote
-        await this.addLoteBasicInfo(lote);
+        // Cards de información del lote con mejor formato
+        await this.addEnhancedLoteCards(lote);
         
-        // Capturar el gráfico de balance hídrico si está disponible
-        if (lote.simulationData) {
-            await this.captureBalanceChart();
-        }
+        // Intentar capturar el gráfico real
+        await this.captureDetailedChart(lote);
     }
 
-    async addLoteBasicInfo(lote) {
-        // Crear cards simples para los datos de simulación
-        const cardWidth = 120;
-        const cardHeight = 60;
-        const spacing = 10;
-        
-        // Primera fila de cards
-        const cards = [
-            { title: 'Cultivo', value: lote.especie || 'N/A' },
-            { title: 'Variedad', value: lote.variedad || 'N/A' },
-            { title: 'Campana', value: lote.campaña || 'N/A' },
-            { title: 'Estado Fenologico', value: lote.simulationData?.estadoFenologico || 'N/A' }
+    async addEnhancedLoteCards(lote) {
+        // Primera fila - Información básica
+        const basicCards = [
+            { title: 'Cultivo', value: lote.especie || 'N/A', color: rgb(0.26, 0.63, 0.28) },
+            { title: 'Variedad', value: lote.variedad || 'N/A', color: rgb(0.26, 0.63, 0.28) },
+            { title: 'Campana', value: lote.campaña || 'N/A', color: rgb(0.26, 0.63, 0.28) },
+            { title: 'Estado Fenologico', value: lote.simulationData?.estadoFenologico || 'N/A', color: rgb(0.26, 0.63, 0.28) }
         ];
+        
+        this.drawCardRow(basicCards, this.currentY, 110, 50);
+        this.currentY -= 70;
+        
+        // Segunda fila - Datos hídricos con estilo mejorado
+        const waterCards = [
+            { 
+                title: 'Agua Util Inicial', 
+                value: `1m: ${Math.round(lote.simulationData?.auInicial1m || 0)}mm\n2m: ${Math.round(lote.simulationData?.auInicial2m || 0)}mm`,
+                color: rgb(0.25, 0.66, 0.96)
+            },
+            { 
+                title: '% Agua Util Actual', 
+                value: `1m: ${Math.round(lote.waterData?.porcentajeAu1m || 0)}%\n2m: ${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`,
+                color: rgb(0.25, 0.66, 0.96)
+            },
+            { 
+                title: 'Proyeccion 7 dias', 
+                value: `1m: ${Math.round(lote.simulationData?.proyeccionAU1mDia8 || 0)}mm\n2m: ${Math.round(lote.simulationData?.proyeccionAU2mDia8 || 0)}mm`,
+                color: rgb(0.25, 0.66, 0.96)
+            }
+        ];
+        
+        this.drawCardRow(waterCards, this.currentY, 150, 60);
+        this.currentY -= 80;
+    }
+
+    drawCardRow(cards, startY, cardWidth, cardHeight) {
+        const spacing = 15;
         
         cards.forEach((card, index) => {
             const x = this.margin + (index * (cardWidth + spacing));
-            const y = this.currentY;
+            
+            // Sombra
+            this.currentPage.drawRectangle({
+                x: x + 2,
+                y: startY - cardHeight - 2,
+                width: cardWidth,
+                height: cardHeight,
+                color: rgb(0.9, 0.9, 0.9),
+            });
             
             // Fondo de la card
             this.currentPage.drawRectangle({
                 x: x,
-                y: y - cardHeight,
+                y: startY - cardHeight,
                 width: cardWidth,
                 height: cardHeight,
-                color: rgb(0.97, 0.98, 0.99),
-                borderColor: rgb(0.9, 0.9, 0.9),
-                borderWidth: 1,
+                color: rgb(0.98, 0.98, 0.98),
+                borderColor: card.color,
+                borderWidth: 2,
             });
             
-            // Título
+            // Título con color
             this.currentPage.drawText(card.title, {
-                x: x + 5,
-                y: y - 15,
+                x: x + 8,
+                y: startY - 18,
                 size: 9,
                 font: this.boldFont,
-                color: rgb(0.26, 0.63, 0.28),
+                color: card.color,
             });
             
-            // Valor
-            const valueLines = this.splitTextToLines(card.value, cardWidth - 10, 10);
-            valueLines.forEach((line, lineIndex) => {
+            // Valor con líneas múltiples
+            const lines = card.value.split('\n');
+            lines.forEach((line, lineIndex) => {
                 this.currentPage.drawText(line, {
-                    x: x + 5,
-                    y: y - 30 - (lineIndex * 12),
+                    x: x + 8,
+                    y: startY - 35 - (lineIndex * 12),
                     size: 10,
                     font: this.font,
                     color: rgb(0, 0, 0),
                 });
             });
         });
-        
-        this.currentY -= cardHeight + 20;
-        
-        // Segunda fila - Cards de agua útil (sin emojis)
-        await this.addWaterCardsDetailed(lote);
     }
 
-    async addWaterCardsDetailed(lote) {
-        const cardWidth = 160;
-        const cardHeight = 80;
-        const spacing = 10;
-        
-        // Cards de agua útil (SIN EMOJIS para evitar errores de encoding)
-        const waterCards = [
-            {
-                title: 'Agua Util Inicial',
-                content: [
-                    `1 Metro: ${Math.round(lote.simulationData?.auInicial1m || 0)} mm`,
-                    `2 Metros: ${Math.round(lote.simulationData?.auInicial2m || 0)} mm`
-                ]
-            },
-            {
-                title: '% Agua Util Actual',
-                content: [
-                    `1m: ${Math.round(lote.waterData?.porcentajeAu1m || 0)}%`,
-                    `2m: ${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`
-                ]
-            },
-            {
-                title: 'Proyeccion 7 dias',
-                content: [
-                    `1m: ${Math.round(lote.simulationData?.proyeccionAU1mDia8 || 0)} mm`,
-                    `2m: ${Math.round(lote.simulationData?.proyeccionAU2mDia8 || 0)} mm`
-                ]
-            }
-        ];
-        
-        waterCards.forEach((card, index) => {
-            const x = this.margin + (index * (cardWidth + spacing));
-            const y = this.currentY;
-            
-            // Fondo de la card
-            this.currentPage.drawRectangle({
-                x: x,
-                y: y - cardHeight,
-                width: cardWidth,
-                height: cardHeight,
-                color: rgb(0.97, 0.98, 0.99),
-                borderColor: rgb(0.25, 0.66, 0.96),
-                borderWidth: 1,
-            });
-            
-            // Título (SIN EMOJI)
-            this.currentPage.drawText(card.title, {
-                x: x + 5,
-                y: y - 15,
-                size: 10,
-                font: this.boldFont,
-                color: rgb(0.25, 0.66, 0.96),
-            });
-            
-            // Contenido
-            card.content.forEach((line, lineIndex) => {
-                this.currentPage.drawText(line, {
-                    x: x + 5,
-                    y: y - 35 - (lineIndex * 15),
-                    size: 9,
-                    font: this.font,
-                    color: rgb(0, 0, 0),
-                });
-            });
-        });
-        
-        this.currentY -= cardHeight + 30;
-    }
-
-    async captureBalanceChart() {
+    async captureDetailedChart(lote) {
         try {
-            // Buscar el canvas del gráfico de Chart.js de manera más específica
-            const chartCanvases = document.querySelectorAll('canvas');
-            let chartCanvas = null;
+            // Esperar un momento para que el gráfico se renderice completamente
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // Buscar el canvas que probablemente sea el gráfico
-            for (let canvas of chartCanvases) {
-                const parent = canvas.closest('[data-testid="balance-chart"]') || 
-                              canvas.closest('.MuiPaper-root');
-                if (parent && canvas.width > 300) { // Asumimos que el gráfico es más grande
-                    chartCanvas = canvas;
-                    break;
+            // Buscar el canvas del gráfico de manera más específica
+            const chartCanvases = Array.from(document.querySelectorAll('canvas'));
+            
+            let bestCanvas = null;
+            let maxArea = 0;
+            
+            // Encontrar el canvas más grande (probablemente el gráfico principal)
+            chartCanvases.forEach(canvas => {
+                if (canvas.width > 300 && canvas.height > 200) {
+                    const area = canvas.width * canvas.height;
+                    if (area > maxArea) {
+                        maxArea = area;
+                        bestCanvas = canvas;
+                    }
                 }
-            }
+            });
             
-            if (!chartCanvas && chartCanvases.length > 0) {
-                // Si no encontramos uno específico, usar el más grande
-                chartCanvas = Array.from(chartCanvases).reduce((prev, current) => {
-                    return (current.width * current.height) > (prev.width * prev.height) ? current : prev;
+            // También intentar buscar por contexto Chart.js
+            if (!bestCanvas) {
+                chartCanvases.forEach(canvas => {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx && canvas.width > 200) {
+                        bestCanvas = canvas;
+                    }
                 });
             }
             
-            if (chartCanvas) {
-                console.log('Capturando gráfico de balance...');
+            if (bestCanvas) {
+                console.log('📊 Capturando gráfico de balance...');
+                console.log('Canvas dimensions:', bestCanvas.width, 'x', bestCanvas.height);
                 
-                const canvas = await html2canvas(chartCanvas, {
-                    backgroundColor: '#ffffff',
-                    scale: 1,
-                    logging: false,
-                });
-                
-                const imgData = canvas.toDataURL('image/png');
-                const imgBytes = this.dataURLtoUint8Array(imgData);
+                // Crear una imagen directamente del canvas
+                const dataURL = bestCanvas.toDataURL('image/png', 1.0);
+                const imgBytes = this.dataURLtoUint8Array(dataURL);
                 
                 const image = await this.pdfDoc.embedPng(imgBytes);
-                const imageDims = image.scale(0.7);
+                const originalDims = image.scale(1);
+                
+                // Escalar para que entre en la página
+                const maxWidth = this.contentWidth;
+                const maxHeight = 200;
+                
+                let scale = Math.min(
+                    maxWidth / originalDims.width,
+                    maxHeight / originalDims.height,
+                    0.8 // Máximo 80% del tamaño original
+                );
+                
+                const imageDims = image.scale(scale);
                 
                 // Verificar si necesitamos nueva página
                 if (this.currentY - imageDims.height < 100) {
@@ -615,43 +810,110 @@ class PDFReportGenerator {
                 
                 this.currentY -= 25;
                 
+                // Centrar la imagen
+                const imageX = this.margin + (this.contentWidth - imageDims.width) / 2;
+                
                 // Dibujar imagen del gráfico
                 this.currentPage.drawImage(image, {
-                    x: this.margin,
+                    x: imageX,
                     y: this.currentY - imageDims.height,
                     width: imageDims.width,
                     height: imageDims.height,
                 });
                 
                 this.currentY -= imageDims.height + 20;
-                console.log('Gráfico capturado exitosamente');
+                console.log('✅ Gráfico capturado exitosamente');
+                
+                // Agregar resumen de datos si están disponibles
+                if (lote.simulationData) {
+                    this.addBalanceSummary(lote.simulationData);
+                }
                 
             } else {
-                console.log('No se encontró canvas del gráfico');
-                // Fallback si no se puede capturar el gráfico
-                this.currentPage.drawText('Grafico de Balance Hidrico', {
-                    x: this.margin,
-                    y: this.currentY,
-                    size: 12,
-                    font: this.boldFont,
-                    color: rgb(0.26, 0.63, 0.28),
-                });
-                
-                this.currentY -= 20;
-                
-                this.currentPage.drawText('(Grafico no disponible - no se pudo capturar)', {
-                    x: this.margin,
-                    y: this.currentY,
-                    size: 10,
-                    font: this.font,
-                    color: rgb(0.6, 0.6, 0.6),
-                });
-                
-                this.currentY -= 30;
+                console.log('❌ No se encontró canvas del gráfico');
+                await this.addChartFallback();
             }
         } catch (error) {
             console.error('Error capturando gráfico:', error);
+            await this.addChartFallback();
         }
+    }
+
+    async addChartFallback() {
+        // Título del gráfico
+        this.currentPage.drawText('Grafico de Balance Hidrico', {
+            x: this.margin,
+            y: this.currentY,
+            size: 12,
+            font: this.boldFont,
+            color: rgb(0.26, 0.63, 0.28),
+        });
+        
+        this.currentY -= 20;
+        
+        // Crear un área gris representando el gráfico
+        this.currentPage.drawRectangle({
+            x: this.margin,
+            y: this.currentY - 150,
+            width: this.contentWidth,
+            height: 150,
+            color: rgb(0.95, 0.95, 0.95),
+            borderColor: rgb(0.8, 0.8, 0.8),
+            borderWidth: 1,
+        });
+        
+        // Texto explicativo
+        this.currentPage.drawText('Grafico no disponible', {
+            x: this.margin + this.contentWidth/2 - 50,
+            y: this.currentY - 75,
+            size: 12,
+            font: this.font,
+            color: rgb(0.6, 0.6, 0.6),
+        });
+        
+        this.currentPage.drawText('(Para ver el grafico completo, acceder a la plataforma web)', {
+            x: this.margin + 10,
+            y: this.currentY - 95,
+            size: 9,
+            font: this.font,
+            color: rgb(0.5, 0.5, 0.5),
+        });
+        
+        this.currentY -= 170;
+    }
+
+    addBalanceSummary(simulationData) {
+        if (!simulationData || this.currentY < 120) return;
+        
+        this.currentPage.drawText('Resumen del Periodo:', {
+            x: this.margin,
+            y: this.currentY,
+            size: 11,
+            font: this.boldFont,
+            color: rgb(0, 0, 0),
+        });
+        
+        this.currentY -= 15;
+        
+        const resumen = [
+            `• Lluvia efectiva: ${Math.round(simulationData.lluviasEfectivasAcumuladas || 0)} mm`,
+            `• Riego acumulado: ${Math.round(simulationData.riegoAcumulado || 0)} mm`,
+            `• Agua util actual: ${Math.round(simulationData.aguaUtil?.[simulationData.aguaUtil.length - 1] || 0)} mm`,
+            `• % Agua util: ${Math.round(simulationData.porcentajeAguaUtil || 0)}%`
+        ];
+        
+        resumen.forEach(item => {
+            this.currentPage.drawText(item, {
+                x: this.margin,
+                y: this.currentY,
+                size: 9,
+                font: this.font,
+                color: rgb(0, 0, 0),
+            });
+            this.currentY -= 12;
+        });
+        
+        this.currentY -= 10;
     }
 
     // Utilidades

@@ -167,7 +167,7 @@ class OmixomService {
            /* console.log(`Estación ${estacionProcesada} - Acumulado para ${fechaObjetivoStr}:`);
             console.log(`  Total de muestras procesadas: ${valoresAcumulados.length}`);
             console.log(`  Valores individuales (primeros 10): ${valoresAcumulados.slice(0, 10).join(', ')}${valoresAcumulados.length > 10 ? '...' : ''}`);*/
-            console.log(`  Suma total acumulada: ${sumaTotal} mm/día`);
+            //console.log(`  Suma total acumulada: ${sumaTotal} mm/día`);
 
             const resultado = [{
                 fecha: fechaObjetivoStr,

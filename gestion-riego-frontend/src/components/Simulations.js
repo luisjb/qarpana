@@ -344,21 +344,56 @@ function Simulations() {
     const formatDate = (dateString) => {
         if (!dateString || !isValidDate(dateString)) return '';
         try {
-            return format(new Date(dateString), 'dd/MM/yyyy');
+            let date;
+            
+            if (dateString.includes('T')) {
+                date = new Date(dateString);
+            } else {
+                // Agregar mediodía para evitar problemas de zona horaria
+                date = new Date(dateString + 'T12:00:00');
+            }
+            
+            if (isNaN(date.getTime())) return '';
+            
+            // Formatear manualmente
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            
+            return `${day}/${month}/${year}`;
         } catch (error) {
             console.error('Error formatting date:', error);
             return '';
         }
     };
+
     const formatShortDate = (dateString) => {
         if (!dateString || !isValidDate(dateString)) return '';
         try {
-            return format(new Date(dateString), 'dd/MM');
+            // Crear la fecha agregando hora del mediodía para evitar problemas de zona horaria
+            let date;
+            
+            if (dateString.includes('T')) {
+                // Si ya tiene información de tiempo, usarla directamente
+                date = new Date(dateString);
+            } else {
+                // Si es solo fecha (YYYY-MM-DD), agregar mediodía para evitar problemas de zona horaria
+                date = new Date(dateString + 'T12:00:00');
+            }
+            
+            if (isNaN(date.getTime())) return '';
+            
+            // Formatear manualmente para evitar problemas de zona horaria
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            
+            return `${day}/${month}`;
         } catch (error) {
             console.error('Error formatting short date:', error);
             return '';
         }
     };
+
     const formatNumber = (value) => {
         if (value === null || value === undefined || isNaN(value)) {
             return 0;

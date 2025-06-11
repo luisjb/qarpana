@@ -10,20 +10,20 @@ const instance = axios.create({
 
 // Agregar interceptor para logging
 instance.interceptors.request.use(request => {
-    console.log('Realizando petición:', {
+    /*console.log('Realizando petición:', {
         url: request.url,
         method: request.method,
         params: request.params
-    });
+    });*/
     return request;
 });
 
 instance.interceptors.response.use(
     response => {
-        console.log('Respuesta recibida:', {
+        /*console.log('Respuesta recibida:', {
             status: response.status,
             url: response.config.url
-        });
+        });*/
         return response;
     },
     error => {

@@ -275,6 +275,34 @@ function CambiosDiarios() {
         }
     };
     
+    const formatRiegoDate = (dateString) => {
+        if (!dateString) return '-';
+        try {
+            // Asegurar que se interprete la fecha correctamente sin problemas de zona horaria
+            let date;
+            
+            // Si la fecha ya tiene información de tiempo, la usamos directamente
+            if (dateString.includes('T')) {
+                date = new Date(dateString);
+            } else {
+                // Si es solo fecha, agregamos mediodía para evitar problemas de zona horaria
+                date = new Date(dateString + 'T12:00:00');
+            }
+            
+            if (isNaN(date.getTime())) return '-';
+            
+            // Formatear manualmente para evitar problemas de zona horaria
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            
+            return `${day}/${month}/${year}`;
+        } catch (e) {
+            console.error('Error formatting riego date:', e);
+            return '-';
+        }
+    };
+
 
 
     return (
@@ -308,15 +336,17 @@ function CambiosDiarios() {
                 ))}
             </Select>
         </FormControl>
-            <Button
-                variant="contained"
-                color="primary"
-                onClick={() => setOpenDialog(true)}
-                disabled={!selectedLote}
-                style={{ marginTop: '20px' }}
-            >
-                Agregar Cambio Diario
-            </Button>
+            {isAdmin && (
+                <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => setOpenDialog(true)}
+                    disabled={!selectedLote}
+                    style={{ marginTop: '20px' }}
+                >
+                    Agregar Cambio Diario
+                </Button>
+            )}
             <Button
                 variant="contained"
                 color="primary"
@@ -326,7 +356,6 @@ function CambiosDiarios() {
             >
                 Carga Masiva Evapotranspiración
             </Button>
-            
             <TableContainer component={Paper} style={{ marginTop: '20px' }}>
                 <Table>
                     <TableHead>
@@ -350,7 +379,7 @@ function CambiosDiarios() {
                                     {cambio.fecha_cambio ? formatDate(cambio.fecha_cambio) : '-'}
                                 </TableCell>
                                 <TableCell>{cambio.riego_cantidad !== null ? parseFloat(cambio.riego_cantidad).toFixed(2) : '-'}</TableCell>
-                                <TableCell>{cambio.riego_fecha_inicio ? new Date(cambio.riego_fecha_inicio).toLocaleDateString() : '-'}</TableCell>
+                                <TableCell>{cambio.riego_fecha_inicio ? formatRiegoDate(cambio.riego_fecha_inicio) : '-'}</TableCell>
                                 <TableCell>{cambio.precipitaciones !== null ? parseFloat(cambio.precipitaciones).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.humedad !== null ? parseFloat(cambio.humedad).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.temperatura !== null ? parseFloat(cambio.temperatura).toFixed(2) : '-'}</TableCell>

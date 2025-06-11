@@ -64,11 +64,11 @@ class EToCalculator {
                 (gamma * (900 / (validatedData.tempMean + 273)) * validatedData.windSpeed * (es - ea));
             const denominator = delta + gamma * (1 + 0.34 * validatedData.windSpeed);
 
-            console.log('Variables intermedias ETo:', {
+            /*console.log('Variables intermedias ETo:', {
                 es, ea, delta, gamma, Rn, 
                 numerator, denominator,
                 Ra, Rs, Rso, Rns, Rnl
-            });
+            });*/
 
             const ETo = numerator / denominator;
 

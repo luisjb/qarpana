@@ -15,7 +15,7 @@ async function actualizacionDiaria() {
         await client.query('BEGIN');
 
         // NUEVA FUNCIONALIDAD: Consultar estaciones meteorológicas antes de procesar lotes
-        console.log('Consultando datos de estaciones meteorológicas...');
+        //console.log('Consultando datos de estaciones meteorológicas...');
         const estacionesConsultadas = await consultarEstacionesMeteorologicas(client);
 
         // Obtener todos los lotes activos
@@ -24,7 +24,7 @@ async function actualizacionDiaria() {
         // CORREGIDO: Procesar para la fecha de HOY (los datos de estación ya vienen acumulados para hoy)
         const hoy = new Date();
 
-        console.log(`Procesando datos para la fecha: ${hoy.toISOString().split('T')[0]} (datos acumulados de últimas 24h)`);
+        //console.log(`Procesando datos para la fecha: ${hoy.toISOString().split('T')[0]} (datos acumulados de últimas 24h)`);
 
         for (const lote of lotesResult.rows) {
             try {
@@ -124,7 +124,7 @@ async function consultarEstacionesMeteorologicas(client) {
             AND c.estacion_id != ''
         `);
 
-        console.log(`Encontrados ${camposConEstacion.length} campos con estaciones meteorológicas asociadas`);
+        //console.log(`Encontrados ${camposConEstacion.length} campos con estaciones meteorológicas asociadas`);
 
         if (camposConEstacion.length === 0) {
             console.log('No hay estaciones meteorológicas configuradas. Continuando sin datos de estación.');
@@ -148,16 +148,16 @@ async function consultarEstacionesMeteorologicas(client) {
 
         for (const campo of camposConEstacion) {
             try {
-                console.log(`Consultando estación ${campo.estacion_id} para campo ${campo.nombre_campo}...`);
+                //console.log(`Consultando estación ${campo.estacion_id} para campo ${campo.nombre_campo}...`);
                 const datosEstacion = await omixomService.obtenerUltimoDatoEstacion(campo.estacion_id);
                 
                 if (datosEstacion && datosEstacion.length > 0) {
                     await guardarDatosEstacion(client, campo.id, datosEstacion);
                     estacionesExitosas++;
-                    console.log(`✓ Datos obtenidos para campo ${campo.nombre_campo} - Estación ${campo.estacion_id}`);
-                    console.log(`  Evapotranspiración: ${datosEstacion[0].evapotranspiracion} mm/día`);
+                    //console.log(`✓ Datos obtenidos para campo ${campo.nombre_campo} - Estación ${campo.estacion_id}`);
+                    //console.log(`  Evapotranspiración: ${datosEstacion[0].evapotranspiracion} mm/día`);
                 } else {
-                    console.log(`⚠ No se obtuvieron datos para estación ${campo.estacion_id} (campo: ${campo.nombre_campo})`);
+                    //console.log(`⚠ No se obtuvieron datos para estación ${campo.estacion_id} (campo: ${campo.nombre_campo})`);
                 }
             } catch (error) {
                 console.error(`✗ Error consultando estación ${campo.estacion_id} (campo: ${campo.nombre_campo}):`, error.message);
@@ -165,7 +165,7 @@ async function consultarEstacionesMeteorologicas(client) {
             }
         }
 
-        console.log(`Resumen consulta estaciones: ${estacionesExitosas}/${camposConEstacion.length} exitosas`);
+        //console.log(`Resumen consulta estaciones: ${estacionesExitosas}/${camposConEstacion.length} exitosas`);
         return true; // Indica que se intentó consultar estaciones (aunque algunas hayan fallado)
 
     } catch (error) {
@@ -214,7 +214,7 @@ async function aplicarDatosEstacionALote(client, loteId, fecha, cambioDiario) {
         `);
 
         if (!tablaExiste[0].exists) {
-            console.log('Tabla temporal de datos de estación no existe. Saltando aplicación de datos.');
+            //console.log('Tabla temporal de datos de estación no existe. Saltando aplicación de datos.');
             return;
         }
 
@@ -229,27 +229,27 @@ async function aplicarDatosEstacionALote(client, loteId, fecha, cambioDiario) {
         if (datosEstacion.length > 0) {
             const datos = datosEstacion[0];
             
-            console.log(`📊 Aplicando datos de estación al lote ${loteId} para fecha ${fecha.toISOString().split('T')[0]}`);
+            //console.log(`📊 Aplicando datos de estación al lote ${loteId} para fecha ${fecha.toISOString().split('T')[0]}`);
             
             // Aplicar datos de la estación al cambio diario solo si son válidos
             if (datos.evapotranspiracion !== null && !isNaN(datos.evapotranspiracion)) {
                 cambioDiario.evapotranspiracion = parseFloat(datos.evapotranspiracion);
-                console.log(`✅ Evapotranspiración de estación aplicada al lote ${loteId}: ${cambioDiario.evapotranspiracion} mm/día`);
+                //console.log(`✅ Evapotranspiración de estación aplicada al lote ${loteId}: ${cambioDiario.evapotranspiracion} mm/día`);
             }
             
             if (datos.temperatura !== null && !isNaN(datos.temperatura)) {
                 cambioDiario.temperatura = parseFloat(datos.temperatura);
-                console.log(`✅ Temperatura de estación aplicada al lote ${loteId}: ${cambioDiario.temperatura}°C`);
+               // console.log(`✅ Temperatura de estación aplicada al lote ${loteId}: ${cambioDiario.temperatura}°C`);
             }
             
             if (datos.humedad !== null && !isNaN(datos.humedad)) {
                 cambioDiario.humedad = parseFloat(datos.humedad);
-                console.log(`✅ Humedad de estación aplicada al lote ${loteId}: ${cambioDiario.humedad}%`);
+                //console.log(`✅ Humedad de estación aplicada al lote ${loteId}: ${cambioDiario.humedad}%`);
             }
             
             if (datos.precipitaciones !== null && !isNaN(datos.precipitaciones)) {
                 cambioDiario.precipitaciones = parseFloat(datos.precipitaciones);
-                console.log(`✅ Precipitaciones de estación aplicadas al lote ${loteId}: ${cambioDiario.precipitaciones} mm`);
+                //console.log(`✅ Precipitaciones de estación aplicadas al lote ${loteId}: ${cambioDiario.precipitaciones} mm`);
             }
         } else {
             console.log(`ℹ No hay datos de estación disponibles para el lote ${loteId} en la fecha ${fecha.toISOString().split('T')[0]}`);
@@ -320,7 +320,7 @@ async function actualizarKC(client, lote, diasDesdeSiembra, cambioDiario) {
     // NUEVO: Calcular ETC automáticamente si hay evapotranspiración
     if (cambioDiario.evapotranspiracion !== null && cambioDiario.evapotranspiracion !== undefined) {
         cambioDiario.etc = cambioDiario.evapotranspiracion * kc;
-        console.log(`✅ ETC calculado para lote ${lote.id}: ${cambioDiario.evapotranspiracion} * ${kc} = ${cambioDiario.etc}`);
+        //console.log(`✅ ETC calculado para lote ${lote.id}: ${cambioDiario.evapotranspiracion} * ${kc} = ${cambioDiario.etc}`);
     }
     
     return cambioDiario;
