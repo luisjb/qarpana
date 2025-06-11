@@ -366,6 +366,16 @@ function Simulations() {
             return '';
         }
     };
+    const formatShortDateFixed = (dateString) => {
+        if (!dateString) return '';
+        try {
+            const datePart = dateString.split('T')[0];
+            const [year, month, day] = datePart.split('-');
+            return `${day}/${month}`;
+        } catch (e) {
+            return '';
+        }
+    };
 
     const formatShortDate = (dateString) => {
         if (!dateString || !isValidDate(dateString)) return '';
@@ -729,7 +739,7 @@ function Simulations() {
                 stacked: true,
                 ticks: {
                     callback: function(value, index) {
-                        return formatShortDate(this.getLabelForValue(value));
+                        return formatShortDateFixed(this.getLabelForValue(value));
                     }
                 }
             },

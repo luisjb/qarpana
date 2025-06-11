@@ -302,8 +302,36 @@ function CambiosDiarios() {
             return '-';
         }
     };
+    const formatRiegoDateFixed = (dateString) => {
+    if (!dateString) return '-';
+    try {
+        const datePart = dateString.split('T')[0]; // Solo la parte de fecha
+        const [year, month, day] = datePart.split('-');
+        return `${day}/${month}/${year}`;
+    } catch (e) {
+        return '-';
+    }
+};
 
-
+    const diagnosticarFechas = (dateString, label = "") => {
+        console.log(`=== DIAGNÓSTICO FECHA ${label} ===`);
+        console.log('1. String original:', dateString);
+        console.log('2. Tipo:', typeof dateString);
+        
+        if (dateString) {
+            const dateActual = new Date(dateString);
+            console.log('3. new Date(dateString):', dateActual.toString());
+            console.log('4. toLocaleDateString():', dateActual.toLocaleDateString());
+            
+            const dateParts = dateString.split('T')[0].split('-');
+            if (dateParts.length === 3) {
+                const [year, month, day] = dateParts;
+                console.log('5. Partes separadas:', { year, month, day });
+                console.log('6. Fecha manual:', `${day}/${month}/${year}`);
+            }
+        }
+        console.log('===================');
+    };
 
     return (
         <Container maxWidth="lg">
@@ -379,7 +407,7 @@ function CambiosDiarios() {
                                     {cambio.fecha_cambio ? formatDate(cambio.fecha_cambio) : '-'}
                                 </TableCell>
                                 <TableCell>{cambio.riego_cantidad !== null ? parseFloat(cambio.riego_cantidad).toFixed(2) : '-'}</TableCell>
-                                <TableCell>{cambio.riego_fecha_inicio ? formatRiegoDate(cambio.riego_fecha_inicio) : '-'}</TableCell>
+                                <TableCell>{cambio.riego_fecha_inicio ? formatRiegoDateFixed(cambio.riego_fecha_inicio) : '-'}</TableCell>
                                 <TableCell>{cambio.precipitaciones !== null ? parseFloat(cambio.precipitaciones).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.humedad !== null ? parseFloat(cambio.humedad).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.temperatura !== null ? parseFloat(cambio.temperatura).toFixed(2) : '-'}</TableCell>
