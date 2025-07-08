@@ -30,11 +30,12 @@ async function actualizacionDiaria() {
             try {
                 // Verificar si ya se alcanzó el máximo de días para este lote
                 const { rows: [maxDays] } = await client.query(`
-                    SELECT MAX(GREATEST(indice_dias, COALESCE(dias_correccion, 0))) as max_dias
+                    SELECT MAX(GREATEST(cc.indice_dias, COALESCE(ccl.dias_correccion, cc.indice_dias))) as max_dias
                     FROM coeficiente_cultivo cc
+                    LEFT JOIN coeficiente_cultivo_lote ccl ON ccl.lote_id = $2 AND ccl.coeficiente_cultivo_id = cc.id
                     WHERE cc.cultivo_id = $1
-                `, [lote.cultivo_id]);
-                
+                `, [lote.cultivo_id, lote.id]);
+
                 const maxDiasSimulacion = maxDays.max_dias || 150;
 
                 const fechaSiembra = new Date(lote.fecha_siembra);
@@ -339,14 +340,14 @@ async function calcularKCPorPendiente(client, loteId, diasDesdeSiembra) {
     // Obtenemos los coeficientes del cultivo, considerando días de corrección
     const { rows: coeficientes } = await client.query(`
         SELECT 
-            indice_kc,
-            COALESCE(dias_correccion, indice_dias) as dias_efectivos,
-            indice_dias as dias_originales
-        FROM coeficiente_cultivo 
-        WHERE cultivo_id = $1
+            cc.indice_kc,
+            COALESCE(ccl.dias_correccion, cc.indice_dias) as dias_efectivos,
+            cc.indice_dias as dias_originales
+        FROM coeficiente_cultivo cc
+        LEFT JOIN coeficiente_cultivo_lote ccl ON ccl.lote_id = $2 AND ccl.coeficiente_cultivo_id = cc.id
+        WHERE cc.cultivo_id = $1
         ORDER BY dias_efectivos ASC`,
-        [lote.cultivo_id]
-    );
+        [lote.cultivo_id, loteId] );
 
     // Si no hay coeficientes, retornamos un valor por defecto
     if (!coeficientes.length) return 1;

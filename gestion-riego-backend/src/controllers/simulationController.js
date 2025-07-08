@@ -8,9 +8,10 @@ exports.getSimulationData = async (req, res) => {
 
     try {
         const { rows: [maxDays] } = await pool.query(`
-            SELECT MAX(GREATEST(indice_dias, COALESCE(dias_correccion, 0))) as max_dias
+            SELECT MAX(GREATEST(cc.indice_dias, COALESCE(ccl.dias_correccion, cc.indice_dias))) as max_dias
             FROM coeficiente_cultivo cc
             JOIN lotes l ON l.cultivo_id = cc.cultivo_id
+            LEFT JOIN coeficiente_cultivo_lote ccl ON ccl.lote_id = l.id AND ccl.coeficiente_cultivo_id = cc.id
             WHERE l.id = $1
         `, [loteId]);
         

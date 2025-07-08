@@ -392,3 +392,18 @@ CREATE TABLE IF NOT EXISTS estaciones_modulos (
 CREATE INDEX IF NOT EXISTS idx_estaciones_modulos_codigo ON estaciones_modulos(estacion_codigo);
 CREATE INDEX IF NOT EXISTS idx_estaciones_modulos_tipo ON estaciones_modulos(modulo_tipo);
 CREATE INDEX IF NOT EXISTS idx_estaciones_modulos_id ON estaciones_modulos(modulo_id);
+
+CREATE TABLE coeficiente_cultivo_lote (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    lote_id BIGINT REFERENCES lotes(id) ON DELETE CASCADE,
+    coeficiente_cultivo_id BIGINT REFERENCES coeficiente_cultivo(id) ON DELETE CASCADE,
+    dias_correccion INT,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(lote_id, coeficiente_cultivo_id)
+);
+
+CREATE INDEX idx_coeficiente_cultivo_lote_lote_id ON coeficiente_cultivo_lote(lote_id);
+CREATE INDEX idx_coeficiente_cultivo_lote_coef_id ON coeficiente_cultivo_lote(coeficiente_cultivo_id);
+
+
