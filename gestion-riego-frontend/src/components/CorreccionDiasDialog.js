@@ -19,8 +19,7 @@ import {
     Tooltip,
     IconButton
 } from '@mui/material';
-import RestoreIcon from '@mui/icons-material/Restore';  // Cambiar esta línea
-
+import RestoreIcon from '@mui/icons-material/Restore';  
 import axios from '../axiosConfig';
 
 function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña }) {
