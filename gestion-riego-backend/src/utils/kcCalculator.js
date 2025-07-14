@@ -42,9 +42,9 @@ async function calcularKCUnificado(client, loteId, diasDesdeSiembra) {
         }
 
         // Log para debug de configuración
-        console.log(`Coeficientes KC para lote ${loteId}:`, 
+        /*console.log(`Coeficientes KC para lote ${loteId}:`, 
             coeficientes.map(c => `Día ${c.dias_efectivos}: KC ${c.indice_kc}`).join(', ')
-        );
+        );*/
 
         // 4. Si estamos antes del primer período, usar el KC inicial
         if (diasDesdeSiembra <= coeficientes[0].dias_efectivos) {
@@ -53,7 +53,7 @@ async function calcularKCUnificado(client, loteId, diasDesdeSiembra) {
                 console.error(`KC inicial inválido para lote ${loteId}: ${coeficientes[0].indice_kc}`);
                 return null;
             }
-            console.log(`KC para lote ${loteId}, día ${diasDesdeSiembra}: ${kcInicial} (período inicial)`);
+            //console.log(`KC para lote ${loteId}, día ${diasDesdeSiembra}: ${kcInicial} (período inicial)`);
             return kcInicial;
         }
 
@@ -64,7 +64,7 @@ async function calcularKCUnificado(client, loteId, diasDesdeSiembra) {
                 console.error(`KC final inválido para lote ${loteId}: ${coeficientes[coeficientes.length - 1].indice_kc}`);
                 return null;
             }
-            console.log(`KC para lote ${loteId}, día ${diasDesdeSiembra}: ${kcFinal} (período final)`);
+            //console.log(`KC para lote ${loteId}, día ${diasDesdeSiembra}: ${kcFinal} (período final)`);
             return kcFinal;
         }
 
@@ -91,7 +91,7 @@ async function calcularKCUnificado(client, loteId, diasDesdeSiembra) {
                 
                 if (diasDiff === 0) {
                     // Si los días son iguales, usar el KC del período actual
-                    console.log(`KC para lote ${loteId}, día ${diasDesdeSiembra}: ${kcActual} (días iguales)`);
+                    //console.log(`KC para lote ${loteId}, día ${diasDesdeSiembra}: ${kcActual} (días iguales)`);
                     return kcActual;
                 }
                 
@@ -104,13 +104,13 @@ async function calcularKCUnificado(client, loteId, diasDesdeSiembra) {
                     return null;
                 }
                 
-                console.log(`KC interpolado para lote ${loteId}, día ${diasDesdeSiembra}: ${kcInterpolado.toFixed(3)}`, {
+                /*console.log(`KC interpolado para lote ${loteId}, día ${diasDesdeSiembra}: ${kcInterpolado.toFixed(3)}`, {
                     periodoActual: periodoActual.dias_efectivos,
                     periodoSiguiente: periodoSiguiente.dias_efectivos,
                     kcActual: kcActual,
                     kcSiguiente: kcSiguiente,
                     factor: factor.toFixed(3)
-                });
+                });*/
                 
                 return kcInterpolado;
             }
