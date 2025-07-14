@@ -195,7 +195,16 @@ router.post('/', verifyToken, async (req, res) => {
         try {
             // Usar función unificada para calcular KC
             kc = await calcularKCUnificado(client, lote_id, diasDesdeSiembra);
-            
+            if (kc === null) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ 
+                    error: 'No se puede calcular KC para este lote',
+                    details: `No hay coeficientes KC definidos para el día ${diasDesdeSiembra} del lote ${lote_id}. ` +
+                            'Por favor, configure los coeficientes KC del cultivo antes de crear cambios diarios.',
+                    loteId: lote_id,
+                    diasDesdeSiembra: diasDesdeSiembra
+                });
+            }
             // Calcular ETC y lluvia efectiva
             etc = safeEvapotranspiracion * kc;
             lluvia_efectiva = calcularLluviaEfectiva(safePrecipitaciones);
@@ -325,7 +334,16 @@ router.put('/:id', verifyToken, async (req, res) => {
         try {
             // Usar función unificada para calcular KC
             kc = await calcularKCUnificado(client, cambioActual.lote_id, diasDesdeSiembra);
-            
+            if (kc === null) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ 
+                    error: 'No se puede calcular KC para este lote',
+                    details: `No hay coeficientes KC definidos para el día ${diasDesdeSiembra} del lote ${cambioActual.lote_id}. ` +
+                            'Por favor, configure los coeficientes KC del cultivo antes de actualizar cambios diarios.',
+                    loteId: cambioActual.lote_id,
+                    diasDesdeSiembra: diasDesdeSiembra
+                });
+            }
             // Calcular ETC y lluvia efectiva
             etc = safeEvapotranspiracion * kc;
             lluvia_efectiva = calcularLluviaEfectiva(safePrecipitaciones);
@@ -450,6 +468,10 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
 
                 // Calcular KC y ETC
                 const kc = await calcularKCUnificado(client, loteId, diasDesdeSiembra);
+                if (kc === null) {
+                    console.error(`No se puede calcular KC para lote ${loteId}, día ${diasDesdeSiembra}. Saltando este registro.`);
+                    continue; // Saltar este lote y continuar con el siguiente
+                }
                 const etc = evapotranspiracion * kc;
                 const lluvia_efectiva = precipitaciones ? calcularLluviaEfectiva(precipitaciones) : 0;
 

@@ -216,7 +216,35 @@ exports.getSimulationData = async (req, res) => {
             let kcCalculado, etcCalculado;
             try {
                 kcCalculado = await calcularKCUnificado(client, loteId, parseInt(dia));
+                if (kcCalculado === null) {
+                    console.error(`Error: No se puede calcular KC para lote ${loteId}, día ${dia}. ` +
+                                'Verifique la configuración de coeficientes KC del cultivo.');
+                    // En lugar de usar un valor por defecto, retornar error
+                    return {
+                        error: `No hay configuración KC para día ${dia}`,
+                        aguaUtilDiaria: aguaUtilAnterior || 0,
+                        aguaUtilUmbral: 0,
+                        estratosDisponibles: estratoAnteriorCorregido,
+                        porcentajeAguaUtil: 0,
+                        profundidadRaices: 0,
+                        aguaUtil1m: aguaUtil1mAnterior || 0,
+                        aguaUtil2m: aguaUtil2mAnterior || 0
+                    };
+                }
                 etcCalculado = Math.max(0, (parseFloat(evapotranspiracion || 0) * kcCalculado) || 0);
+            
+                } catch (error) {
+                console.error(`Error calculando KC para lote ${loteId}, día ${dia}:`, error);
+                return {
+                    error: `Error calculando KC: ${error.message}`,
+                    aguaUtilDiaria: aguaUtilAnterior || 0,
+                    aguaUtilUmbral: 0,
+                    estratosDisponibles: estratoAnteriorCorregido,
+                    porcentajeAguaUtil: 0,
+                    profundidadRaices: 0,
+                    aguaUtil1m: aguaUtil1mAnterior || 0,
+                    aguaUtil2m: aguaUtil2mAnterior || 0
+                };
             } finally {
                 client.release();
             }
@@ -326,6 +354,7 @@ exports.getSimulationData = async (req, res) => {
 
         // Procesamos los datos día a día
         let datosSimulacion = [];
+        let erroresKC = [];
         for (let index = 0; index < cambiosFiltrados.length; index++) {
             const cambio = cambiosFiltrados[index];
             const esPrimerDia = index === 0 || parseInt(cambio.dias, 10) === 1;
@@ -350,6 +379,16 @@ exports.getSimulationData = async (req, res) => {
                 index > 0 ? datosSimulacion[index - 1]?.aguaUtil2m : undefined,
                 esPrimerDia
             );
+            if (resultados.error) {
+                erroresKC.push({
+                    dia: cambio.dias,
+                    fecha: cambio.fecha_cambio,
+                    error: resultados.error
+                });
+                
+                console.warn(`Error en día ${cambio.dias}: ${resultados.error}`);
+            }
+            
 
             datosSimulacion.push({
                 fecha: cambio.fecha_cambio,
@@ -360,7 +399,9 @@ exports.getSimulationData = async (req, res) => {
 
         const ultimoDato = datosSimulacion.length > 0 ? datosSimulacion[datosSimulacion.length - 1] : { aguaUtilDiaria: 0, aguaUtil1m: 0, aguaUtil2m: 0 };
 
-
+        if (erroresKC.length > 0) {
+            console.error(`Se encontraron ${erroresKC.length} errores de KC en el lote ${loteId}:`, erroresKC);
+        }
 
 
         const ultimaAguaUtil = datosSimulacion[datosSimulacion.length - 1]?.aguaUtilDiaria || 0;
@@ -476,16 +517,28 @@ exports.getSimulationData = async (req, res) => {
             ],
             kc: await (async () => {
                 const kcHistoricos = [];
+                const erroresKCHistoricos = [];
                 
                 // Calcular KC para datos históricos secuencialmente
                 for (const c of cambios) {
                     const client = await pool.connect();
                     try {
                         const kcCalculado = await calcularKCUnificado(client, loteId, c.dias);
-                        kcHistoricos.push(kcCalculado);
+                        
+                        if (kcCalculado === null) {
+                            console.error(`KC no disponible para día ${c.dias}`);
+                            kcHistoricos.push(0); // Usar 0 para indicar que no hay KC
+                            erroresKCHistoricos.push(c.dias);
+                        } else {
+                            kcHistoricos.push(kcCalculado);
+                        }
                     } finally {
                         client.release();
                     }
+                }
+                
+                if (erroresKCHistoricos.length > 0) {
+                    console.error(`Días sin KC configurado: ${erroresKCHistoricos.join(', ')}`);
                 }
                 
                 // Combinar históricos con proyección
@@ -505,7 +558,8 @@ exports.getSimulationData = async (req, res) => {
             aguaUtil1m: datosSimulacion.map(d => d.aguaUtil1m || 0),
             aguaUtil2m: datosSimulacion.map(d => d.aguaUtil2m || 0),
             porcentajeAu1m: parseFloat(lote.agua_util_total) > 0 ? (ultimoDato.aguaUtil1m / parseFloat(lote.agua_util_total)) * 100 : 0,
-            porcentajeAu2m: parseFloat(lote.capacidad_almacenamiento_2m) > 0 ? (ultimoDato.aguaUtil2m / parseFloat(lote.capacidad_almacenamiento_2m)) * 100 : 0
+            porcentajeAu2m: parseFloat(lote.capacidad_almacenamiento_2m) > 0 ? (ultimoDato.aguaUtil2m / parseFloat(lote.capacidad_almacenamiento_2m)) * 100 : 0,
+            erroresKC: erroresKC,
         };
 
         // También vamos a agregar un console.log para verificar los valores
