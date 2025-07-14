@@ -417,7 +417,11 @@ function Simulations() {
             fechas: simulationData.fechas?.length || 0,
             fechasProyeccion: simulationData.fechasProyeccion?.length || 0,
             estadosFenologicos: simulationData.estadosFenologicos,
-            fechaSiembra: simulationData.fechaSiembra
+            fechaSiembra: simulationData.fechaSiembra,
+            aguaUtil1m: simulationData.aguaUtil1m?.length || 0,
+            aguaUtil2m: simulationData.aguaUtil2m?.length || 0,
+            capacidad1m: simulationData.agua_util_total,
+            capacidad2m: simulationData.capacidad_almacenamiento_2m
         });
         
         // Función interna para validar fechas
@@ -445,6 +449,31 @@ function Simulations() {
         const formatDecimal = (value) => parseFloat(value || 0).toFixed(2);
         const formatNumber = (value) => Math.round(parseFloat(value) || 0);
         
+        const capacidad1m = parseFloat(simulationData.agua_util_total);
+        const capacidad2m = parseFloat(simulationData.capacidad_almacenamiento_2m);
+    
+        const aguaUtil1mCompleto = [
+            ...(simulationData.aguaUtil1m || []),
+            // Para proyección, necesitamos extraer los valores proyectados si existen
+            ...Array(fechasProyeccion.length).fill(0).map((_, index) => {
+                // Si tienes datos proyectados específicos para 1m, úsalos aquí
+                // Por ahora, usaremos una proporción de la proyección general
+                const proyIndex = index;
+                const aguaUtilProyectada = simulationData.aguaUtilProyectada?.[proyIndex] || 0;
+                // Calcular proporción 1m basada en capacidades
+                return aguaUtilProyectada * (capacidad1m / capacidad2m);
+            })
+        ];
+
+        const aguaUtil2mCompleto = [
+            ...(simulationData.aguaUtil2m || []),
+            // Para proyección
+            ...Array(fechasProyeccion.length).fill(0).map((_, index) => {
+                const proyIndex = index;
+                return simulationData.aguaUtilProyectada?.[proyIndex] || 0;
+            })
+        ];
+    
         // Calcular días absolutos desde siembra
         let diasDesdeSiembra = [];
         
@@ -609,6 +638,16 @@ function Simulations() {
                 const porcentajeUmbral = parseFloat(simulationData.porcentajeAguaUtilUmbral) / 100;
                 porcentajeAU = formatNumber((aguaUtil / (umbral / porcentajeUmbral)) * 100);
             }
+
+             // NUEVOS CÁLCULOS: Agua útil y porcentajes para 1m y 2m
+            const aguaUtil1m = formatNumber(aguaUtil1mCompleto[index] || 0);
+            const aguaUtil2m = formatNumber(aguaUtil2mCompleto[index] || 0);
+            
+            // Calcular porcentajes
+            const porcentajeAU1m = capacidad1m > 0 ? 
+                formatNumber((parseFloat(aguaUtil1m) / capacidad1m) * 100) : 0;
+            const porcentajeAU2m = capacidad2m > 0 ? 
+                formatNumber((parseFloat(aguaUtil2m) / capacidad2m) * 100) : 0;
             
             // Usar día normalizado para determinar el estado fenológico
             const diaNormalizado = diasNormalizados[index];
@@ -621,7 +660,8 @@ function Simulations() {
                     formatNumber(simulationData.aguaUtil[index]) : 
                     formatNumber(simulationData.aguaUtilProyectada[index - simulationData.fechas.length]),
                 'Agua Útil Umbral (mm)': formatNumber(simulationData.aguaUtilUmbral[index]),
-                '% Agua Útil': porcentajeAU,
+                '% Agua Útil ZR': porcentajeAU,
+                '% Agua Útil 1m': porcentajeAU1m,
                 'Lluvias (mm)': formatNumber(simulationData.lluvias[index] || 0),
                 'Lluvia Efectiva (mm)': formatNumber(simulationData.lluviasEfectivas[index] || 0),
                 'Riego (mm)': formatNumber(simulationData.riego[index] || 0),
@@ -991,7 +1031,6 @@ function Simulations() {
                 </FormControl>
             </Grid>
             </Grid>
-                {isAdmin && (
                     <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
                             <Button
                                 variant="contained"
@@ -1002,6 +1041,7 @@ function Simulations() {
                             >
                                 Descargar CSV
                             </Button>
+                            {isAdmin && (
                             <Button 
                                 variant="contained" 
                                 color="primary" 
@@ -1009,6 +1049,8 @@ function Simulations() {
                                 >
                                 Forzar Actualización Diaria
                             </Button>
+                            )}
+                            {isAdmin && (
                             <Button 
                                 variant="contained" 
                                 color="primary" 
@@ -1016,8 +1058,8 @@ function Simulations() {
                                 >
                                 Corrección de Días
                             </Button>
+                            )}
                         </Box>
-                    )}
             </Paper>
 
             {loading && (

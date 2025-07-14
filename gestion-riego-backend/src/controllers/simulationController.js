@@ -1,4 +1,6 @@
 const pool = require('../db');
+const { calcularKCUnificado } = require('../utils/kcCalculator');
+
 
 exports.getSimulationData = async (req, res) => {
     const { loteId } = req.params;
@@ -157,9 +159,10 @@ exports.getSimulationData = async (req, res) => {
         };
 
         // Función para calcular el agua útil acumulada por estratos
-        const calcularAguaUtilPorEstratos = (dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, 
+        const calcularAguaUtilPorEstratos = async (loteId, dia, valoresEstratos, aguaUtilTotal, porcentajeUmbral, 
             indice_crecimiento_radicular, evapotranspiracion, etc, lluvia_efectiva, riego_cantidad, correccion_agua,
-            aguaUtilAnterior, estratoAnterior, capacidad_extraccion, kc, utilizarUnMetro, aguaUtil1mAnterior, aguaUtil2mAnterior, esPrimerDia) => {
+            aguaUtilAnterior, estratoAnterior, capacidad_extraccion, utilizarUnMetro, aguaUtil1mAnterior, aguaUtil2mAnterior, esPrimerDia) => {
+
 
             const estratoAnteriorCorregido = estratoAnterior === 0 || estratoAnterior === undefined || estratoAnterior === null ? 1 : estratoAnterior;
 
@@ -207,9 +210,17 @@ exports.getSimulationData = async (req, res) => {
             
             // Valor por estrato (agua útil total dividida por número de estratos)
             const valorPorEstrato = parseFloat(aguaUtilTotal) / numEstratos;
-
-            const etcCalculado = Math.max(0, (parseFloat(evapotranspiracion || 0) * parseFloat(kc || 0)) || 0);
             
+
+            const client = await pool.connect();
+            let kcCalculado, etcCalculado;
+            try {
+                kcCalculado = await calcularKCUnificado(client, loteId, parseInt(dia));
+                etcCalculado = Math.max(0, (parseFloat(evapotranspiracion || 0) * kcCalculado) || 0);
+            } finally {
+                client.release();
+            }
+                
             const aguaUtilAnteriorValor = aguaUtilAnterior === 0 ? valorPorEstrato * 0.1 : aguaUtilAnterior;
 
 
@@ -309,16 +320,18 @@ exports.getSimulationData = async (req, res) => {
                 aguaUtil1m,
                 aguaUtil2m
             };
+           
         };
 
 
         // Procesamos los datos día a día
         let datosSimulacion = [];
-        cambiosFiltrados.forEach((cambio, index) => {
-            
+        for (let index = 0; index < cambiosFiltrados.length; index++) {
+            const cambio = cambiosFiltrados[index];
             const esPrimerDia = index === 0 || parseInt(cambio.dias, 10) === 1;
 
-            const resultados = calcularAguaUtilPorEstratos(
+            const resultados = await calcularAguaUtilPorEstratos(
+                loteId,
                 cambio.dias,
                 lote.valores_estratos,
                 lote.utilizar_un_metro ? lote.agua_util_total : lote.capacidad_almacenamiento_2m,
@@ -332,11 +345,10 @@ exports.getSimulationData = async (req, res) => {
                 index > 0 ? datosSimulacion[index - 1]?.aguaUtilDiaria : undefined,
                 index > 0 ? datosSimulacion[index - 1]?.estratosDisponibles : undefined,
                 lote.capacidad_extraccion, 
-                cambio.kc,
                 lote.utilizar_un_metro,
                 index > 0 ? datosSimulacion[index - 1]?.aguaUtil1m : undefined,
                 index > 0 ? datosSimulacion[index - 1]?.aguaUtil2m : undefined,
-                esPrimerDia  //  parámetro: true si es el primer día, false en caso contrario
+                esPrimerDia
             );
 
             datosSimulacion.push({
@@ -344,8 +356,8 @@ exports.getSimulationData = async (req, res) => {
                 ...resultados,
                 diasDesdeSiembra: cambio.dias
             });
-        });
-        
+        }
+
         const ultimoDato = datosSimulacion.length > 0 ? datosSimulacion[datosSimulacion.length - 1] : { aguaUtilDiaria: 0, aguaUtil1m: 0, aguaUtil2m: 0 };
 
 
@@ -462,10 +474,26 @@ exports.getSimulationData = async (req, res) => {
                     return (aguaUtilAnterior * parseFloat(lote.capacidad_extraccion)) / 100;
                 })
             ],
-            kc: [
-                ...cambios.map(c => c.kc || 0),
-                ...proyeccion.proyeccionCompleta.map(p => p.kc || 0)
-            ],
+            kc: await (async () => {
+                const kcHistoricos = [];
+                
+                // Calcular KC para datos históricos secuencialmente
+                for (const c of cambios) {
+                    const client = await pool.connect();
+                    try {
+                        const kcCalculado = await calcularKCUnificado(client, loteId, c.dias);
+                        kcHistoricos.push(kcCalculado);
+                    } finally {
+                        client.release();
+                    }
+                }
+                
+                // Combinar históricos con proyección
+                return [
+                    ...kcHistoricos,
+                    ...proyeccion.proyeccionCompleta.map(p => p.kc || 0)
+                ];
+            })(),
             evapotranspiracion: [
                 ...cambios.map(c => c.evapotranspiracion || 0),
                 ...proyeccion.proyeccionCompleta.map(p => p.evapotranspiracion || 0)
@@ -1025,6 +1053,7 @@ async function getLastSimulationData(loteId) {
         return null;
     }
 }
+
 
 exports.getSummaryData = async (req, res) => {
     const { loteId } = req.params;

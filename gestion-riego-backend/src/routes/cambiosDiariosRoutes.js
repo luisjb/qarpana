@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { verifyToken } = require('../middleware/auth');
+const { calcularKCUnificado } = require('../utils/kcCalculator');
+
 
 
 
@@ -11,113 +13,6 @@ const convertToNumberOrZero = (value) => {
     return isNaN(number) ? 0 : number;
 };
 
-async function calcularKCPorPendiente(client, loteId, diasDesdeSiembra) {
-    // Primero obtenemos el cultivo_id del lote
-    const { rows: [lote] } = await client.query(
-        'SELECT cultivo_id FROM lotes WHERE id = $1',
-        [loteId]
-    );
-
-    // Obtenemos los coeficientes del cultivo, considerando días de corrección
-    const { rows: coeficientes } = await client.query(`
-        SELECT 
-            cc.indice_kc,
-            COALESCE(ccl.dias_correccion, cc.indice_dias) as dias_efectivos,
-            cc.indice_dias as dias_originales
-        FROM coeficiente_cultivo cc
-        LEFT JOIN coeficiente_cultivo_lote ccl ON ccl.lote_id = $2 AND ccl.coeficiente_cultivo_id = cc.id
-        WHERE cc.cultivo_id = $1
-        ORDER BY dias_efectivos ASC`,
-        [lote.cultivo_id, loteId]  // AGREGAR loteId como segundo parámetro
-    );
-
-    // Si no hay coeficientes, retornamos un valor por defecto
-    if (!coeficientes.length) return 1;
-
-    // Si estamos antes del primer período, usamos el KC inicial
-    if (diasDesdeSiembra <= coeficientes[0].dias_efectivos) {
-        return coeficientes[0].indice_kc;
-    }
-
-    // Buscamos el intervalo correcto para calcular la pendiente
-    for (let i = 0; i < coeficientes.length - 1; i++) {
-        const periodoActual = coeficientes[i];
-        const periodoSiguiente = coeficientes[i + 1];
-
-        if (diasDesdeSiembra > periodoActual.dias_efectivos && 
-            diasDesdeSiembra <= periodoSiguiente.dias_efectivos) {
-            
-            // Calculamos la pendiente (a) entre los dos períodos
-            const a = (periodoSiguiente.indice_kc - periodoActual.indice_kc) / 
-                     (periodoSiguiente.dias_efectivos - periodoActual.dias_efectivos);
-            
-            // Calculamos el intercepto (b)
-            const b = periodoActual.indice_kc - (a * periodoActual.dias_efectivos);
-            
-            // Calculamos el KC para el día actual usando y = ax + b
-            const kc = (a * diasDesdeSiembra) + b;
-
-            // Para debug
-            /*console.log('Cálculo KC:', {
-                diasDesdeSiembra,
-                periodoActual: periodoActual.dias_efectivos,
-                periodoSiguiente: periodoSiguiente.dias_efectivos,
-                kcActual: periodoActual.indice_kc,
-                kcSiguiente: periodoSiguiente.indice_kc,
-                pendiente: a,
-                intercepto: b,
-                kcCalculado: kc
-            });*/
-
-            return kc;
-        }
-    }
-
-    // Si estamos después del último período, usamos el último KC
-    return coeficientes[coeficientes.length - 1].indice_kc;
-}
-
-
-// Función para calcular KC
-async function calcularKC(client, loteId, diasDesdeSiembra) {
-    const loteResult = await client.query(
-        'SELECT cultivo_id FROM lotes WHERE id = $1',
-        [loteId]
-    );
-    
-    if (!loteResult.rows.length) return 0;
-    const cultivo_id = loteResult.rows[0].cultivo_id;
-
-    const coeficientesResult = await client.query(
-        `SELECT cc.indice_kc, cc.indice_dias, COALESCE(ccl.dias_correccion, cc.indice_dias) as dias_efectivos 
-        FROM coeficiente_cultivo cc
-        LEFT JOIN coeficiente_cultivo_lote ccl ON ccl.lote_id = $2 AND ccl.coeficiente_cultivo_id = cc.id
-        WHERE cc.cultivo_id = $1 
-        ORDER BY dias_efectivos`,
-        [cultivo_id, loteId]  // AGREGAR loteId como segundo parámetro
-    );
-    
-    if (!coeficientesResult.rows.length) return 0;
-
-    const coeficientes = coeficientesResult.rows;
-    let puntoAnterior = coeficientes[0];
-    let puntoSiguiente = coeficientes[coeficientes.length - 1];
-
-    for (let i = 0; i < coeficientes.length - 1; i++) {
-        if (diasDesdeSiembra >= coeficientes[i].dias_efectivos && 
-            diasDesdeSiembra < coeficientes[i+1].dias_efectivos) {
-            puntoAnterior = coeficientes[i];
-            puntoSiguiente = coeficientes[i+1];
-            break;
-        }
-    }
-
-    const m = (puntoSiguiente.indice_kc - puntoAnterior.indice_kc) / 
-              (puntoSiguiente.dias_efectivos - puntoAnterior.dias_efectivos);
-    const b = puntoAnterior.indice_kc - m * puntoAnterior.dias_efectivos;
-
-    return m * diasDesdeSiembra + b;
-}
 
 // Función para calcular crecimiento radicular
 async function calcularCrecimientoRadicular(client, loteId, diasDesdeSiembra) {
@@ -163,6 +58,7 @@ router.get('/:loteId', verifyToken, async (req, res) => {
         client.release();
     }
 });
+
 
 
 
@@ -297,36 +193,14 @@ router.post('/', verifyToken, async (req, res) => {
         // Calcular KC y ETC de forma segura
         let kc, etc, lluvia_efectiva;
         try {
-            // Consulta SQL para obtener KC
-            const kc_result = await client.query(`
-                SELECT cc.indice_kc 
-                FROM lotes l
-                JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
-                LEFT JOIN coeficiente_cultivo_lote ccl ON ccl.lote_id = l.id AND ccl.coeficiente_cultivo_id = cc.id
-                WHERE l.id = $1
-                AND COALESCE(ccl.dias_correccion, cc.indice_dias) <= $2
-                ORDER BY COALESCE(ccl.dias_correccion, cc.indice_dias) DESC
-                LIMIT 1
-            `, [lote_id, diasDesdeSiembra]);
-            
-            // Validar el KC obtenido con más comprobaciones
-            if (kc_result.rows.length > 0 && kc_result.rows[0].indice_kc !== null) {
-                kc = parseFloat(kc_result.rows[0].indice_kc);
-                
-                if (isNaN(kc)) {
-                    console.warn(`KC obtenido no es un número válido: ${kc_result.rows[0].indice_kc}`);
-                    kc = 0.4; // Valor por defecto
-                }
-            } else {
-                console.warn(`No se encontró KC para lote ${lote_id} y día ${diasDesdeSiembra}`);
-                kc = 0.4; // Valor por defecto
-            }
+            // Usar función unificada para calcular KC
+            kc = await calcularKCUnificado(client, lote_id, diasDesdeSiembra);
             
             // Calcular ETC y lluvia efectiva
             etc = safeEvapotranspiracion * kc;
             lluvia_efectiva = calcularLluviaEfectiva(safePrecipitaciones);
             
-            // Última validación
+            // Validación
             if (isNaN(etc)) {
                 console.warn(`ETC resultó en NaN: ${safeEvapotranspiracion} * ${kc}`);
                 etc = 0;
@@ -337,14 +211,11 @@ router.post('/', verifyToken, async (req, res) => {
                 lluvia_efectiva = 0;
             }
             
-            //console.log('Valores calculados:', { kc, etc, lluvia_efectiva });
         } catch (error) {
             console.error('Error al calcular KC, ETC o lluvia efectiva:', error);
-            // Usar valores seguros por defecto
-            kc = 0.4;
+            kc = 0.8;  // Valor por defecto
             etc = 0;
             lluvia_efectiva = 0;
-            //console.log('Usando valores por defecto:', { kc, etc, lluvia_efectiva });
         }
 
         // Insertar en la base de datos con valores validados
@@ -452,31 +323,27 @@ router.put('/:id', verifyToken, async (req, res) => {
         // Calcular KC y ETC de forma segura
         let kc, etc, lluvia_efectiva;
         try {
-            // Consulta SQL para obtener KC
-            const { rows: [kc_data] } = await client.query(`
-                SELECT cc.indice_kc 
-                FROM lotes l
-                JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
-                LEFT JOIN coeficiente_cultivo_lote ccl ON ccl.lote_id = l.id AND ccl.coeficiente_cultivo_id = cc.id
-                WHERE l.id = $1
-                AND COALESCE(ccl.dias_correccion, cc.indice_dias) <= $2
-                ORDER BY COALESCE(ccl.dias_correccion, cc.indice_dias) DESC
-                LIMIT 1
-            `, [cambioActual.lote_id, diasDesdeSiembra]);
-            
-            // Validar el KC obtenido
-            kc = parseFloat(kc_data?.indice_kc) || 0.4;
+            // Usar función unificada para calcular KC
+            kc = await calcularKCUnificado(client, cambioActual.lote_id, diasDesdeSiembra);
             
             // Calcular ETC y lluvia efectiva
             etc = safeEvapotranspiracion * kc;
             lluvia_efectiva = calcularLluviaEfectiva(safePrecipitaciones);
             
-            // Última validación
-            if (isNaN(etc)) etc = 0;
-            if (isNaN(lluvia_efectiva)) lluvia_efectiva = 0;
+            // Validación
+            if (isNaN(etc)) {
+                console.warn(`ETC resultó en NaN: ${safeEvapotranspiracion} * ${kc}`);
+                etc = 0;
+            }
+            
+            if (isNaN(lluvia_efectiva)) {
+                console.warn(`Lluvia efectiva resultó en NaN: de ${safePrecipitaciones}`);
+                lluvia_efectiva = 0;
+            }
+            
         } catch (error) {
             console.error('Error al calcular KC, ETC o lluvia efectiva:', error);
-            kc = 0.4;
+            kc = 0.8;  // Valor por defecto actualizado
             etc = 0;
             lluvia_efectiva = 0;
         }
@@ -582,7 +449,7 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
                 );
 
                 // Calcular KC y ETC
-                const kc = await calcularKCPorPendiente(client, loteId, diasDesdeSiembra);
+                const kc = await calcularKCUnificado(client, loteId, diasDesdeSiembra);
                 const etc = evapotranspiracion * kc;
                 const lluvia_efectiva = precipitaciones ? calcularLluviaEfectiva(precipitaciones) : 0;
 
