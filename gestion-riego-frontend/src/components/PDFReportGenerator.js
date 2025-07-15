@@ -67,31 +67,42 @@ class PDFReportGenerator {
 
     async verifyTemplate() {
         try {
+            console.log('🔍 Verificando plantilla en:', this.templatePath);
+            
             const response = await fetch(this.templatePath);
             
             if (!response.ok) {
-                console.warn(`Template response not ok: ${response.status}`);
+                console.warn(`❌ Template response not ok: ${response.status} - ${response.statusText}`);
+                console.warn('URL completa:', window.location.origin + this.templatePath);
                 return false;
             }
             
             const contentLength = response.headers.get('content-length');
+            console.log('📏 Content-Length:', contentLength);
+            
             if (contentLength === '0') {
-                console.warn('Template file is empty');
+                console.warn('❌ Template file is empty');
                 return false;
             }
             
             const arrayBuffer = await response.arrayBuffer();
+            console.log('📦 ArrayBuffer size:', arrayBuffer.byteLength, 'bytes');
+            
             if (arrayBuffer.byteLength === 0) {
-                console.warn('Template arrayBuffer is empty');
+                console.warn('❌ Template arrayBuffer is empty');
                 return false;
             }
             
             // Verificar header PDF
             const bytes = new Uint8Array(arrayBuffer);
             const pdfHeader = String.fromCharCode(...bytes.slice(0, 4));
+            console.log('🔤 PDF Header:', pdfHeader);
             
             if (pdfHeader !== '%PDF') {
-                console.warn(`Invalid PDF header: ${pdfHeader}`);
+                console.warn(`❌ Invalid PDF header: ${pdfHeader}`);
+                // Mostrar más información del archivo
+                const first20Bytes = String.fromCharCode(...bytes.slice(0, 20));
+                console.warn('Primeros 20 bytes:', first20Bytes);
                 return false;
             }
             
@@ -99,7 +110,12 @@ class PDFReportGenerator {
             return { valid: true, arrayBuffer };
             
         } catch (error) {
-            console.warn('Error verifying template:', error);
+            console.warn('❌ Error verifying template:', error);
+            console.warn('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                templatePath: this.templatePath
+            });
             return false;
         }
     }
