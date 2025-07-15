@@ -231,30 +231,51 @@ class PDFReportGenerator {
                 if (verification) {
                     console.log(`✅ Plantilla encontrada en: ${templatePath}`);
                     
-                    const templateDoc = await PDFDocument.load(verification.arrayBuffer);
-                    const templatePages = templateDoc.getPages();
-                    
-                    if (templatePages.length === 0) {
-                        console.warn('❌ Template has no pages');
-                        continue;
+                    try {
+                        const templateDoc = await PDFDocument.load(verification.arrayBuffer);
+                        const templatePages = templateDoc.getPages();
+                        
+                        if (templatePages.length === 0) {
+                            console.warn('❌ Template has no pages');
+                            continue;
+                        }
+                        
+                        // Verificar que la primera página sea válida
+                        const firstPage = templatePages[0];
+                        if (!firstPage) {
+                            console.warn('❌ First page is invalid');
+                            continue;
+                        }
+                        
+                        // Copiar la primera página de la plantilla
+                        const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
+                        
+                        // Verificar que la página copiada sea válida
+                        if (!templatePage) {
+                            console.warn('❌ Failed to copy template page');
+                            continue;
+                        }
+                        
+                        this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+                        
+                        // Dibujar la plantilla en la página actual
+                        this.currentPage.drawPage(templatePage, {
+                            x: 0,
+                            y: 0,
+                            width: this.pageWidth,
+                            height: this.pageHeight,
+                        });
+                        
+                        this.usingTemplate = true;
+                        this.templatePath = templatePath; // Guardar la ruta que funcionó
+                        console.log('✅ Template loaded successfully');
+                        return;
+                        
+                    } catch (templateError) {
+                        console.warn(`❌ Error processing template: ${templateError.message}`);
+                        console.log('📄 Template file seems corrupted or incompatible, trying next path...');
+                        continue; // Intentar siguiente ruta
                     }
-                    
-                    // Copiar la primera página de la plantilla
-                    const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
-                    this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
-                    
-                    // Dibujar la plantilla en la página actual
-                    this.currentPage.drawPage(templatePage, {
-                        x: 0,
-                        y: 0,
-                        width: this.pageWidth,
-                        height: this.pageHeight,
-                    });
-                    
-                    this.usingTemplate = true;
-                    this.templatePath = templatePath; // Guardar la ruta que funcionó
-                    console.log('✅ Template loaded successfully');
-                    return;
                 }
             }
             
@@ -1036,8 +1057,8 @@ class PDFReportGenerator {
                 this.addSimulatedChart(chartStartY, chartWidth, chartHeight);
             }
             
-            // Leyenda
-            this.currentPage.drawText('━ Agua Útil', {
+            // Leyenda (usando caracteres compatibles con WinAnsi)
+            this.currentPage.drawText('— Agua Útil', {
                 x: this.margin + chartWidth - 100,
                 y: chartStartY + chartHeight - 20,
                 size: 8,
@@ -1045,7 +1066,7 @@ class PDFReportGenerator {
                 color: rgb(0.15, 0.18, 0.54),
             });
             
-            this.currentPage.drawText('┉ Umbral', {
+            this.currentPage.drawText('- - Umbral', {
                 x: this.margin + chartWidth - 100,
                 y: chartStartY + chartHeight - 35,
                 size: 8,
