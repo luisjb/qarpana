@@ -1,7 +1,7 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
-import as from '../../public/assets/hoja_membretada_2.pdf';
+
 class PDFReportGenerator {
     constructor() {
         this.pdfDoc = null;
