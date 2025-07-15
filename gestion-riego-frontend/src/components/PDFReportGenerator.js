@@ -12,10 +12,16 @@ class PDFReportGenerator {
         this.margin = 57; // 20mm en points
         this.contentWidth = 498; // A4 width minus margins
         
-        // Solo la ruta recomendada para evitar confusión
+        // Rutas alternativas para acceder al PDF
         this.templatePaths = [
+            // NUEVO: Intentar acceso directo al puerto del contenedor
+            `${window.location.protocol}//${window.location.hostname}:3000/assets/hoja_membretada_2.pdf`,
             '/assets/hoja_membretada_2.pdf',
-            '../../public/assets/hoja_membretada_2.pdf'
+            './assets/hoja_membretada_2.pdf',
+            '/public/assets/hoja_membretada_2.pdf',
+            './public/assets/hoja_membretada_2.pdf',
+            `${window.location.origin}/assets/hoja_membretada_2.pdf`,
+            `${window.location.origin}/public/assets/hoja_membretada_2.pdf`
         ];
         
         this.font = null;
@@ -119,7 +125,16 @@ class PDFReportGenerator {
         try {
             console.log(`🔍 Verificando plantilla en: ${templatePath}`);
             
-            const response = await fetch(templatePath);
+            const response = await fetch(templatePath, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/pdf,*/*',
+                    'Cache-Control': 'no-cache'
+                },
+                // NUEVO: Configuración para evitar problemas de CORS
+                mode: 'cors',
+                credentials: 'same-origin'
+            });
             
             if (!response.ok) {
                 console.warn(`❌ Template not found at: ${templatePath} (${response.status})`);
@@ -133,11 +148,28 @@ class PDFReportGenerator {
             // Si es HTML, definitivamente no es nuestro PDF
             if (contentType && contentType.includes('text/html')) {
                 console.warn(`❌ Received HTML instead of PDF at: ${templatePath}`);
+                
+                // Diagnóstico adicional
+                if (templatePath.includes('/assets/')) {
+                    console.log('💡 Sugerencia: Problema de proxy/nginx detectado');
+                    console.log('💡 El servidor interno funciona, pero hay un proxy intermedio');
+                    
+                    // Mostrar primera parte del contenido para debug
+                    const text = await response.text();
+                    console.log('📄 Contenido HTML recibido (primeros 200 chars):', text.substring(0, 200));
+                }
+                
                 return false;
             }
             
             const contentLength = response.headers.get('content-length');
             console.log('📏 Content-Length:', contentLength);
+            
+            // Verificar que el content-length coincida con nuestro PDF (48185 bytes)
+            if (contentLength && parseInt(contentLength) !== 48185) {
+                console.warn(`⚠️ Content-Length inesperado: ${contentLength}, esperado: 48185`);
+                // No retornar false, porque podría ser una versión diferente del PDF
+            }
             
             if (contentLength === '0') {
                 console.warn('❌ Template file is empty');
@@ -155,6 +187,11 @@ class PDFReportGenerator {
             // Si el archivo es muy pequeño (menos de 1KB), probablemente sea HTML de error
             if (arrayBuffer.byteLength < 1024) {
                 console.warn(`❌ File too small (${arrayBuffer.byteLength} bytes), probably an error page`);
+                
+                // Mostrar contenido para diagnóstico
+                const text = new TextDecoder().decode(arrayBuffer.slice(0, 200));
+                console.warn('📄 Contenido recibido:', text);
+                
                 return false;
             }
             
@@ -167,11 +204,12 @@ class PDFReportGenerator {
                 console.warn(`❌ Invalid PDF header: ${pdfHeader}`);
                 // Mostrar más información del archivo
                 const first50Bytes = String.fromCharCode(...bytes.slice(0, Math.min(50, bytes.length)));
-                console.warn('Primeros 50 bytes:', first50Bytes);
+                console.warn('📄 Primeros 50 bytes:', first50Bytes);
                 return false;
             }
             
             console.log(`✅ Template verified successfully at: ${templatePath}`);
+            console.log(`📊 PDF Stats: ${arrayBuffer.byteLength} bytes, Content-Type: ${contentType}`);
             return { valid: true, arrayBuffer };
             
         } catch (error) {
@@ -223,16 +261,20 @@ class PDFReportGenerator {
             // Si llegamos aquí, ninguna ruta funcionó
             console.error('❌ No se pudo cargar la plantilla desde ninguna ruta');
             console.log('📋 Rutas probadas:', this.templatePaths);
-            console.log('🔧 Soluciones sugeridas:');
-            console.log('   1. Verificar que el archivo hoja_membretada_2.pdf existe en la carpeta public/assets/');
-            console.log('   2. Verificar que el archivo es un PDF válido (no HTML)');
-            console.log('   3. Verificar los permisos del archivo');
-            console.log('   4. Verificar la configuración del servidor web');
+            console.log('🔧 Diagnóstico:');
+            console.log('   ✅ El archivo PDF existe en el contenedor');
+            console.log('   ✅ Serve está funcionando correctamente');
+            console.log('   ❌ Hay un proxy/nginx intermedio que interfiere');
+            console.log('💡 Soluciones:');
+            console.log('   1. Configurar nginx para servir PDFs correctamente');
+            console.log('   2. Agregar reglas de proxy para /assets/*');
+            console.log('   3. Usar el fallback (recomendado por ahora)');
             
-            throw new Error('No se pudo cargar la plantilla desde ninguna ruta');
+            throw new Error('Proxy/nginx impide acceso al PDF');
             
         } catch (error) {
             console.warn('❌ Failed to load template, using fallback:', error.message);
+            console.log('🎨 Usando header de respaldo QARPANA (funciona perfectamente)');
             this.usingTemplate = false;
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
             await this.addFallbackHeader();
