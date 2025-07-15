@@ -11,7 +11,17 @@ class PDFReportGenerator {
         this.pageWidth = 612; // A4 width in points
         this.margin = 57; // 20mm en points
         this.contentWidth = 498; // A4 width minus margins
-        this.templatePath = '/assets/hoja_membretada_2.pdf';
+        
+        // Múltiples rutas posibles para la plantilla
+        this.templatePaths = [
+            '../assets/hoja_membretada_2.pdf',
+            './assets/hoja_membretada_2.pdf',
+            '/public/assets/hoja_membretada_2.pdf',
+            './public/assets/hoja_membretada_2.pdf',
+            `${window.location.origin}/assets/hoja_membretada_2.pdf`,
+            `${window.location.origin}/public/assets/hoja_membretada_2.pdf`
+        ];
+        
         this.font = null;
         this.boldFont = null;
         this.usingTemplate = false;
@@ -19,6 +29,8 @@ class PDFReportGenerator {
 
     async generateReport(campoData, lotesData, recomendaciones) {
         try {
+            console.log('🚀 Iniciando generación de informe PDF');
+            
             // Crear documento PDF
             this.pdfDoc = await PDFDocument.create();
             
@@ -34,6 +46,10 @@ class PDFReportGenerator {
             
             // Agregar título del informe
             await this.addReportTitle(campoData.nombre_campo);
+            
+            // Esperar a que todos los gráficos se carguen antes de capturar
+            console.log('⏳ Esperando carga de gráficos...');
+            await this.waitForChartsToLoad();
             
             // Capturar y agregar resumen de círculos (solo las cards)
             await this.addResumenCirculosFromPage(lotesData);
@@ -59,21 +75,68 @@ class PDFReportGenerator {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
+            console.log('✅ Informe PDF generado exitosamente');
+            
         } catch (error) {
-            console.error('Error generando PDF:', error);
+            console.error('❌ Error generando PDF:', error);
             throw error;
         }
     }
 
-    async verifyTemplate() {
-        try {
-            console.log('🔍 Verificando plantilla en:', this.templatePath);
+    // Nueva función para esperar a que los gráficos se carguen
+    async waitForChartsToLoad() {
+        const maxWaitTime = 5000; // 5 segundos máximo
+        const checkInterval = 100; // revisar cada 100ms
+        let elapsed = 0;
+        
+        while (elapsed < maxWaitTime) {
+            const canvases = document.querySelectorAll('canvas');
+            let allLoaded = true;
             
-            const response = await fetch(this.templatePath);
+            for (const canvas of canvases) {
+                const ctx = canvas.getContext('2d');
+                if (ctx && canvas.width > 100 && canvas.height > 100) {
+                    // Verificar si el canvas tiene contenido
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const hasContent = imageData.data.some(pixel => pixel !== 0);
+                    
+                    if (!hasContent) {
+                        allLoaded = false;
+                        break;
+                    }
+                }
+            }
+            
+            if (allLoaded && canvases.length > 0) {
+                console.log('✅ Gráficos cargados correctamente');
+                return;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            elapsed += checkInterval;
+        }
+        
+        console.warn('⚠️ Timeout esperando gráficos, continuando...');
+    }
+
+    async verifyTemplateAtPath(templatePath) {
+        try {
+            console.log(`🔍 Verificando plantilla en: ${templatePath}`);
+            
+            const response = await fetch(templatePath);
             
             if (!response.ok) {
-                console.warn(`❌ Template response not ok: ${response.status} - ${response.statusText}`);
-                console.warn('URL completa:', window.location.origin + this.templatePath);
+                console.warn(`❌ Template not found at: ${templatePath} (${response.status})`);
+                return false;
+            }
+            
+            // Verificar el Content-Type
+            const contentType = response.headers.get('content-type');
+            console.log('📋 Content-Type:', contentType);
+            
+            // Si es HTML, definitivamente no es nuestro PDF
+            if (contentType && contentType.includes('text/html')) {
+                console.warn(`❌ Received HTML instead of PDF at: ${templatePath}`);
                 return false;
             }
             
@@ -93,6 +156,12 @@ class PDFReportGenerator {
                 return false;
             }
             
+            // Si el archivo es muy pequeño (menos de 1KB), probablemente sea HTML de error
+            if (arrayBuffer.byteLength < 1024) {
+                console.warn(`❌ File too small (${arrayBuffer.byteLength} bytes), probably an error page`);
+                return false;
+            }
+            
             // Verificar header PDF
             const bytes = new Uint8Array(arrayBuffer);
             const pdfHeader = String.fromCharCode(...bytes.slice(0, 4));
@@ -101,60 +170,73 @@ class PDFReportGenerator {
             if (pdfHeader !== '%PDF') {
                 console.warn(`❌ Invalid PDF header: ${pdfHeader}`);
                 // Mostrar más información del archivo
-                const first20Bytes = String.fromCharCode(...bytes.slice(0, 20));
-                console.warn('Primeros 20 bytes:', first20Bytes);
+                const first50Bytes = String.fromCharCode(...bytes.slice(0, Math.min(50, bytes.length)));
+                console.warn('Primeros 50 bytes:', first50Bytes);
                 return false;
             }
             
-            console.log('✅ Template verified successfully');
+            console.log(`✅ Template verified successfully at: ${templatePath}`);
             return { valid: true, arrayBuffer };
             
         } catch (error) {
-            console.warn('❌ Error verifying template:', error);
-            console.warn('Error details:', {
-                message: error.message,
-                stack: error.stack,
-                templatePath: this.templatePath
-            });
+            console.warn(`❌ Error verifying template at ${templatePath}:`, error.message);
             return false;
         }
     }
 
     async loadTemplate() {
         try {
-            console.log('Loading template from:', this.templatePath);
+            console.log('📄 Intentando cargar plantilla desde múltiples rutas...');
             
-            const verification = await this.verifyTemplate();
-            
-            if (!verification) {
-                throw new Error('Template verification failed');
+            // Probar cada ruta hasta encontrar una que funcione
+            for (const templatePath of this.templatePaths) {
+                console.log(`🔍 Probando ruta: ${templatePath}`);
+                
+                const verification = await this.verifyTemplateAtPath(templatePath);
+                
+                if (verification) {
+                    console.log(`✅ Plantilla encontrada en: ${templatePath}`);
+                    
+                    const templateDoc = await PDFDocument.load(verification.arrayBuffer);
+                    const templatePages = templateDoc.getPages();
+                    
+                    if (templatePages.length === 0) {
+                        console.warn('❌ Template has no pages');
+                        continue;
+                    }
+                    
+                    // Copiar la primera página de la plantilla
+                    const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
+                    this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+                    
+                    // Dibujar la plantilla en la página actual
+                    this.currentPage.drawPage(templatePage, {
+                        x: 0,
+                        y: 0,
+                        width: this.pageWidth,
+                        height: this.pageHeight,
+                    });
+                    
+                    this.usingTemplate = true;
+                    this.templatePath = templatePath; // Guardar la ruta que funcionó
+                    console.log('✅ Template loaded successfully');
+                    return;
+                }
             }
             
-            const templateDoc = await PDFDocument.load(verification.arrayBuffer);
-            const templatePages = templateDoc.getPages();
+            // Si llegamos aquí, ninguna ruta funcionó
+            console.error('❌ No se pudo cargar la plantilla desde ninguna ruta');
+            console.log('📋 Rutas probadas:', this.templatePaths);
+            console.log('🔧 Soluciones sugeridas:');
+            console.log('   1. Verificar que el archivo hoja_membretada_2.pdf existe en la carpeta public/assets/');
+            console.log('   2. Verificar que el archivo es un PDF válido (no HTML)');
+            console.log('   3. Verificar los permisos del archivo');
+            console.log('   4. Verificar la configuración del servidor web');
             
-            if (templatePages.length === 0) {
-                throw new Error('Template has no pages');
-            }
-            
-            // Copiar la primera página de la plantilla
-            const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
-            this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
-            
-            // Dibujar la plantilla en la página actual
-            const templateDims = templatePage.getSize();
-            this.currentPage.drawPage(templatePage, {
-                x: 0,
-                y: 0,
-                width: this.pageWidth,
-                height: this.pageHeight,
-            });
-            
-            this.usingTemplate = true;
-            console.log('✅ Template loaded successfully');
+            throw new Error('No se pudo cargar la plantilla desde ninguna ruta');
             
         } catch (error) {
-            console.warn('Failed to load template, using fallback:', error.message);
+            console.warn('❌ Failed to load template, using fallback:', error.message);
             this.usingTemplate = false;
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
             await this.addFallbackHeader();
@@ -216,8 +298,8 @@ class PDFReportGenerator {
 
     async addNewPage() {
         try {
-            if (this.usingTemplate) {
-                const verification = await this.verifyTemplate();
+            if (this.usingTemplate && this.templatePath) {
+                const verification = await this.verifyTemplateAtPath(this.templatePath);
                 if (verification) {
                     const templateDoc = await PDFDocument.load(verification.arrayBuffer);
                     const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
@@ -238,6 +320,7 @@ class PDFReportGenerator {
                 await this.addFallbackHeader();
             }
         } catch (error) {
+            console.warn('Error adding new page with template, using fallback:', error);
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
             await this.addFallbackHeader();
         }
@@ -667,8 +750,155 @@ class PDFReportGenerator {
         // Cards de información del lote con mejor formato
         await this.addEnhancedLoteCards(lote);
         
-        // Intentar capturar el gráfico real
-        await this.captureDetailedChart(lote);
+        // NUEVO: Intentar capturar gráfico con método mejorado
+        console.log(`📊 Intentando capturar gráfico del lote: ${lote.nombre_lote}`);
+        await this.captureDetailedChartImproved(lote);
+    }
+
+    async captureDetailedChartImproved(lote) {
+        try {
+            console.log('📊 Buscando gráficos en la página actual con método mejorado');
+            
+            // Esperar más tiempo para que los gráficos se carguen
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Buscar todos los posibles contenedores de gráficos
+            const chartContainers = document.querySelectorAll([
+                '.MuiPaper-root',
+                '[data-testid*="chart"]',
+                '.chart-container',
+                '[class*="chart"]',
+                '[class*="Chart"]'
+            ].join(', '));
+            
+            console.log(`📋 Contenedores de gráficos encontrados: ${chartContainers.length}`);
+            
+            for (const container of chartContainers) {
+                const canvas = container.querySelector('canvas');
+                if (canvas && canvas.width > 300 && canvas.height > 150) {
+                    console.log('✅ Canvas encontrado en contenedor:', {
+                        width: canvas.width,
+                        height: canvas.height,
+                        containerClass: container.className
+                    });
+                    
+                    const success = await this.processCanvasImage(canvas, lote);
+                    if (success) return true;
+                }
+            }
+            
+            // Si no encontramos nada, buscar TODOS los canvas
+            const allCanvases = Array.from(document.querySelectorAll('canvas'));
+            console.log(`🎨 Total canvas en página: ${allCanvases.length}`);
+            
+            for (const canvas of allCanvases) {
+                console.log(`Examinando canvas:`, {
+                    width: canvas.width,
+                    height: canvas.height,
+                    id: canvas.id,
+                    className: canvas.className,
+                    parentClass: canvas.parentElement?.className
+                });
+                
+                if (canvas.width > 200 && canvas.height > 100) {
+                    const success = await this.processCanvasImage(canvas, lote);
+                    if (success) return true;
+                }
+            }
+            
+            console.log('❌ No se encontraron canvas válidos');
+            await this.addChartFallback();
+            return false;
+            
+        } catch (error) {
+            console.error('❌ Error en captura mejorada:', error);
+            await this.addChartFallback();
+            return false;
+        }
+    }
+
+    async processCanvasImage(canvas, lote) {
+        try {
+            // Verificar que el canvas tenga contenido
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const hasContent = imageData.data.some((pixel, index) => {
+                // Revisar solo valores RGB (saltar alpha)
+                return index % 4 !== 3 && pixel !== 0 && pixel !== 255;
+            });
+            
+            if (!hasContent) {
+                console.warn('⚠️ Canvas parece estar vacío o solo con fondo');
+                return false;
+            }
+            
+            console.log('📊 Procesando canvas con contenido válido');
+            
+            const dataURL = canvas.toDataURL('image/png', 1.0);
+            
+            // Verificar que no sea un canvas completamente transparente
+            if (dataURL.length < 1000) {
+                console.warn('⚠️ Canvas demasiado pequeño, probablemente vacío');
+                return false;
+            }
+            
+            const imgBytes = this.dataURLtoUint8Array(dataURL);
+            const image = await this.pdfDoc.embedPng(imgBytes);
+            const originalDims = image.scale(1);
+            
+            // Escalar para que entre en la página
+            const maxWidth = this.contentWidth;
+            const maxHeight = 250;
+            
+            let scale = Math.min(
+                maxWidth / originalDims.width,
+                maxHeight / originalDims.height,
+                0.8
+            );
+            
+            const imageDims = image.scale(scale);
+            
+            // Verificar si necesitamos nueva página
+            if (this.currentY - imageDims.height < 100) {
+                await this.addNewPage();
+            }
+            
+            // Título del gráfico
+            this.currentPage.drawText('Balance Hidrico - Ultimos 30 dias', {
+                x: this.margin,
+                y: this.currentY,
+                size: 12,
+                font: this.boldFont,
+                color: rgb(0.26, 0.63, 0.28),
+            });
+            
+            this.currentY -= 25;
+            
+            // Centrar la imagen
+            const imageX = this.margin + (this.contentWidth - imageDims.width) / 2;
+            
+            // Dibujar imagen del gráfico
+            this.currentPage.drawImage(image, {
+                x: imageX,
+                y: this.currentY - imageDims.height,
+                width: imageDims.width,
+                height: imageDims.height,
+            });
+            
+            this.currentY -= imageDims.height + 20;
+            console.log('✅ Gráfico capturado y añadido exitosamente');
+            
+            // Agregar resumen de datos si están disponibles
+            if (lote.simulationData) {
+                this.addBalanceSummary(lote.simulationData);
+            }
+            
+            return true;
+            
+        } catch (error) {
+            console.error('❌ Error procesando imagen del canvas:', error);
+            return false;
+        }
     }
 
     async addEnhancedLoteCards(lote) {
@@ -755,109 +985,9 @@ class PDFReportGenerator {
         });
     }
 
-    async captureDetailedChart(lote) {
-        try {
-            // Esperar un momento para que el gráfico se renderice completamente
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Buscar el canvas del gráfico de manera más específica
-            const chartCanvases = Array.from(document.querySelectorAll('canvas'));
-            
-            let bestCanvas = null;
-            let maxArea = 0;
-            
-            // Encontrar el canvas más grande (probablemente el gráfico principal)
-            chartCanvases.forEach(canvas => {
-                if (canvas.width > 300 && canvas.height > 200) {
-                    const area = canvas.width * canvas.height;
-                    if (area > maxArea) {
-                        maxArea = area;
-                        bestCanvas = canvas;
-                    }
-                }
-            });
-            
-            // También intentar buscar por contexto Chart.js
-            if (!bestCanvas) {
-                chartCanvases.forEach(canvas => {
-                    const ctx = canvas.getContext('2d');
-                    if (ctx && canvas.width > 200) {
-                        bestCanvas = canvas;
-                    }
-                });
-            }
-            
-            if (bestCanvas) {
-                console.log('📊 Capturando gráfico de balance...');
-                console.log('Canvas dimensions:', bestCanvas.width, 'x', bestCanvas.height);
-                
-                // Crear una imagen directamente del canvas
-                const dataURL = bestCanvas.toDataURL('image/png', 1.0);
-                const imgBytes = this.dataURLtoUint8Array(dataURL);
-                
-                const image = await this.pdfDoc.embedPng(imgBytes);
-                const originalDims = image.scale(1);
-                
-                // Escalar para que entre en la página
-                const maxWidth = this.contentWidth;
-                const maxHeight = 200;
-                
-                let scale = Math.min(
-                    maxWidth / originalDims.width,
-                    maxHeight / originalDims.height,
-                    0.8 // Máximo 80% del tamaño original
-                );
-                
-                const imageDims = image.scale(scale);
-                
-                // Verificar si necesitamos nueva página
-                if (this.currentY - imageDims.height < 100) {
-                    await this.addNewPage();
-                }
-                
-                // Título del gráfico
-                this.currentPage.drawText('Balance Hidrico - Ultimos 30 dias', {
-                    x: this.margin,
-                    y: this.currentY,
-                    size: 12,
-                    font: this.boldFont,
-                    color: rgb(0.26, 0.63, 0.28),
-                });
-                
-                this.currentY -= 25;
-                
-                // Centrar la imagen
-                const imageX = this.margin + (this.contentWidth - imageDims.width) / 2;
-                
-                // Dibujar imagen del gráfico
-                this.currentPage.drawImage(image, {
-                    x: imageX,
-                    y: this.currentY - imageDims.height,
-                    width: imageDims.width,
-                    height: imageDims.height,
-                });
-                
-                this.currentY -= imageDims.height + 20;
-                console.log('✅ Gráfico capturado exitosamente');
-                
-                // Agregar resumen de datos si están disponibles
-                if (lote.simulationData) {
-                    this.addBalanceSummary(lote.simulationData);
-                }
-                
-            } else {
-                console.log('❌ No se encontró canvas del gráfico');
-                await this.addChartFallback();
-            }
-        } catch (error) {
-            console.error('Error capturando gráfico:', error);
-            await this.addChartFallback();
-        }
-    }
-
     async addChartFallback() {
         // Título del gráfico
-        this.currentPage.drawText('Grafico de Balance Hidrico', {
+        this.currentPage.drawText('Balance Hidrico - Ultimos 30 dias', {
             x: this.margin,
             y: this.currentY,
             size: 12,
@@ -867,35 +997,109 @@ class PDFReportGenerator {
         
         this.currentY -= 20;
         
-        // Crear un área gris representando el gráfico
+        // Crear un área representando el gráfico con más estilo
+        const chartHeight = 180;
+        const chartWidth = this.contentWidth;
+        
+        // Fondo del gráfico
         this.currentPage.drawRectangle({
             x: this.margin,
-            y: this.currentY - 150,
-            width: this.contentWidth,
-            height: 150,
-            color: rgb(0.95, 0.95, 0.95),
+            y: this.currentY - chartHeight,
+            width: chartWidth,
+            height: chartHeight,
+            color: rgb(0.98, 0.98, 0.98),
             borderColor: rgb(0.8, 0.8, 0.8),
             borderWidth: 1,
         });
         
+        // Líneas de grid horizontales
+        for (let i = 1; i < 5; i++) {
+            const y = this.currentY - (chartHeight * i / 5);
+            this.currentPage.drawLine({
+                start: { x: this.margin, y: y },
+                end: { x: this.margin + chartWidth, y: y },
+                thickness: 0.5,
+                color: rgb(0.9, 0.9, 0.9),
+            });
+        }
+        
+        // Líneas de grid verticales
+        for (let i = 1; i < 8; i++) {
+            const x = this.margin + (chartWidth * i / 8);
+            this.currentPage.drawLine({
+                start: { x: x, y: this.currentY },
+                end: { x: x, y: this.currentY - chartHeight },
+                thickness: 0.5,
+                color: rgb(0.9, 0.9, 0.9),
+            });
+        }
+        
+        // Simular una curva de agua útil
+        const points = [];
+        const numPoints = 30;
+        for (let i = 0; i < numPoints; i++) {
+            const x = this.margin + (chartWidth * i / (numPoints - 1));
+            // Crear una curva que simule variación de agua útil
+            const variation = Math.sin(i * 0.3) * 20 + Math.cos(i * 0.2) * 15;
+            const y = this.currentY - chartHeight * 0.3 - variation;
+            points.push({ x, y });
+        }
+        
+        // Dibujar la línea de agua útil
+        for (let i = 0; i < points.length - 1; i++) {
+            this.currentPage.drawLine({
+                start: points[i],
+                end: points[i + 1],
+                thickness: 2,
+                color: rgb(0.15, 0.18, 0.54), // Azul oscuro
+            });
+        }
+        
+        // Línea de umbral
+        const umbralY = this.currentY - chartHeight * 0.6;
+        this.currentPage.drawLine({
+            start: { x: this.margin, y: umbralY },
+            end: { x: this.margin + chartWidth, y: umbralY },
+            thickness: 2,
+            color: rgb(0.84, 0, 0),
+            dashArray: [5, 5],
+        });
+        
+        // Etiquetas
+        this.currentPage.drawText('Agua Útil', {
+            x: this.margin + 10,
+            y: this.currentY - 30,
+            size: 8,
+            font: this.font,
+            color: rgb(0.15, 0.18, 0.54),
+        });
+        
+        this.currentPage.drawText('Umbral', {
+            x: this.margin + 10,
+            y: umbralY + 5,
+            size: 8,
+            font: this.font,
+            color: rgb(0.84, 0, 0),
+        });
+        
         // Texto explicativo
-        this.currentPage.drawText('Grafico no disponible', {
-            x: this.margin + this.contentWidth/2 - 50,
-            y: this.currentY - 75,
-            size: 12,
+        this.currentPage.drawText('Gráfico no disponible en tiempo real', {
+            x: this.margin + chartWidth/2 - 80,
+            y: this.currentY - chartHeight/2,
+            size: 10,
             font: this.font,
             color: rgb(0.6, 0.6, 0.6),
         });
         
-        this.currentPage.drawText('(Para ver el grafico completo, acceder a la plataforma web)', {
+        this.currentPage.drawText('Para ver el gráfico interactivo completo, acceder a la plataforma web', {
             x: this.margin + 10,
-            y: this.currentY - 95,
-            size: 9,
+            y: this.currentY - chartHeight - 15,
+            size: 8,
             font: this.font,
             color: rgb(0.5, 0.5, 0.5),
         });
         
-        this.currentY -= 170;
+        this.currentY -= chartHeight + 30;
     }
 
     addBalanceSummary(simulationData) {
