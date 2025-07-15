@@ -1,7 +1,7 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
-
+import as from '../../public/assets/hoja_membretada_2.pdf';
 class PDFReportGenerator {
     constructor() {
         this.pdfDoc = null;
@@ -12,14 +12,10 @@ class PDFReportGenerator {
         this.margin = 57; // 20mm en points
         this.contentWidth = 498; // A4 width minus margins
         
-        // Múltiples rutas posibles para la plantilla
+        // Solo la ruta recomendada para evitar confusión
         this.templatePaths = [
-            '/assets/hoja_membretada_2.pdf',        // public/assets/ (RECOMENDADO)
-            './assets/hoja_membretada_2.pdf',
-            '/public/assets/hoja_membretada_2.pdf', 
-            './public/assets/hoja_membretada_2.pdf',
-            `${window.location.origin}/assets/hoja_membretada_2.pdf`,
-            `${window.location.origin}/public/assets/hoja_membretada_2.pdf`
+            '/assets/hoja_membretada_2.pdf',
+            '../../public/assets/hoja_membretada_2.pdf'
         ];
         
         this.font = null;
