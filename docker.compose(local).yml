@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: bambooDB
+      POSTGRES_USER: bamboo
+      POSTGRES_PASSWORD: BambooAsesores2024
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./seed.sql:/docker-entrypoint-initdb.d/seed.sql
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+      - type: volume
+        source: postgres_data
+        target: /var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+
+  # ============= TRACCAR GPS SERVER (LOCAL) =============
+  traccar:
+    image: traccar/traccar:6.6-ubuntu
+    ports:
+      - "8082:8082"   # Web Interface - ACCESO DIRECTO
+      - "5055:5055"   # GPS devices port (Teltonika)
+      - "5001:5001"   # Additional GPS ports
+      - "5002:5002"
+      - "5003:5003"
+      - "5004:5004"
+    volumes:
+      - ./traccar-config:/opt/traccar/conf
+      - ./traccar-logs:/opt/traccar/logs
+      - traccar_data:/opt/traccar/data
+    environment:
+      - TRACCAR_CONFIG_FILE=/opt/traccar/conf/traccar.xml
+    networks:
+      - app-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build: ./gestion-riego-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_USER=bamboo
+      - DB_HOST=db
+      - DB_NAME=bambooDB
+      - DB_PASSWORD=BambooAsesores2024
+      - DB_PORT=5432
+      - JWT_SECRET=tu_clave_secreta_muy_segura
+      
+      # ===== CONFIGURACIÓN LOCAL =====
+      - CORS_ORIGIN=http://localhost:3000
+      
+      # Variables para Traccar (LOCALES)
+      - TRACCAR_URL=http://traccar:8082
+      - TRACCAR_USER=admin
+      - TRACCAR_PASSWORD=admin
+      - TRACCAR_WEBHOOK_TOKEN=mi-token-secreto-123
+    depends_on:
+      - db
+      - traccar
+    networks:
+      - app-network
+
+  frontend:
+    build: ./gestion-riego-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      # ===== CONFIGURACIÓN LOCAL =====
+      - REACT_APP_API_URL=http://localhost:5000
+      - REACT_APP_TRACCAR_URL=http://localhost:8082
+    networks:
+      - app-network
+    #volumes:
+      #- C:\Users\busta\OneDrive\Documentos\Bamboo\Webapp\gestion-riego-pwa\gestion-riego-frontend:/app
+
+  # ===== NGINX REMOVIDO PARA TESTING LOCAL =====
+  # Para testing local, accedes directamente a los puertos:
+  # Frontend: http://localhost:3000
+  # Backend: http://localhost:5000  
+  # Traccar: http://localhost:8082
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  traccar_data:
+    driver: local

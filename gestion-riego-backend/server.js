@@ -85,6 +85,187 @@ app.use('/api/observaciones', observacionesRoutes);
 app.use('/api/recomendaciones', recomendacionesRoutes);
 app.use('/api/estaciones', estacionesRoutes);
 
+app.use('/api/traccar-webhook', (req, res, next) => {
+    console.log('🚨 Webhook Traccar recibido:', {
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        headers: req.headers,
+        body: req.body,
+        query: req.query
+    });
+    next();
+});
+
+app.post('/api/traccar-webhook', (req, res) => {
+    try {
+        console.log('📡 Procesando notificación de Traccar...');
+        
+        // Traccar puede enviar diferentes tipos de datos, vamos a capturar todo
+        const notification = req.body;
+        
+        // Log detallado de lo que recibimos
+        console.log('📋 Datos completos del webhook:', JSON.stringify(notification, null, 2));
+        
+        // Verificar si es una alarma de geocerca
+        if (notification.type && (
+            notification.type === 'geofenceEnter' || 
+            notification.type === 'geofenceExit' ||
+            notification.type.toLowerCase().includes('geofence')
+        )) {
+            console.log('🎯 ¡ALARMA DE GEOCERCA DETECTADA!');
+            
+            const alarm = {
+                id: Date.now(), // ID único temporal
+                type: notification.type,
+                deviceId: notification.deviceId,
+                deviceName: notification.device?.name || 'Dispositivo desconocido',
+                geofenceId: notification.geofenceId,
+                geofenceName: notification.geofence?.name || 'Geocerca desconocida',
+                eventTime: notification.eventTime || new Date().toISOString(),
+                position: notification.position || {},
+                attributes: notification.attributes || {},
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('🚨 Alarma procesada:', alarm);
+            
+            // Aquí puedes agregar lógica adicional:
+            // - Guardar en base de datos
+            // - Enviar notificaciones push
+            // - Enviar emails
+            // - Integrar con WebSockets para tiempo real
+            
+            // Por ahora solo guardamos en memoria para testing
+            if (!global.traccarAlarms) {
+                global.traccarAlarms = [];
+            }
+            global.traccarAlarms.unshift(alarm); // Agregar al inicio
+            
+            // Mantener solo las últimas 50 alarmas en memoria
+            if (global.traccarAlarms.length > 50) {
+                global.traccarAlarms = global.traccarAlarms.slice(0, 50);
+            }
+            
+            console.log(`📊 Total de alarmas almacenadas: ${global.traccarAlarms.length}`);
+        } else {
+            console.log('ℹ️ Notificación recibida pero no es de geocerca:', notification.type);
+        }
+        
+        // Responder exitosamente a Traccar
+        res.status(200).json({ 
+            success: true, 
+            message: 'Webhook procesado correctamente',
+            timestamp: new Date().toISOString(),
+            received: !!notification
+        });
+        
+    } catch (error) {
+        console.error('❌ Error procesando webhook de Traccar:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Error interno del servidor',
+            message: error.message 
+        });
+    }
+});
+
+// Endpoint para obtener las alarmas almacenadas (para testing desde el frontend)
+app.get('/api/traccar-alarms', (req, res) => {
+    try {
+        const alarms = global.traccarAlarms || [];
+        console.log(`📋 Enviando ${alarms.length} alarmas al cliente`);
+        
+        res.status(200).json({
+            success: true,
+            count: alarms.length,
+            alarms: alarms,
+            lastUpdate: alarms.length > 0 ? alarms[0].timestamp : null
+        });
+    } catch (error) {
+        console.error('❌ Error obteniendo alarmas:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Error obteniendo alarmas' 
+        });
+    }
+});
+
+// Endpoint para probar el webhook manualmente
+app.post('/api/traccar-webhook/test', (req, res) => {
+    console.log('🧪 Test del webhook iniciado');
+    
+    // Simular una alarma de geocerca
+    const testAlarm = {
+        type: 'geofenceEnter',
+        deviceId: 'TEST-001',
+        device: { name: 'Dispositivo de Prueba' },
+        geofenceId: 'GEO-001',
+        geofence: { name: 'Zona de Prueba' },
+        eventTime: new Date().toISOString(),
+        position: {
+            latitude: -31.4201,
+            longitude: -64.1888,
+            speed: 25
+        },
+        attributes: {
+            test: true,
+            message: 'Esta es una alarma de prueba'
+        }
+    };
+    
+    // Simular la request como si viniera de Traccar
+    req.body = testAlarm;
+    
+    // Procesar como una alarma real
+    console.log('🔄 Procesando alarma de prueba...');
+    
+    // Llamar al mismo procesamiento que usaríamos para alarmas reales
+    if (!global.traccarAlarms) {
+        global.traccarAlarms = [];
+    }
+    
+    const processedAlarm = {
+        id: Date.now(),
+        type: testAlarm.type,
+        deviceId: testAlarm.deviceId,
+        deviceName: testAlarm.device.name,
+        geofenceId: testAlarm.geofenceId,
+        geofenceName: testAlarm.geofence.name,
+        eventTime: testAlarm.eventTime,
+        position: testAlarm.position,
+        attributes: { ...testAlarm.attributes, isTest: true },
+        timestamp: new Date().toISOString()
+    };
+    
+    global.traccarAlarms.unshift(processedAlarm);
+    
+    console.log('✅ Alarma de prueba procesada correctamente');
+    
+    res.status(200).json({
+        success: true,
+        message: 'Alarma de prueba creada exitosamente',
+        alarm: processedAlarm,
+        totalAlarms: global.traccarAlarms.length
+    });
+});
+
+// Endpoint para limpiar las alarmas (útil para testing)
+app.delete('/api/traccar-alarms', (req, res) => {
+    console.log('🗑️ Limpiando alarmas almacenadas');
+    global.traccarAlarms = [];
+    
+    res.status(200).json({
+        success: true,
+        message: 'Todas las alarmas han sido eliminadas'
+    });
+});
+
+console.log('🔗 Webhooks de Traccar configurados:');
+console.log('   POST /api/traccar-webhook - Recibir notificaciones');
+console.log('   GET  /api/traccar-alarms - Obtener alarmas');
+console.log('   POST /api/traccar-webhook/test - Probar webhook');
+console.log('   DELETE /api/traccar-alarms - Limpiar alarmas');
+
 
 
 app.use((err, req, res, next) => {
