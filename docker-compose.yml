@@ -26,13 +26,14 @@ services:
   
   traccar:
     image: traccar/traccar:6.6-ubuntu
+    expose:
+      - "8082"
     ports:
-      - "8082:8082"   # Web Interface
-      - "5055:5055"   # GPS devices port (Teltonika)
-      - "5001:5001"   # Additional GPS port
-      - "5002:5002"   # Additional GPS port
-      - "5003:5003"   # Additional GPS port
-      - "5004:5004"   # Additional GPS port
+      - "5056:5056"   # GPS Teltonika (puerto cambiado)
+      - "5007:5007"   # Additional GPS ports
+      - "5008:5008"
+      - "5009:5009"
+      - "5010:5010"
     volumes:
       - ./traccar-config:/opt/traccar/conf
       - ./traccar-logs:/opt/traccar/logs
