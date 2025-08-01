@@ -21,7 +21,7 @@
     
     <!-- Logs -->
     <entry key='logger.enable'>true</entry>
-    <entry key='logger.level'>debug</entry>
+    <entry key='logger.level'>info</entry>
     <entry key='logger.file'>/opt/traccar/logs/tracker-server.log</entry>
     
     <!-- Eventos -->
