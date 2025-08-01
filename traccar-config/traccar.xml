@@ -11,8 +11,8 @@
     <entry key='database.user'>sa</entry>
     <entry key='database.password'></entry>
     
-    <!-- SOLO Puerto Teltonika -->
-    <entry key='teltonika.port'>5055</entry>
+    <!-- Puerto correcto para Teltonika FMC130 -->
+    <entry key='teltonika.port'>5027</entry>
     <entry key='teltonika.enable'>true</entry>
     
     <!-- Webhooks -->
