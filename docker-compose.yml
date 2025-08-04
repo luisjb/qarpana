@@ -29,11 +29,11 @@ services:
     expose:
     - "8082"        # Solo para nginx-proxy
     ports:
-    - "8080:5027" 
+    - "8080:5055" 
     volumes:
       #- ./traccar-config:/opt/traccar/conf
-      - ./traccar-logs:/opt/traccar/logs
-      - traccar_data:/opt/traccar/data
+      #- ./traccar-logs:/opt/traccar/logs
+      #- traccar_data:/opt/traccar/data
     environment:
       - TRACCAR_CONFIG_FILE=/opt/traccar/conf/traccar.xml
       # Configuración para nginx-proxy
