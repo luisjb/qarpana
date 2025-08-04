@@ -27,20 +27,16 @@ services:
   traccar:
     image: traccar/traccar:6.6-ubuntu
     expose:
-    - "8082"        # Solo para nginx-proxy
+      - "8082"
     ports:
-    - "8080:5055" 
+      - "8080:5055"    # GPS en puerto default 5055
     volumes:
       - ./traccar-config:/opt/traccar/conf
-      #- ./traccar-logs:/opt/traccar/logs
-      #- traccar_data:/opt/traccar/data
+      - ./traccar-logs:/opt/traccar/logs
+      - traccar_data:/opt/traccar/data
     environment:
-      - TRACCAR_CONFIG_FILE=/opt/traccar/conf/traccar.xml
-      # Configuración para nginx-proxy
-      #- VIRTUAL_HOST=gps.qarpana.com.ar
-      #- VIRTUAL_PORT=8082
-      #- LETSENCRYPT_HOST=gps.qarpana.com.ar
-      #- LETSENCRYPT_EMAIL=tu@email.com
+      - VIRTUAL_HOST=gps.qarpana.com.ar
+      - VIRTUAL_PORT=8082
     networks:
       - app-network
     restart: unless-stopped
