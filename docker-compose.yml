@@ -26,10 +26,9 @@ services:
   
   traccar:
     image: traccar/traccar:6.6-ubuntu
-    expose:
-      - "8082"
     ports:
       - "5027:5027"   # GPS Teltonika (puerto cambiado)
+      - "8082:8082"   # Interfaz web de Traccar
     volumes:
       - ./traccar-config:/opt/traccar/conf
       - ./traccar-logs:/opt/traccar/logs
@@ -37,10 +36,10 @@ services:
     environment:
       - TRACCAR_CONFIG_FILE=/opt/traccar/conf/traccar.xml
       # Configuración para nginx-proxy
-      - VIRTUAL_HOST=gps.qarpana.com.ar
-      - VIRTUAL_PORT=8082
-      - LETSENCRYPT_HOST=gps.qarpana.com.ar
-      - LETSENCRYPT_EMAIL=tu@email.com
+      #- VIRTUAL_HOST=gps.qarpana.com.ar
+      #- VIRTUAL_PORT=8082
+      #- LETSENCRYPT_HOST=gps.qarpana.com.ar
+      #- LETSENCRYPT_EMAIL=tu@email.com
     networks:
       - app-network
     restart: unless-stopped
