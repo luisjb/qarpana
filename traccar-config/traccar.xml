@@ -11,23 +11,29 @@
     <entry key='database.user'>sa</entry>
     <entry key='database.password'></entry>
     
-    <!-- Puerto correcto para Teltonika FMC130 -->
+    <!-- SOLO TELTONIKA EN PUERTO 5027 -->
     <entry key='teltonika.port'>5027</entry>
     <entry key='teltonika.enable'>true</entry>
     
-    <!-- Webhooks -->
-    <entry key='notificator.webhook.url'>http://backend:5000/api/traccar-webhook</entry>
-    <entry key='notificator.webhook.headers'>Content-Type: application/json</entry>
+    <!-- DESHABILITAR OSMAND COMPLETAMENTE -->
+    <entry key='osmand.enable'>false</entry>
+    <entry key='osmand.port'>0</entry>
+    
+    <!-- DESHABILITAR OTROS PROTOCOLOS COMUNES -->
+    <entry key='gps103.enable'>false</entry>
+    <entry key='tk103.enable'>false</entry>
+    <entry key='gl100.enable'>false</entry>
     
     <!-- Logs -->
     <entry key='logger.enable'>true</entry>
     <entry key='logger.level'>info</entry>
     <entry key='logger.file'>/opt/traccar/logs/tracker-server.log</entry>
     
-    <!-- Eventos -->
+    <!-- Permitir dispositivos desconocidos para pruebas -->
+    <entry key='database.registerUnknown'>true</entry>
+    
+    <!-- Configuración básica -->
     <entry key='event.geofence.enable'>true</entry>
     <entry key='notificator.types'>web</entry>
-    
-    <!-- Permitir nuevos usuarios -->
     <entry key='web.new.users'>false</entry>
 </properties>
