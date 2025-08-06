@@ -39,6 +39,8 @@ services:
     environment:
       - VIRTUAL_HOST=gps.qarpana.com.ar
       - VIRTUAL_PORT=8082
+      - LETSENCRYPT_HOST=gps.qarpana.com.ar     # Agregar
+      - LETSENCRYPT_EMAIL=tu_email@dominio.com  # Agregar
     networks:
       - app-network
     restart: unless-stopped
