@@ -1,7 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
 <properties>
-    <!-- Tu configuración actual -->
     <entry key='web.port'>8082</entry>
     <entry key='web.path'>/opt/traccar/web</entry>
     <entry key='database.driver'>org.h2.Driver</entry>
@@ -9,21 +8,26 @@
     <entry key='database.user'>sa</entry>
     <entry key='database.password'></entry>
     
+    <!-- PUERTO TELTONIKA -->
     <entry key='teltonika.port'>5027</entry>
     <entry key='teltonika.enable'>true</entry>
+    
+    <!-- DESHABILITAR OSMAND -->
     <entry key='osmand.enable'>false</entry>
     <entry key='osmand.port'>0</entry>
     
-    <!-- CONFIGURACIÓN DE WEBHOOKS -->
+    <!-- WEBHOOKS - LA CLAVE ESTÁ AQUÍ -->
+    <entry key='web.url'>https://qarpana.com.ar</entry>
     <entry key='notificator.webhook.url'>https://qarpana.com.ar:5000/api/traccar-webhook</entry>
     <entry key='notificator.webhook.headers'>Content-Type: application/json</entry>
-    <entry key='notificator.types'>webhook</entry>
     
-    <!-- HABILITAR EVENTOS -->
+    <!-- HABILITAR NOTIFICACIONES -->
+    <entry key='notificator.types'>web,webhook</entry>
+    
+    <!-- EVENTOS -->
     <entry key='event.geofence.enable'>true</entry>
     <entry key='event.motion.enable'>true</entry>
     <entry key='event.overspeed.enable'>true</entry>
-    <entry key='event.alarm.enable'>true</entry>
     
     <!-- CONFIGURACIÓN BÁSICA -->
     <entry key='logger.enable'>true</entry>
