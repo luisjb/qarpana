@@ -18,7 +18,7 @@
     
     <!-- WEBHOOKS - LA CLAVE ESTÁ AQUÍ -->
     <entry key='web.url'>https://qarpana.com.ar</entry>
-    <entry key='notificator.webhook.url'>https://qarpana.com.ar:5000/api/traccar-webhook</entry>
+    <entry key='notificator.webhook.url'>http://backend:5000/api/traccar-webhook</entry>    
     <entry key='notificator.webhook.headers'>Content-Type: application/json</entry>
     
     <!-- HABILITAR NOTIFICACIONES -->
