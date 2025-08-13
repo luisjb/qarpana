@@ -212,6 +212,20 @@ app.post('/api/traccar-webhook/test', (req, res) => {
             message: 'Esta es una alarma de prueba'
         }
     };
+    app.all('/api/traccar-webhook', (req, res) => {
+        console.log('🎯 WEBHOOK DIRECTO RECIBIDO:');
+        console.log('📍 Method:', req.method);
+        console.log('📍 Headers:', JSON.stringify(req.headers, null, 2));
+        console.log('📍 Body:', JSON.stringify(req.body, null, 2));
+        console.log('📍 Query:', JSON.stringify(req.query, null, 2));
+        
+        res.status(200).json({
+            success: true,
+            message: 'Webhook directo funcionando',
+            timestamp: new Date().toISOString(),
+            method: req.method
+        });
+    });
     
     // Simular la request como si viniera de Traccar
     req.body = testAlarm;
