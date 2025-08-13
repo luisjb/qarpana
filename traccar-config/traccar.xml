@@ -8,33 +8,23 @@
     <entry key='database.user'>sa</entry>
     <entry key='database.password'></entry>
     
-    <!-- PUERTO TELTONIKA -->
     <entry key='teltonika.port'>5027</entry>
     <entry key='teltonika.enable'>true</entry>
-    
-    <!-- DESHABILITAR OSMAND -->
     <entry key='osmand.enable'>false</entry>
     <entry key='osmand.port'>0</entry>
     
-    <!-- WEBHOOK CONFIGURATION CON URL EXTERNA -->
+    <!-- USAR RED INTERNA - BYPASS nginx-proxy -->
     <entry key='notificator.types'>web,webhook</entry>
-    <entry key='notificator.webhook.url'>https://qarpana.com.ar:5000/api/notifications/webhook</entry>
+    <entry key='notificator.webhook.url'>http://backend:5000/api/notifications/webhook</entry>
     <entry key='notificator.webhook.headers'>Content-Type: application/json</entry>
+    <entry key='web.url'>http://backend:5000</entry>
     
-    <!-- URL BASE PARA TESTS -->
-    <entry key='web.url'>https://qarpana.com.ar:5000</entry>
-    
-    <!-- EVENTOS -->
     <entry key='event.geofence.enable'>true</entry>
     <entry key='event.motion.enable'>true</entry>
     <entry key='event.overspeed.enable'>true</entry>
-    
-    <!-- LOGGING -->
     <entry key='logger.enable'>true</entry>
     <entry key='logger.level'>info</entry>
     <entry key='logger.file'>/opt/traccar/logs/tracker-server.log</entry>
-    
-    <!-- CONFIGURACIÓN BÁSICA -->
     <entry key='database.registerUnknown'>true</entry>
     <entry key='web.new.users'>false</entry>
 </properties>
