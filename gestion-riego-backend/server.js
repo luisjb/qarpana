@@ -260,11 +260,84 @@ app.delete('/api/traccar-alarms', (req, res) => {
     });
 });
 
-console.log('🔗 Webhooks de Traccar configurados:');
-console.log('   POST /api/traccar-webhook - Recibir notificaciones');
-console.log('   GET  /api/traccar-alarms - Obtener alarmas');
-console.log('   POST /api/traccar-webhook/test - Probar webhook');
-console.log('   DELETE /api/traccar-alarms - Limpiar alarmas');
+app.post('/api/notifications/test/webhook', (req, res) => {
+    console.log('🧪 Test de webhook desde Traccar recibido');
+    console.log('📋 Headers:', req.headers);
+    console.log('📋 Body:', req.body);
+    
+    res.status(200).json({
+        success: true,
+        message: 'Test webhook exitoso',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// También agregar el endpoint GET si Traccar lo necesita
+app.get('/api/notifications/test/webhook', (req, res) => {
+    console.log('🧪 GET Test de webhook desde Traccar');
+    
+    res.status(200).json({
+        success: true,
+        message: 'Test webhook GET exitoso',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Endpoint para las notificaciones reales de Traccar
+app.post('/api/notifications/webhook', (req, res) => {
+    console.log('🚨 Notificación real de webhook recibida');
+    console.log('📋 Datos:', JSON.stringify(req.body, null, 2));
+    
+    // Procesar igual que tu webhook actual
+    try {
+        const notification = req.body;
+        
+        if (notification.type && (
+            notification.type === 'geofenceEnter' || 
+            notification.type === 'geofenceExit' ||
+            notification.type.toLowerCase().includes('geofence')
+        )) {
+            console.log('🎯 ¡ALARMA DE GEOCERCA DETECTADA!');
+            
+            const alarm = {
+                id: Date.now(),
+                type: notification.type,
+                deviceId: notification.deviceId,
+                deviceName: notification.device?.name || 'Dispositivo desconocido',
+                geofenceId: notification.geofenceId,
+                geofenceName: notification.geofence?.name || 'Geocerca desconocida',
+                eventTime: notification.eventTime || new Date().toISOString(),
+                position: notification.position || {},
+                attributes: notification.attributes || {},
+                timestamp: new Date().toISOString()
+            };
+            
+            if (!global.traccarAlarms) {
+                global.traccarAlarms = [];
+            }
+            global.traccarAlarms.unshift(alarm);
+            
+            if (global.traccarAlarms.length > 50) {
+                global.traccarAlarms = global.traccarAlarms.slice(0, 50);
+            }
+            
+            console.log('🚨 Alarma procesada:', alarm);
+        }
+        
+        res.status(200).json({ 
+            success: true, 
+            message: 'Webhook procesado correctamente',
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error procesando webhook:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
 
 
 
