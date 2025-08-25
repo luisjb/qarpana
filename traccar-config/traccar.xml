@@ -16,10 +16,15 @@
     <!-- URL BASE PARA TESTS -->
     <entry key='web.url'>http://172.18.0.5:5000</entry>
     
-    <!-- WEBHOOK PARA NOTIFICACIONES REALES - TEMPORALMENTE COMENTADO -->
-    <!-- <entry key='notificator.types'>web,webhook</entry> -->
-    <!-- <entry key='notificator.webhook.url'>http://backend:5000/api/traccar-webhook</entry> -->
-    <!-- <entry key='notificator.webhook.headers'>Content-Type: application/json</entry> -->
+    <!-- EVENT FORWARDING (WEBHOOKS) PARA NOTIFICACIONES -->
+    <entry key='event.forward.enable'>true</entry>
+    <entry key='event.forward.url'>http://backend:5000/api/traccar-webhook</entry>
+    <entry key='event.forward.header'>Content-Type: application/json</entry>
+    
+    <!-- OPTIONAL: POSITION FORWARDING TAMBIÉN -->
+    <entry key='forward.enable'>true</entry>
+    <entry key='forward.url'>http://backend:5000/api/traccar-positions</entry>
+    <entry key='forward.json'>true</entry>
     
     <entry key='event.geofence.enable'>true</entry>
     <entry key='event.motion.enable'>true</entry>

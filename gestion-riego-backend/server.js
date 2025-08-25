@@ -98,69 +98,62 @@ app.use('/api/traccar-webhook', (req, res, next) => {
 
 app.post('/api/traccar-webhook', (req, res) => {
     try {
-        console.log('📡 Procesando notificación de Traccar...');
+        console.log('🎯 EVENT FORWARDING recibido:', {
+            timestamp: new Date().toISOString(),
+            method: req.method,
+            headers: req.headers,
+            body: req.body
+        });
         
-        // Traccar puede enviar diferentes tipos de datos, vamos a capturar todo
-        const notification = req.body;
+        const eventData = req.body;
         
-        // Log detallado de lo que recibimos
-        console.log('📋 Datos completos del webhook:', JSON.stringify(notification, null, 2));
-        
-        // Verificar si es una alarma de geocerca
-        if (notification.type && (
-            notification.type === 'geofenceEnter' || 
-            notification.type === 'geofenceExit' ||
-            notification.type.toLowerCase().includes('geofence')
+        // Verificar si es un evento de geocerca
+        if (eventData.event && (
+            eventData.event.type === 'geofenceEnter' || 
+            eventData.event.type === 'geofenceExit' ||
+            eventData.event.type.toLowerCase().includes('geofence')
         )) {
-            console.log('🎯 ¡ALARMA DE GEOCERCA DETECTADA!');
+            console.log('🚨 ¡ALARMA DE GEOCERCA DETECTADA via EVENT FORWARDING!');
             
             const alarm = {
-                id: Date.now(), // ID único temporal
-                type: notification.type,
-                deviceId: notification.deviceId,
-                deviceName: notification.device?.name || 'Dispositivo desconocido',
-                geofenceId: notification.geofenceId,
-                geofenceName: notification.geofence?.name || 'Geocerca desconocida',
-                eventTime: notification.eventTime || new Date().toISOString(),
-                position: notification.position || {},
-                attributes: notification.attributes || {},
-                timestamp: new Date().toISOString()
+                id: eventData.event.id,
+                type: eventData.event.type,
+                deviceId: eventData.device?.id,
+                deviceName: eventData.device?.name || 'Dispositivo desconocido',
+                geofenceId: eventData.event.geofenceId,
+                eventTime: eventData.event.eventTime || new Date().toISOString(),
+                position: eventData.position || {},
+                attributes: eventData.event.attributes || {},
+                timestamp: new Date().toISOString(),
+                source: 'event_forwarding'
             };
             
-            console.log('🚨 Alarma procesada:', alarm);
-            
-            // Aquí puedes agregar lógica adicional:
-            // - Guardar en base de datos
-            // - Enviar notificaciones push
-            // - Enviar emails
-            // - Integrar con WebSockets para tiempo real
-            
-            // Por ahora solo guardamos en memoria para testing
+            // Guardar en memoria para testing
             if (!global.traccarAlarms) {
                 global.traccarAlarms = [];
             }
-            global.traccarAlarms.unshift(alarm); // Agregar al inicio
+            global.traccarAlarms.unshift(alarm);
             
-            // Mantener solo las últimas 50 alarmas en memoria
+            // Mantener solo las últimas 50 alarmas
             if (global.traccarAlarms.length > 50) {
                 global.traccarAlarms = global.traccarAlarms.slice(0, 50);
             }
             
-            console.log(`📊 Total de alarmas almacenadas: ${global.traccarAlarms.length}`);
+            console.log('🚨 Alarma procesada via Event Forwarding:', alarm);
         } else {
-            console.log('ℹ️ Notificación recibida pero no es de geocerca:', notification.type);
+            console.log('ℹ️ Evento recibido via Event Forwarding:', eventData.event?.type);
         }
         
-        // Responder exitosamente a Traccar
+        // Responder exitosamente
         res.status(200).json({ 
             success: true, 
-            message: 'Webhook procesado correctamente',
+            message: 'Event Forwarding procesado correctamente',
             timestamp: new Date().toISOString(),
-            received: !!notification
+            eventType: eventData.event?.type
         });
         
     } catch (error) {
-        console.error('❌ Error procesando webhook de Traccar:', error);
+        console.error('❌ Error procesando Event Forwarding:', error);
         res.status(500).json({ 
             success: false, 
             error: 'Error interno del servidor',
@@ -168,6 +161,7 @@ app.post('/api/traccar-webhook', (req, res) => {
         });
     }
 });
+
 
 // Endpoint para obtener las alarmas almacenadas (para testing desde el frontend)
 app.get('/api/traccar-alarms', (req, res) => {
