@@ -407,3 +407,126 @@ CREATE INDEX idx_coeficiente_cultivo_lote_lote_id ON coeficiente_cultivo_lote(lo
 CREATE INDEX idx_coeficiente_cultivo_lote_coef_id ON coeficiente_cultivo_lote(coeficiente_cultivo_id);
 
 
+CREATE TABLE regadores (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    campo_id BIGINT REFERENCES campos(id) ON DELETE CASCADE,
+    nombre_dispositivo TEXT NOT NULL, -- Debe coincidir con el nombre en Traccar
+    device_id TEXT, -- ID del dispositivo en Traccar (si está disponible)
+    tipo_regador TEXT CHECK (tipo_regador IN ('pivote', 'lineal', 'aspersion')) DEFAULT 'pivote',
+    
+    -- Configuración del pivote
+    radio_cobertura NUMERIC NOT NULL, -- Radio en metros
+    caudal NUMERIC, -- Litros por minuto (si se especifica caudal directo)
+    tiempo_vuelta_completa INTEGER, -- Minutos para vuelta completa (si se especifica tiempo)
+    
+    -- Ubicación central del pivote
+    latitud_centro NUMERIC NOT NULL,
+    longitud_centro NUMERIC NOT NULL,
+    
+    -- Configuración
+    activo BOOLEAN DEFAULT true,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraint para nombre único por campo
+    CONSTRAINT unique_regador_nombre_campo UNIQUE (campo_id, nombre_dispositivo)
+);
+
+-- Tabla para las geozonas (sectores del pivote)
+CREATE TABLE geozonas_pivote (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    regador_id BIGINT REFERENCES regadores(id) ON DELETE CASCADE,
+    lote_id BIGINT REFERENCES lotes(id) ON DELETE CASCADE,
+    
+    -- Identificación del sector
+    nombre_sector TEXT NOT NULL,
+    numero_sector INTEGER NOT NULL CHECK (numero_sector > 0),
+    
+    -- Geometría del sector (porción de pizza)
+    angulo_inicio NUMERIC NOT NULL CHECK (angulo_inicio >= 0 AND angulo_inicio < 360),
+    angulo_fin NUMERIC NOT NULL CHECK (angulo_fin >= 0 AND angulo_fin < 360),
+    radio_interno NUMERIC DEFAULT 0, -- Para anillos concéntricos si es necesario
+    radio_externo NUMERIC NOT NULL,
+    
+    -- Estado del sector
+    activo BOOLEAN DEFAULT true,
+    color_display TEXT DEFAULT '#4CAF50', -- Color para mostrar en UI
+    
+    -- Configuración específica del sector
+    coeficiente_riego NUMERIC DEFAULT 1.0, -- Multiplicador de riego para este sector
+    prioridad INTEGER DEFAULT 1, -- Prioridad de riego (1 = más prioritario)
+    
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT unique_sector_regador UNIQUE (regador_id, numero_sector),
+    CONSTRAINT valid_angles CHECK (
+        (angulo_fin > angulo_inicio) OR 
+        (angulo_inicio > angulo_fin AND angulo_inicio > 180) -- Para sectores que cruzan 0°
+    )
+);
+
+-- Tabla para el historial de eventos de riego (basado en eventos de Traccar)
+CREATE TABLE eventos_riego (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    regador_id BIGINT REFERENCES regadores(id) ON DELETE CASCADE,
+    geozona_id BIGINT REFERENCES geozonas_pivote(id) ON DELETE CASCADE,
+    
+    -- Información del evento
+    tipo_evento TEXT CHECK (tipo_evento IN ('entrada', 'salida', 'inicio_riego', 'fin_riego', 'movimiento', 'detencion')),
+    fecha_evento TIMESTAMP NOT NULL,
+    
+    -- Posición en el momento del evento
+    latitud NUMERIC,
+    longitud NUMERIC,
+    angulo_actual NUMERIC, -- Ángulo calculado desde el centro
+    
+    -- Datos del dispositivo
+    dispositivo_online BOOLEAN,
+    velocidad NUMERIC,
+    
+    -- Datos adicionales
+    evento_traccar_id BIGINT, -- ID del evento original de Traccar
+    procesado BOOLEAN DEFAULT false,
+    
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla para el estado actual de cada sector
+CREATE TABLE estado_sectores_riego (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    geozona_id BIGINT REFERENCES geozonas_pivote(id) ON DELETE CASCADE,
+    
+    -- Estado actual
+    estado TEXT CHECK (estado IN ('pendiente', 'en_progreso', 'completado', 'pausado')) DEFAULT 'pendiente',
+    progreso_porcentaje NUMERIC DEFAULT 0 CHECK (progreso_porcentaje >= 0 AND progreso_porcentaje <= 100),
+    
+    -- Tiempos
+    fecha_inicio_prevista TIMESTAMP,
+    fecha_inicio_real TIMESTAMP,
+    fecha_fin_prevista TIMESTAMP,
+    fecha_fin_real TIMESTAMP,
+    tiempo_estimado_minutos INTEGER,
+    tiempo_real_minutos INTEGER,
+    
+    -- Datos de riego
+    agua_aplicada_litros NUMERIC DEFAULT 0,
+    agua_prevista_litros NUMERIC,
+    
+    -- Control
+    ciclo_riego_id TEXT, -- Identificador del ciclo de riego actual
+    ultima_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT unique_estado_por_geozona UNIQUE (geozona_id)
+);
+
+-- Índices para optimizar consultas
+CREATE INDEX idx_regadores_campo ON regadores(campo_id);
+CREATE INDEX idx_regadores_dispositivo ON regadores(nombre_dispositivo);
+CREATE INDEX idx_geozonas_regador ON geozonas_pivote(regador_id);
+CREATE INDEX idx_geozonas_lote ON geozonas_pivote(lote_id);
+CREATE INDEX idx_eventos_riego_regador ON eventos_riego(regador_id);
+CREATE INDEX idx_eventos_riego_fecha ON eventos_riego(fecha_evento);
+CREATE INDEX idx_estado_sectores_geozona ON estado_sectores_riego(geozona_id);
+

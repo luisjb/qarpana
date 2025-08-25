@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../axiosConfig';
+import RegadorConfigDialog from './RegadorConfigDialog';
+import EstadoRiegoComponent from './EstadoRiegoComponent';
+import { Agriculture, Settings as SettingsIcon } from '@mui/icons-material';
 import {
     Container, Typography, TextField, Button, List, ListItem, ListItemText,
     Select, MenuItem, FormControl, InputLabel, Grid, Dialog, DialogActions,
@@ -39,7 +42,13 @@ function CamposManagement() {
     const [isLoadingCampos, setIsLoadingCampos] = useState(false);
     const [openMapDialog, setOpenMapDialog] = useState(false);
     const [selectedEstacion, setSelectedEstacion] = useState(null);
-    
+    const [openRegadorDialog, setOpenRegadorDialog] = useState(false);
+    const [regadorEdit, setRegadorEdit] = useState(null);
+    const [selectedCampoForRegador, setSelectedCampoForRegador] = useState(null);
+    const [regadores, setRegadores] = useState([]);
+    const [openEstadoRiego, setOpenEstadoRiego] = useState(false);
+    const [selectedCampoEstado, setSelectedCampoEstado] = useState(null);
+
     const navigate = useNavigate();
 
     // Funciones de utilidad
@@ -215,6 +224,17 @@ function CamposManagement() {
         }
     };
 
+    const fetchRegadores = async (campoId) => {
+        try {
+            const response = await axios.get(`/regadores/campo/${campoId}`);
+            return response.data;
+        } catch (error) {
+            console.error('Error al obtener regadores:', error);
+            return [];
+        }
+    };
+
+
     const refreshEstaciones = async () => {
         try {
             setIsLoadingEstaciones(true);
@@ -364,6 +384,42 @@ function CamposManagement() {
         setOpenMapDialog(false);
     };
 
+    const handleConfigurearRegador = (campo) => {
+        setSelectedCampoForRegador(campo);
+        setRegadorEdit(null);
+        setOpenRegadorDialog(true);
+    };
+
+    const handleEditRegador = (regador) => {
+        setRegadorEdit(regador);
+        setOpenRegadorDialog(true);
+    };
+
+    const handleSaveRegador = async (regadorData) => {
+        try {
+            if (regadorEdit) {
+                await axios.put(`/regadores/${regadorEdit.id}`, regadorData);
+            } else {
+                await axios.post('/regadores', regadorData);
+            }
+            
+            setOpenRegadorDialog(false);
+            setRegadorEdit(null);
+            setSelectedCampoForRegador(null);
+            
+            // Refrescar datos si es necesario
+            fetchCampos();
+        } catch (error) {
+            console.error('Error al guardar regador:', error);
+            alert('Error al guardar el regador: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
+    const handleVerEstadoRiego = (campo) => {
+        setSelectedCampoEstado(campo);
+        setOpenEstadoRiego(true);
+    };
+
     // Componente para centrar el mapa
     function SetViewOnClick({ coords, zoomLevel = 7 }) {
     const map = useMap();
@@ -453,11 +509,29 @@ function CamposManagement() {
                                     </>
                                 }
                             />
-                            <IconButton onClick={() => handleAddLotes(campo.id)}>
-                                <Add />
-                            </IconButton>
+                            <Tooltip title="Ver estado de riego">
+                                <IconButton 
+                                    onClick={() => handleVerEstadoRiego(campo)}
+                                    sx={{ color: '#2196F3' }}
+                                >
+                                    <Agriculture />
+                                </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Gestionar lotes">
+                                <IconButton onClick={() => handleAddLotes(campo.id)}>
+                                    <Add />
+                                </IconButton>
+                            </Tooltip>
                             {isAdmin && (
                                 <>
+                                    <Tooltip title="Configurar regadores GPS">
+                                        <IconButton 
+                                            onClick={() => handleConfigurearRegador(campo)}
+                                            sx={{ color: '#4CAF50' }}
+                                        >
+                                            <SettingsIcon />
+                                        </IconButton>
+                                    </Tooltip>
                                     <IconButton onClick={() => {
                                         const usuariosIds = campo.usuarios_ids || 
                                                         (campo.usuario_id ? [campo.usuario_id] : []);
@@ -902,6 +976,52 @@ function CamposManagement() {
             <DialogActions>
                 <Button onClick={() => setOpenMapDialog(false)}>Cerrar</Button>
             </DialogActions>
+        </Dialog>
+        {/* Diálogo para configurar regador */}
+        <RegadorConfigDialog
+            open={openRegadorDialog}
+            onClose={() => {
+                setOpenRegadorDialog(false);
+                setRegadorEdit(null);
+                setSelectedCampoForRegador(null);
+            }}
+            onSave={handleSaveRegador}
+            campoId={selectedCampoForRegador?.id}
+            regadorEdit={regadorEdit}
+        />
+
+        {/* Componente de estado de riego */}
+        <Dialog
+            open={openEstadoRiego}
+            onClose={() => {
+                setOpenEstadoRiego(false);
+                setSelectedCampoEstado(null);
+            }}
+            maxWidth="xl"
+            fullWidth
+            fullScreen
+        >
+            <DialogTitle>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="h5">
+                        Estado de Riego - {selectedCampoEstado?.nombre_campo}
+                    </Typography>
+                    <IconButton onClick={() => {
+                        setOpenEstadoRiego(false);
+                        setSelectedCampoEstado(null);
+                    }}>
+                        <Close />
+                    </IconButton>
+                </Box>
+            </DialogTitle>
+            <DialogContent sx={{ p: 0 }}>
+                {selectedCampoEstado && (
+                    <EstadoRiegoComponent 
+                        campoId={selectedCampoEstado.id}
+                        nombreCampo={selectedCampoEstado.nombre_campo}
+                    />
+                )}
+            </DialogContent>
         </Dialog>
     </Container>
 );  }

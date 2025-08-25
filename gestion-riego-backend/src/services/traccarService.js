@@ -119,41 +119,41 @@ class TraccarService {
         return geofenceNames[geofenceId] || `Geocerca ${geofenceId}`;
     }
     
-    // Ejecutar acciones específicas según el tipo de evento
-    async executeEventActions(alarm) {
-        try {
-            switch (alarm.type) {
-                case 'geofenceEnter':
-                    await this.handleGeofenceEnter(alarm);
-                    break;
-                    
-                case 'geofenceExit':
-                    await this.handleGeofenceExit(alarm);
-                    break;
-                    
-                case 'deviceOffline':
-                    await this.handleDeviceOffline(alarm);
-                    break;
-                    
-                case 'deviceOnline':
-                    await this.handleDeviceOnline(alarm);
-                    break;
-                    
-                case 'deviceMoving':
-                    await this.handleDeviceMoving(alarm);
-                    break;
-                    
-                case 'deviceStopped':
-                    await this.handleDeviceStopped(alarm);
-                    break;
-                    
-                default:
-                    console.log(`ℹ️ Evento sin acción específica: ${alarm.type}`);
-            }
-        } catch (error) {
-            console.error('❌ Error ejecutando acciones del evento:', error);
+// Ejecutar acciones específicas según el tipo de evento
+async executeEventActions(alarm) {
+    try {
+        switch (alarm.type) {
+            case 'geofenceEnter':
+                await this.handleGeofenceEnter(alarm);
+                break;
+
+            case 'geofenceExit':
+                await this.handleGeofenceExit(alarm);
+                break;
+
+            case 'deviceOffline':
+                await this.handleDeviceOffline(alarm);
+                break;
+
+            case 'deviceOnline':
+                await this.handleDeviceOnline(alarm);
+                break;
+
+            case 'deviceMoving':
+                await this.handleDeviceMoving(alarm);
+                break;
+
+            case 'deviceStopped':
+                await this.handleDeviceStopped(alarm);
+                break;
+
+            default:
+                console.log(`ℹ️ Evento sin acción específica: ${alarm.type}`);
         }
+    } catch (error) {
+        console.error('❌ Error ejecutando acciones del evento:', error);
     }
+}
     
     // Acciones específicas para cada tipo de evento
     async handleGeofenceEnter(alarm) {

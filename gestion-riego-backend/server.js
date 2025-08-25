@@ -17,6 +17,8 @@ const estacionesRoutes = require('./src/routes/estacionesRoutes');
 
 // NUEVA IMPORTACIÓN DE TRACCAR
 const traccarRoutes = require('./src/routes/traccarRoutes');
+const regadoresRoutes = require('./src/routes/regadoresRoutes');
+
 
 const cron = require('node-cron');
 const actualizacionDiaria = require('./src/utils/actualizacionDiaria');
@@ -83,6 +85,7 @@ app.use('/api/estaciones', estacionesRoutes);
 
 // NUEVA RUTA DE TRACCAR
 app.use('/api/traccar', traccarRoutes);
+app.use('/api/regadores', regadoresRoutes);
 
 // Endpoint de actualización forzada
 app.post('/api/forzar-actualizacion', async (req, res) => {
