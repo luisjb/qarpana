@@ -18,7 +18,7 @@
     
     <!-- EVENT FORWARDING (WEBHOOKS) PARA NOTIFICACIONES -->
     <entry key='event.forward.enable'>true</entry>
-    <entry key='event.forward.url'>http://backend:5000/api/traccar-webhook</entry>
+    <entry key='event.forward.url'>http://backend:5000/api/traccar/webhook</entry>
     <entry key='event.forward.header'>Content-Type: application/json</entry>
     
     <!-- OPTIONAL: POSITION FORWARDING TAMBIÉN -->
