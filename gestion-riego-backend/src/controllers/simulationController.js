@@ -231,7 +231,7 @@ exports.getSimulationData = async (req, res) => {
                         aguaUtil2m: aguaUtil2mAnterior || 0
                     };
                 }
-                etcCalculado = Math.max(0, (parseFloat(evapotranspiracion || 0) * kcCalculado) || 0);
+                etcCalculado = Math.max(0, (parseFloat(evapotranspiracion) * kcCalculado) || 0);
             
                 } catch (error) {
                 console.error(`Error calculando KC para lote ${loteId}, día ${dia}:`, error);
