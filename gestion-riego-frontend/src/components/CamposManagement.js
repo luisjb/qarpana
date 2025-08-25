@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import axios from '../axiosConfig';
 import RegadorConfigDialog from './RegadorConfigDialog';
 import EstadoRiegoComponent from './EstadoRiegoComponent';
-import { Agriculture, Settings as SettingsIcon } from '@mui/icons-material';
+import { Agriculture, Settings as SettingsIcon, Close} from '@mui/icons-material';
 import {
     Container, Typography, TextField, Button, List, ListItem, ListItemText,
     Select, MenuItem, FormControl, InputLabel, Grid, Dialog, DialogActions,
-    DialogContent, DialogContentText, DialogTitle, IconButton, Box, Chip, CircularProgress 
+    DialogContent, DialogContentText, DialogTitle, IconButton, Box, Chip, CircularProgress, Tooltip   
 } from '@mui/material';
 import { Edit, Delete, Add, Refresh, Map } from '@mui/icons-material';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
