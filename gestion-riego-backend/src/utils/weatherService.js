@@ -208,7 +208,7 @@ class WeatherService {
     
                 // Calcular ETo
                 const eto = calculator.calculateDailyETo(weatherData);
-                //console.log('ETo calculado:', eto);
+                console.log('ETo calculado:', eto);
     
                 // Obtener kc del cultivo
                 const cultivoResult = await client.query(
@@ -219,12 +219,12 @@ class WeatherService {
                 
                 // Calcular ETC
                 const etc = eto * kc;
-                /*console.log('Datos de cálculo ETC:', {
+                console.log('Datos de cálculo ETC:', {
                     eto,
                     kc,
                     etc,
                     fecha: dia.fecha
-                });*/
+                });
     
                 const lluviaEfectiva = this.calcularLluviaEfectiva(parseFloat(dia.precipitaciones || 0));
     
