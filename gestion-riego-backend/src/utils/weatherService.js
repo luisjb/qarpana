@@ -1,6 +1,7 @@
 const axios = require('./axiosConfig');
 const pool = require('../db');
 const EToCalculator = require('./etoCalculator');
+const { calcularKCUnificado } = require('./kcCalculator'); 
 
 class WeatherService {
     constructor() {
@@ -23,33 +24,28 @@ class WeatherService {
                 AND l.activo = true
                 GROUP BY c.id, c.nombre_campo, c.ubicacion
             `);
-            //console.log('Campos y lotes a procesar:', camposResult.rows);
-
     
             for (const campo of camposResult.rows) {
                 try {
                      // Obtener pronóstico para el campo
                     const [lat, lon] = campo.ubicacion.split(',').map(coord => coord.trim());
                     const pronostico = await this.obtenerPronosticoCampo(lat, lon);
-                   // console.log(`Pronóstico obtenido para campo ${campo.nombre_campo}`);
 
-    
                      // Obtener lotes activos del campo
                     const lotesResult = await client.query(`
-                        SELECT l.id, l.nombre_lote, l.cultivo_id, cc.indice_kc
+                        SELECT l.id, l.nombre_lote, l.cultivo_id, l.fecha_siembra
                         FROM lotes l
-                        LEFT JOIN coeficiente_cultivo cc ON l.cultivo_id = cc.cultivo_id
                         WHERE l.campo_id = $1 AND l.activo = true
                     `, [campo.id]);
         
-                    //console.log(`Procesando ${lotesResult.rows.length} lotes para campo ${campo.nombre_campo}`);
+                    console.log(`Procesando ${lotesResult.rows.length} lotes para campo ${campo.nombre_campo}`);
     
                     // Procesar cada lote del campo
                     for (const lote of lotesResult.rows) {
                         try {
-                            //console.log(`Actualizando pronóstico para lote ${lote.nombre_lote}`);
+                            console.log(`Actualizando pronóstico para lote ${lote.nombre_lote}`);
                             await this.actualizarPronosticoLote(client, lote, pronostico);
-                            //console.log(`Pronóstico actualizado exitosamente para lote ${lote.nombre_lote}`);
+                            console.log(`Pronóstico actualizado exitosamente para lote ${lote.nombre_lote}`);
                         } catch (loteError) {
                             console.error(`Error procesando lote ${lote.nombre_lote}:`, loteError);
                         }
@@ -73,20 +69,10 @@ class WeatherService {
 
     async obtenerPronosticoCampo(lat, lon) {
         try {
-
-           
             // Construir URL completa para debugging
             const urlCompleta = `${this.BASE_URL}?lat=${lat}&lon=${lon}&appid=${this.API_KEY}&units=metric`;
-            //console.log('URL de consulta:', urlCompleta);
 
             const response = await axios.get(urlCompleta);
-
-            // Log de la respuesta
-            /*console.log('Respuesta de la API:', {
-                status: response.status,
-                tieneData: !!response.data,
-                cantidadItems: response.data?.list?.length || 0
-            });*/
 
             const medicionesPorDia = new Map();
 
@@ -94,7 +80,6 @@ class WeatherService {
                 throw new Error('Respuesta de API inválida');
             }
 
-            
             response.data.list.forEach(item => {
                 const fecha = new Date(item.dt * 1000);
                 const fechaKey = fecha.toISOString().split('T')[0];
@@ -189,9 +174,20 @@ class WeatherService {
                 'DELETE FROM pronostico WHERE lote_id = $1 AND fecha_pronostico > CURRENT_DATE',
                 [lote.id]
             );
+
+            // CALCULAR DÍAS DESDE SIEMBRA PARA HOY (fecha base)
+            const hoy = new Date();
+            const fechaSiembra = new Date(lote.fecha_siembra);
+            const diasBaseDesdeSiembra = Math.floor((hoy - fechaSiembra) / (1000 * 60 * 60 * 24));
+            
+            console.log(`Lote ${lote.nombre_lote}: Fecha siembra ${fechaSiembra.toISOString().split('T')[0]}, días base desde siembra: ${diasBaseDesdeSiembra}`);
     
             for (let i = 0; i < pronostico.length; i++) {
                 const dia = pronostico[i];
+
+                // CALCULAR DÍAS REALES DESDE SIEMBRA PARA ESTE DÍA DE PRONÓSTICO
+                const fechaPronostico = new Date(dia.fecha);
+                const diasDesdeSiembraReal = Math.floor((fechaPronostico - fechaSiembra) / (1000 * 60 * 60 * 24)) + 1;
     
                 // Asegurar que todos los valores son numéricos
                 const weatherData = {
@@ -204,27 +200,29 @@ class WeatherService {
                     windSpeed: parseFloat(dia.velocidad_viento || 0)
                 };
     
-                //console.log('Datos para EToCalculator:', weatherData);
-    
                 // Calcular ETo
                 const eto = calculator.calculateDailyETo(weatherData);
-                console.log('ETo calculado:', eto);
-    
-                // Obtener kc del cultivo
-                const cultivoResult = await client.query(
-                    'SELECT cc.indice_kc FROM coeficiente_cultivo cc WHERE cc.cultivo_id = $1 AND cc.indice_dias <= $2 ORDER BY cc.indice_dias DESC LIMIT 1',
-                    [lote.cultivo_id, i]
-                );
-                const kc = parseFloat(cultivoResult.rows[0]?.indice_kc || 1);
+                
+                // USAR LA FUNCIÓN UNIFICADA PARA CALCULAR KC
+                let kc;
+                try {
+                    kc = await calcularKCUnificado(client, lote.id, diasDesdeSiembraReal);
+                    
+                    if (kc === null) {
+                        console.warn(`No se pudo calcular KC para lote ${lote.id}, día ${diasDesdeSiembraReal}. Saltando este día del pronóstico.`);
+                        continue; // Saltar este día si no hay KC
+                    }
+                    
+                    console.log(`Pronóstico - Lote ${lote.nombre_lote}, día ${diasDesdeSiembraReal}: KC = ${kc.toFixed(3)}`);
+                    
+                } catch (kcError) {
+                    console.error(`Error calculando KC para pronóstico del lote ${lote.id}, día ${diasDesdeSiembraReal}:`, kcError);
+                    continue; // Saltar este día si hay error
+                }
                 
                 // Calcular ETC
                 const etc = eto * kc;
-                console.log('Datos de cálculo ETC:', {
-                    eto,
-                    kc,
-                    etc,
-                    fecha: dia.fecha
-                });
+                console.log(`Pronóstico - Día ${i+1}, fecha ${dia.fecha.toISOString().split('T')[0]}: ETo=${eto.toFixed(2)}, KC=${kc.toFixed(3)}, ETC=${etc.toFixed(2)}`);
     
                 const lluviaEfectiva = this.calcularLluviaEfectiva(parseFloat(dia.precipitaciones || 0));
     
@@ -232,9 +230,9 @@ class WeatherService {
                     INSERT INTO pronostico 
                     (lote_id, fecha_pronostico, prono_dias, temperatura_media, temperatura_max, 
                      temperatura_min, humedad, presion, velocidad_viento, precipitaciones, 
-                     evapotranspiracion, etc, lluvia_efectiva, fecha_actualizacion)
+                     evapotranspiracion, etc, kc, lluvia_efectiva, fecha_actualizacion)
                     VALUES 
-                    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP)
+                    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
                     ON CONFLICT (lote_id, fecha_pronostico, prono_dias) 
                     DO UPDATE SET 
                         temperatura_media = EXCLUDED.temperatura_media,
@@ -246,6 +244,7 @@ class WeatherService {
                         precipitaciones = EXCLUDED.precipitaciones,
                         evapotranspiracion = EXCLUDED.evapotranspiracion,
                         etc = EXCLUDED.etc,
+                        kc = EXCLUDED.kc,
                         lluvia_efectiva = EXCLUDED.lluvia_efectiva,
                         fecha_actualizacion = CURRENT_TIMESTAMP`,
                     [
@@ -261,6 +260,7 @@ class WeatherService {
                         dia.precipitaciones,
                         eto,
                         etc,
+                        kc,  // AGREGAR KC A LA INSERCIÓN
                         lluviaEfectiva
                     ]
                 );
