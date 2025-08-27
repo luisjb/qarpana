@@ -38,14 +38,14 @@ class WeatherService {
                         WHERE l.campo_id = $1 AND l.activo = true
                     `, [campo.id]);
         
-                    console.log(`Procesando ${lotesResult.rows.length} lotes para campo ${campo.nombre_campo}`);
+                    //console.log(`Procesando ${lotesResult.rows.length} lotes para campo ${campo.nombre_campo}`);
     
                     // Procesar cada lote del campo
                     for (const lote of lotesResult.rows) {
                         try {
-                            console.log(`Actualizando pronóstico para lote ${lote.nombre_lote}`);
+                            //console.log(`Actualizando pronóstico para lote ${lote.nombre_lote}`);
                             await this.actualizarPronosticoLote(client, lote, pronostico);
-                            console.log(`Pronóstico actualizado exitosamente para lote ${lote.nombre_lote}`);
+                            //console.log(`Pronóstico actualizado exitosamente para lote ${lote.nombre_lote}`);
                         } catch (loteError) {
                             console.error(`Error procesando lote ${lote.nombre_lote}:`, loteError);
                         }
@@ -57,7 +57,7 @@ class WeatherService {
             }
     
             await client.query('COMMIT');
-            console.log('Actualización de pronósticos completada exitosamente');
+            //console.log('Actualización de pronósticos completada exitosamente');
         } catch (error) {
             await client.query('ROLLBACK');
             console.error('Error en actualización general:', error);
@@ -180,7 +180,7 @@ class WeatherService {
             const fechaSiembra = new Date(lote.fecha_siembra);
             const diasBaseDesdeSiembra = Math.floor((hoy - fechaSiembra) / (1000 * 60 * 60 * 24));
             
-            console.log(`Lote ${lote.nombre_lote}: Fecha siembra ${fechaSiembra.toISOString().split('T')[0]}, días base desde siembra: ${diasBaseDesdeSiembra}`);
+            //console.log(`Lote ${lote.nombre_lote}: Fecha siembra ${fechaSiembra.toISOString().split('T')[0]}, días base desde siembra: ${diasBaseDesdeSiembra}`);
     
             for (let i = 0; i < pronostico.length; i++) {
                 const dia = pronostico[i];
@@ -213,7 +213,7 @@ class WeatherService {
                         continue; // Saltar este día si no hay KC
                     }
                     
-                    console.log(`Pronóstico - Lote ${lote.nombre_lote}, día ${diasDesdeSiembraReal}: KC = ${kc.toFixed(3)}`);
+                    //console.log(`Pronóstico - Lote ${lote.nombre_lote}, día ${diasDesdeSiembraReal}: KC = ${kc.toFixed(3)}`);
                     
                 } catch (kcError) {
                     console.error(`Error calculando KC para pronóstico del lote ${lote.id}, día ${diasDesdeSiembraReal}:`, kcError);
@@ -222,7 +222,7 @@ class WeatherService {
                 
                 // Calcular ETC
                 const etc = eto * kc;
-                console.log(`Pronóstico - Día ${i+1}, fecha ${dia.fecha.toISOString().split('T')[0]}: ETo=${eto.toFixed(2)}, KC=${kc.toFixed(3)}, ETC=${etc.toFixed(2)}`);
+                //console.log(`Pronóstico - Día ${i+1}, fecha ${dia.fecha.toISOString().split('T')[0]}: ETo=${eto.toFixed(2)}, KC=${kc.toFixed(3)}, ETC=${etc.toFixed(2)}`);
     
                 const lluviaEfectiva = this.calcularLluviaEfectiva(parseFloat(dia.precipitaciones || 0));
     

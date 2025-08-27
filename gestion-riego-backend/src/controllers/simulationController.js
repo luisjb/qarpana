@@ -231,7 +231,7 @@ exports.getSimulationData = async (req, res) => {
                         aguaUtil2m: aguaUtil2mAnterior || 0
                     };
                 }
-                etcCalculado = Math.max(0, (parseFloat(evapotranspiracion) * kcCalculado) || 0);
+                etcCalculado = Math.max(0, (parseFloat(evapotranspiracion || 0) * kcCalculado) || 0);
             
                 } catch (error) {
                 console.error(`Error calculando KC para lote ${loteId}, día ${dia}:`, error);
@@ -852,60 +852,104 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         let proyeccionCompleta = [];
  
         // Calcular proyección para cada día del pronóstico
-        for (const pronostico of pronosticos) {
-            diasAcumulados++;
-            
-            // Calcular profundidad de raíces y estratos disponibles
-            const profundidadRaiz = diasAcumulados * indiceCrecimientoRadicular;
-            const nuevoEstrato = calcularEstrato(profundidadRaiz);
-            //console.log('Profundidad de raíces:', profundidadRaiz, 'dias acumulados:', diasAcumulados, 'indice de crecimiento radicular:', indiceCrecimientoRadicular);
-            // Calcular capacidad de extracción basada en el agua útil actual
-            const capacidadExtraccion = (aguaUtilZonaRadicular * parseFloat(ultimoCambio.capacidad_extraccion || 5)) / 100;
-            
-            // Calcular evapotranspiración real y ganancia de agua
-            const etc = parseFloat(pronostico.etc || 0);
-            const etr = Math.min(etc, capacidadExtraccion);
-            const gananciaAgua = parseFloat(pronostico.lluvia_efectiva || 0);
-            
-            // Logging para depuración
-            /*console.log('Ganancia de agua:', gananciaAgua, 'ETR:', etr, 
-                'Agua útil anterior:', aguaUtilZonaRadicular, 
-                'Agua útil 1m anterior:', aguaUtil1m, 
-                'Agua útil 2m anterior:', aguaUtil2m);*/
- 
-            // Actualizar valores para cada profundidad usando la misma fórmula
-            // pero con sus propios valores iniciales
-            aguaUtilZonaRadicular = Math.max(0, aguaUtilZonaRadicular - etr + gananciaAgua);
-            aguaUtil1m = Math.max(0, aguaUtil1m - etr + gananciaAgua);
-            aguaUtil2m = Math.max(0, aguaUtil2m - etr + gananciaAgua);
-            
-            // Calcular porcentajes con los denominadores correctos
-            const porcentajeAguaUtil = aguaUtilTotal1m > 0 ? (aguaUtil1m / aguaUtilTotal1m) * 100 : 0;
-            const porcentajeAguaUtil2m = aguaUtilTotal2m > 0 ? (aguaUtil2m / aguaUtilTotal2m) * 100 : 0;
-            
-            // Calcular agua útil máxima actual si se tienen valores de estratos
-            let aguaUtilMaximaActual = 0;
-            if (ultimoCambio.valores_estratos && Array.isArray(ultimoCambio.valores_estratos)) {
-                aguaUtilMaximaActual = ultimoCambio.valores_estratos
-                    .slice(0, estratosAlcanzados)
-                    .reduce((sum, valor) => sum + parseFloat(valor || 0), 0);
-            }
-            
-            // Añadir día a la proyección completa
-            proyeccionCompleta.push({
-                fecha: pronostico.fecha_pronostico,
-                agua_util_diaria: aguaUtilZonaRadicular,
-                agua_util_1m: aguaUtil1m,
-                agua_util_2m: aguaUtil2m,
-                estratos_disponibles: estratosAlcanzados, // En proyección, mantener el mismo estrato
-                lluvia_efectiva: pronostico.lluvia_efectiva,
-                etc: pronostico.etc,
-                kc: pronostico.kc || 1,
-                evapotranspiracion: pronostico.evapotranspiracion || 0,
-                porcentajeAguaUtil: porcentajeAguaUtil,
-                porcentajeAguaUtil2m: porcentajeAguaUtil2m,
-                aguaUtilMaximaActual
-            });
+        for (let i = 0; i < pronosticos.length; i++) {
+        const pronostico = pronosticos[i];
+        diasAcumulados++;
+        
+        // Calcular profundidad de raíces y estratos disponibles
+        const profundidadRaiz = diasAcumulados * indiceCrecimientoRadicular;
+        const nuevoEstrato = calcularEstrato(profundidadRaiz);
+        
+        console.log(`=== PROYECCIÓN DÍA ${i+1} (${pronostico.fecha_pronostico.toISOString().split('T')[0]}) ===`);
+        console.log(`Días acumulados: ${diasAcumulados}, Profundidad raíz: ${profundidadRaiz.toFixed(1)}cm`);
+        
+        // Calcular capacidad de extracción basada en el agua útil actual
+        const capacidadExtraccionPorcentaje = parseFloat(ultimoCambio.capacidad_extraccion || 5);
+        const capacidadExtraccion = (aguaUtilZonaRadicular * capacidadExtraccionPorcentaje) / 100;
+        
+        console.log(`Agua útil zona radicular: ${aguaUtilZonaRadicular.toFixed(2)}mm`);
+        console.log(`Capacidad extracción (${capacidadExtraccionPorcentaje}%): ${capacidadExtraccion.toFixed(2)}mm`);
+        
+        // Calcular evapotranspiración real y ganancia de agua
+        const etc = parseFloat(pronostico.etc || 0);
+        const etr = Math.min(etc, capacidadExtraccion);
+        const lluviaEfectiva = parseFloat(pronostico.lluvia_efectiva || 0);
+        const precipitaciones = parseFloat(pronostico.precipitaciones || 0);
+        
+        console.log(`ETC pronóstico: ${etc.toFixed(2)}mm`);
+        console.log(`ETR (min entre ETC y cap.extracción): ${etr.toFixed(2)}mm`);
+        console.log(`Precipitaciones: ${precipitaciones.toFixed(2)}mm`);
+        console.log(`Lluvia efectiva: ${lluviaEfectiva.toFixed(2)}mm`);
+        
+        // VERIFICAR SI HAY OTROS APORTES DE AGUA
+        const gananciaAgua = lluviaEfectiva;  // Solo lluvia efectiva, sin riego en proyección
+        
+        console.log(`Ganancia total de agua: ${gananciaAgua.toFixed(2)}mm`);
+        console.log(`Balance diario: -${etr.toFixed(2)} + ${gananciaAgua.toFixed(2)} = ${(gananciaAgua - etr).toFixed(2)}mm`);
+        
+        // LOGGING ANTES DE ACTUALIZAR VALORES
+        console.log(`ANTES - Agua útil ZR: ${aguaUtilZonaRadicular.toFixed(2)}mm, 1m: ${aguaUtil1m.toFixed(2)}mm, 2m: ${aguaUtil2m.toFixed(2)}mm`);
+        
+        // Actualizar valores para cada profundidad usando la misma fórmula
+        // pero con sus propios valores iniciales
+        const nuevaAguaUtilZR = Math.max(0, aguaUtilZonaRadicular - etr + gananciaAgua);
+        const nuevaAguaUtil1m = Math.max(0, aguaUtil1m - etr + gananciaAgua);
+        const nuevaAguaUtil2m = Math.max(0, aguaUtil2m - etr + gananciaAgua);
+        
+        console.log(`DESPUÉS - Agua útil ZR: ${nuevaAguaUtilZR.toFixed(2)}mm, 1m: ${nuevaAguaUtil1m.toFixed(2)}mm, 2m: ${nuevaAguaUtil2m.toFixed(2)}mm`);
+        console.log(`CAMBIO - ZR: ${(nuevaAguaUtilZR - aguaUtilZonaRadicular).toFixed(2)}mm, 1m: ${(nuevaAguaUtil1m - aguaUtil1m).toFixed(2)}mm, 2m: ${(nuevaAguaUtil2m - aguaUtil2m).toFixed(2)}mm`);
+        
+        // Aplicar los nuevos valores
+        aguaUtilZonaRadicular = nuevaAguaUtilZR;
+        aguaUtil1m = nuevaAguaUtil1m;
+        aguaUtil2m = nuevaAguaUtil2m;
+        
+        // Calcular porcentajes con los denominadores correctos
+        const porcentajeAguaUtil = aguaUtilTotal1m > 0 ? (aguaUtil1m / aguaUtilTotal1m) * 100 : 0;
+        const porcentajeAguaUtil2m = aguaUtilTotal2m > 0 ? (aguaUtil2m / aguaUtilTotal2m) * 100 : 0;
+        
+        console.log(`Porcentajes - 1m: ${porcentajeAguaUtil.toFixed(1)}%, 2m: ${porcentajeAguaUtil2m.toFixed(1)}%`);
+        
+        // Calcular agua útil máxima actual si se tienen valores de estratos
+        let aguaUtilMaximaActual = 0;
+        if (ultimoCambio.valores_estratos && Array.isArray(ultimoCambio.valores_estratos)) {
+            aguaUtilMaximaActual = ultimoCambio.valores_estratos
+                .slice(0, estratosAlcanzados)
+                .reduce((sum, valor) => sum + parseFloat(valor || 0), 0);
+        }
+        
+        // VERIFICAR QUE EL KC SEA CORRECTO
+        const kcPronostico = parseFloat(pronostico.kc || 1);
+        const evapotranspiracion = parseFloat(pronostico.evapotranspiracion || 0);
+        const etcCalculado = evapotranspiracion * kcPronostico;
+        
+        if (Math.abs(etcCalculado - etc) > 0.01) {
+            console.warn(`⚠️  ETC inconsistente: ETo(${evapotranspiracion.toFixed(2)}) * KC(${kcPronostico.toFixed(3)}) = ${etcCalculado.toFixed(2)}, pero pronóstico tiene ETC: ${etc.toFixed(2)}`);
+        }
+        
+        console.log(`KC usado: ${kcPronostico.toFixed(3)}, ETo: ${evapotranspiracion.toFixed(2)}mm`);
+        console.log(`════════════════════════════════════════════════════════`);
+        
+        // Añadir día a la proyección completa
+        proyeccionCompleta.push({
+            fecha: pronostico.fecha_pronostico,
+            agua_util_diaria: aguaUtilZonaRadicular,
+            agua_util_1m: aguaUtil1m,
+            agua_util_2m: aguaUtil2m,
+            estratos_disponibles: estratosAlcanzados, // En proyección, mantener el mismo estrato
+            lluvia_efectiva: pronostico.lluvia_efectiva,
+            etc: pronostico.etc,
+            kc: pronostico.kc || 1,
+            evapotranspiracion: pronostico.evapotranspiracion || 0,
+            porcentajeAguaUtil: porcentajeAguaUtil,
+            porcentajeAguaUtil2m: porcentajeAguaUtil2m,
+            aguaUtilMaximaActual,
+            // AGREGAR CAMPOS PARA DEBUG
+            etr: etr,
+            capacidadExtraccion: capacidadExtraccion,
+            gananciaAgua: gananciaAgua,
+            precipitaciones: precipitaciones
+        });
         }
 
         // Construir objeto de respuesta con los resultados proyectados
@@ -930,6 +974,30 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
             porcentaje2m: proyeccionFinal.porcentajeProyectado2m
         });*/
 
+        
+        console.log(`\n🔍 RESUMEN DE PROYECCIÓN FINAL:`);
+        console.log(`Valor inicial ZR: ${aguaUtilInicial.toFixed(2)}mm`);
+        console.log(`Valor final ZR (día 7): ${proyeccionCompleta[6]?.agua_util_diaria?.toFixed(2) || 0}mm`);
+        console.log(`Valor final 1m (día 7): ${proyeccionCompleta[6]?.agua_util_1m?.toFixed(2) || 0}mm`);
+        console.log(`Valor final 2m (día 7): ${proyeccionCompleta[6]?.agua_util_2m?.toFixed(2) || 0}mm`);
+        console.log(`Capacidades: 1m=${aguaUtilTotal1m}mm, 2m=${aguaUtilTotal2m}mm`);
+        
+        // AGREGAR TABLA RESUMEN DE TODA LA PROYECCIÓN
+        console.log(`\n📊 TABLA RESUMEN PROYECCIÓN:`);
+        console.log(`Día | Fecha      | AU_ZR  | AU_1m  | AU_2m  | ETC   | ETR   | Lluvia | Balance`);
+        console.log(`----+------------+--------+--------+--------+-------+-------+--------+--------`);
+        proyeccionCompleta.forEach((dia, index) => {
+            const fecha = dia.fecha.toISOString().split('T')[0].substring(5); // MM-DD
+            const balance = (dia.gananciaAgua || 0) - (dia.etr || 0);
+            console.log(
+                `${(index + 1).toString().padStart(3)} | ${fecha} | ${dia.agua_util_diaria.toFixed(1).padStart(6)} | ` +
+                `${dia.agua_util_1m.toFixed(1).padStart(6)} | ${dia.agua_util_2m.toFixed(1).padStart(6)} | ` +
+                `${(dia.etc || 0).toFixed(1).padStart(5)} | ${(dia.etr || 0).toFixed(1).padStart(5)} | ` +
+                `${(dia.lluvia_efectiva || 0).toFixed(1).padStart(6)} | ${balance.toFixed(1).padStart(7)}`
+            );
+        });
+        console.log(`\n`);
+        
         return proyeccionFinal;
  
     } catch (error) {
@@ -943,6 +1011,7 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
             porcentajeProyectado2m: 0
         };
     }
+
 }
 
 async function corregirDiasSiembraAutomaticamente(loteId) {
