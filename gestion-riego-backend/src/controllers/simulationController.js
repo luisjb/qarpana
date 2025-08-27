@@ -957,46 +957,21 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         const proyeccionFinal = {
             proyeccionCompleta,
             aguaUtilDia8: proyeccionCompleta[6]?.agua_util_diaria || aguaUtilZonaRadicular,
-            aguaUtil1mDia8: proyeccionCompleta[6].agua_util_1m  ,
-            aguaUtil2mDia8: proyeccionCompleta[6].agua_util_2m ,
+            aguaUtil1mDia8: proyeccionCompleta[6]?.agua_util_1m || aguaUtil1m,
+            aguaUtil2mDia8: proyeccionCompleta[6]?.agua_util_2m || aguaUtil2m,
             porcentajeProyectado: proyeccionCompleta[6]?.porcentajeAguaUtil || 
                 (aguaUtilTotal1m > 0 ? (aguaUtil1m / aguaUtilTotal1m) * 100 : 0),
             porcentajeProyectado2m: proyeccionCompleta[6]?.porcentajeAguaUtil2m || 
                 (aguaUtilTotal2m > 0 ? (aguaUtil2m / aguaUtilTotal2m) * 100 : 0)
         };
-
-        // Logging final para depuración
-        /*console.log('Proyección calculada con 1m y 2m:', {
-            valorInicial: aguaUtilInicial,
-            valorFinal1m: proyeccionFinal.aguaUtil1mDia8,
-            valorFinal2m: proyeccionFinal.aguaUtil2mDia8,
-            porcentaje1m: proyeccionFinal.porcentajeProyectado,
-            porcentaje2m: proyeccionFinal.porcentajeProyectado2m
-        });*/
-
         
-        console.log(`\n🔍 RESUMEN DE PROYECCIÓN FINAL:`);
-        console.log(`Valor inicial ZR: ${aguaUtilInicial.toFixed(2)}mm`);
-        console.log(`Valor final ZR (día 7): ${proyeccionCompleta[6]?.agua_util_diaria?.toFixed(2) || 0}mm`);
-        console.log(`Valor final 1m (día 7): ${proyeccionCompleta[6]?.agua_util_1m?.toFixed(2) || 0}mm`);
-        console.log(`Valor final 2m (día 7): ${proyeccionCompleta[6]?.agua_util_2m?.toFixed(2) || 0}mm`);
-        console.log(`Capacidades: 1m=${aguaUtilTotal1m}mm, 2m=${aguaUtilTotal2m}mm`);
-        
-        // AGREGAR TABLA RESUMEN DE TODA LA PROYECCIÓN
-        console.log(`\n📊 TABLA RESUMEN PROYECCIÓN:`);
-        console.log(`Día | Fecha      | AU_ZR  | AU_1m  | AU_2m  | ETC   | ETR   | Lluvia | Balance`);
-        console.log(`----+------------+--------+--------+--------+-------+-------+--------+--------`);
-        proyeccionCompleta.forEach((dia, index) => {
-            const fecha = dia.fecha.toISOString().split('T')[0].substring(5); // MM-DD
-            const balance = (dia.gananciaAgua || 0) - (dia.etr || 0);
-            console.log(
-                `${(index + 1).toString().padStart(3)} | ${fecha} | ${dia.agua_util_diaria.toFixed(1).padStart(6)} | ` +
-                `${dia.agua_util_1m.toFixed(1).padStart(6)} | ${dia.agua_util_2m.toFixed(1).padStart(6)} | ` +
-                `${(dia.etc || 0).toFixed(1).padStart(5)} | ${(dia.etr || 0).toFixed(1).padStart(5)} | ` +
-                `${(dia.lluvia_efectiva || 0).toFixed(1).padStart(6)} | ${balance.toFixed(1).padStart(7)}`
-            );
+        console.log(`✅ Proyección final construida:`, {
+            diasEnProyeccion: proyeccionFinal.proyeccionCompleta.length,
+            aguaUtilDia8: proyeccionFinal.aguaUtilDia8,
+            aguaUtil1mDia8: proyeccionFinal.aguaUtil1mDia8,
+            aguaUtil2mDia8: proyeccionFinal.aguaUtil2mDia8
         });
-        console.log(`\n`);
+        
         
         return proyeccionFinal;
  
