@@ -12,8 +12,7 @@ import {
     CircularProgress, Tooltip
 } from '@mui/material';
 import { 
-    Edit, Delete, Add, Refresh, Map as SettingsIcon,
-    Close, GpsFixed
+    Edit, Delete, Add, Refresh, Map as GpsFixed
 } from '@mui/icons-material';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
