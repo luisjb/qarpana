@@ -1,304 +1,357 @@
 import React, { useState, useEffect } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions, Button,
-    Typography, Box, List, ListItem, ListItemText, ListItemSecondaryAction,
-    IconButton, Chip, Grid, Card, CardContent, CardHeader, Divider,
-    Alert, Tooltip, Fab
+    TextField, FormControl, InputLabel, Select, MenuItem,
+    Grid, Typography, Box, Chip, Alert, Divider
 } from '@mui/material';
-import {
-    Add, Edit, Delete, Settings, Visibility, Agriculture,
-    GpsFixed, PlayArrow, Pause, CheckCircle, Warning
-} from '@mui/icons-material';
-import RegadorConfigDialog from './RegadorConfigDialog';
-import GeozonaConfigDialog from './GeozonaConfigDialog';
-import axios from '../axiosConfig';
+import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 
-function RegadoresManagement({ open, onClose, campo }) {
-    const [regadores, setRegadores] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [openRegadorDialog, setOpenRegadorDialog] = useState(false);
-    const [openGeozonaDialog, setOpenGeozonaDialog] = useState(false);
-    const [selectedRegador, setSelectedRegador] = useState(null);
-    const [selectedLote, setSelectedLote] = useState(null);
-    const [regadorEdit, setRegadorEdit] = useState(null);
-    const [lotes, setLotes] = useState([]);
+// Configurar iconos de Leaflet
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+});
+
+// Componente para manejar clics en el mapa
+function MapClickHandler({ onMapClick }) {
+    const map = useMap();
+    
+    useEffect(() => {
+        const handleClick = (e) => {
+            onMapClick(e.latlng);
+        };
+        
+        map.on('click', handleClick);
+        return () => map.off('click', handleClick);
+    }, [map, onMapClick]);
+    
+    return null;
+}
+
+function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = null }) {
+    const [regador, setRegador] = useState({
+        nombre_dispositivo: '',
+        tipo_regador: 'pivote',
+        radio_cobertura: '',
+        caudal: '',
+        tiempo_vuelta_completa: '',
+        latitud_centro: '',
+        longitud_centro: '',
+        activo: true
+    });
+    
+    const [mapCenter, setMapCenter] = useState([-31.4201, -64.1888]);
+    const [configuracionModo, setConfiguracionModo] = useState('caudal'); // 'caudal' o 'tiempo'
+    const [errors, setErrors] = useState({});
 
     useEffect(() => {
-        if (open && campo) {
-            fetchRegadores();
-            fetchLotes();
+        if (regadorEdit) {
+            setRegador({
+                ...regadorEdit,
+                radio_cobertura: regadorEdit.radio_cobertura || '',
+                caudal: regadorEdit.caudal || '',
+                tiempo_vuelta_completa: regadorEdit.tiempo_vuelta_completa || ''
+            });
+            if (regadorEdit.latitud_centro && regadorEdit.longitud_centro) {
+                setMapCenter([regadorEdit.latitud_centro, regadorEdit.longitud_centro]);
+            }
+            setConfiguracionModo(regadorEdit.caudal ? 'caudal' : 'tiempo');
+        } else {
+            // Resetear para nuevo regador
+            setRegador({
+                nombre_dispositivo: '',
+                tipo_regador: 'pivote',
+                radio_cobertura: '',
+                caudal: '',
+                tiempo_vuelta_completa: '',
+                latitud_centro: '',
+                longitud_centro: '',
+                activo: true
+            });
+            setMapCenter([-31.4201, -64.1888]);
+            setConfiguracionModo('caudal');
         }
-    }, [open, campo]);
+        setErrors({});
+    }, [regadorEdit, open]);
 
-    const fetchRegadores = async () => {
-        try {
-            setLoading(true);
-            const response = await axios.get(`/regadores/campo/${campo.id}`);
-            setRegadores(response.data);
-        } catch (error) {
-            console.error('Error al obtener regadores:', error);
-        } finally {
-            setLoading(false);
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setRegador(prev => ({
+            ...prev,
+            [name]: value
+        }));
+        
+        // Limpiar error específico
+        if (errors[name]) {
+            setErrors(prev => ({
+                ...prev,
+                [name]: null
+            }));
         }
     };
 
-    const fetchLotes = async () => {
-        try {
-            const response = await axios.get(`/lotes/campo/${campo.id}`);
-            setLotes(response.data.lotes || []);
-        } catch (error) {
-            console.error('Error al obtener lotes:', error);
+    const handleMapClick = (latlng) => {
+        setRegador(prev => ({
+            ...prev,
+            latitud_centro: latlng.lat,
+            longitud_centro: latlng.lng
+        }));
+        setMapCenter([latlng.lat, latlng.lng]);
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+        
+        if (!regador.nombre_dispositivo.trim()) {
+            newErrors.nombre_dispositivo = 'El nombre del dispositivo es requerido';
         }
-    };
-
-    const handleAddRegador = () => {
-        setRegadorEdit(null);
-        setOpenRegadorDialog(true);
-    };
-
-    const handleEditRegador = (regador) => {
-        setRegadorEdit(regador);
-        setOpenRegadorDialog(true);
-    };
-
-    const handleDeleteRegador = async (regadorId) => {
-        if (window.confirm('¿Estás seguro de que quieres eliminar este regador? Se eliminarán todas las geozonas asociadas.')) {
-            try {
-                await axios.delete(`/regadores/${regadorId}`);
-                fetchRegadores();
-            } catch (error) {
-                console.error('Error al eliminar regador:', error);
-                alert('Error al eliminar regador: ' + (error.response?.data?.error || error.message));
+        
+        if (!regador.radio_cobertura || regador.radio_cobertura <= 0) {
+            newErrors.radio_cobertura = 'El radio de cobertura debe ser mayor a 0';
+        }
+        
+        if (!regador.latitud_centro || !regador.longitud_centro) {
+            newErrors.ubicacion = 'Debe seleccionar la ubicación del pivote en el mapa';
+        }
+        
+        if (configuracionModo === 'caudal') {
+            if (!regador.caudal || regador.caudal <= 0) {
+                newErrors.caudal = 'El caudal debe ser mayor a 0';
+            }
+        } else {
+            if (!regador.tiempo_vuelta_completa || regador.tiempo_vuelta_completa <= 0) {
+                newErrors.tiempo_vuelta_completa = 'El tiempo de vuelta debe ser mayor a 0';
             }
         }
+        
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
-    const handleConfigureGeozonas = (regador, lote) => {
-        setSelectedRegador(regador);
-        setSelectedLote(lote);
-        setOpenGeozonaDialog(true);
-    };
-
-    const handleSaveRegador = async (regadorData) => {
-        try {
-            if (regadorEdit) {
-                await axios.put(`/regadores/${regadorEdit.id}`, regadorData);
-            } else {
-                await axios.post('/regadores', regadorData);
-            }
-            
-            setOpenRegadorDialog(false);
-            setRegadorEdit(null);
-            fetchRegadores();
-        } catch (error) {
-            console.error('Error al guardar regador:', error);
-            alert('Error al guardar regador: ' + (error.response?.data?.error || error.message));
+    const handleSave = () => {
+        if (!validateForm()) {
+            return;
         }
+
+        const regadorData = {
+            ...regador,
+            campo_id: campoId,
+            radio_cobertura: parseFloat(regador.radio_cobertura),
+            latitud_centro: parseFloat(regador.latitud_centro),
+            longitud_centro: parseFloat(regador.longitud_centro),
+            caudal: configuracionModo === 'caudal' ? parseFloat(regador.caudal) : null,
+            tiempo_vuelta_completa: configuracionModo === 'tiempo' ? parseInt(regador.tiempo_vuelta_completa) : null
+        };
+
+        onSave(regadorData);
     };
 
-    const handleSaveGeozonas = async (geozonaData) => {
-        try {
-            await axios.post(`/regadores/${selectedRegador.id}/geozonas`, geozonaData);
-            setOpenGeozonaDialog(false);
-            setSelectedRegador(null);
-            setSelectedLote(null);
-            fetchRegadores();
-        } catch (error) {
-            console.error('Error al guardar geozonas:', error);
-            alert('Error al guardar geozonas: ' + (error.response?.data?.error || error.message));
+    const calcularAreaCobertura = () => {
+        if (!regador.radio_cobertura) return 0;
+        const radio = parseFloat(regador.radio_cobertura);
+        return (Math.PI * radio * radio / 10000).toFixed(2); // Convertir a hectáreas
+    };
+
+    const calcularCaudalEstimado = () => {
+        if (configuracionModo === 'caudal' && regador.caudal) {
+            return parseFloat(regador.caudal);
+        } else if (configuracionModo === 'tiempo' && regador.tiempo_vuelta_completa && regador.radio_cobertura) {
+            // Estimación básica: asumiendo aplicación de 20mm de agua por vuelta
+            const area = Math.PI * Math.pow(parseFloat(regador.radio_cobertura), 2);
+            const volumenLitros = area * 0.02; // 20mm = 0.02m
+            const tiempoMinutos = parseInt(regador.tiempo_vuelta_completa);
+            return (volumenLitros / tiempoMinutos).toFixed(0);
         }
+        return 0;
     };
-
-    const getRegadorStatusIcon = (regador) => {
-        if (!regador.activo) return <Pause sx={{ color: '#757575' }} />;
-        if (regador.sectores_activos === regador.total_sectores && regador.total_sectores > 0) {
-            return <CheckCircle sx={{ color: '#4CAF50' }} />;
-        }
-        if (regador.total_sectores === 0) return <Warning sx={{ color: '#FF9800' }} />;
-        return <PlayArrow sx={{ color: '#2196F3' }} />;
-    };
-
-    const getRegadorStatusText = (regador) => {
-        if (!regador.activo) return 'Inactivo';
-        if (regador.sectores_activos === regador.total_sectores && regador.total_sectores > 0) {
-            return 'Configurado';
-        }
-        if (regador.total_sectores === 0) return 'Sin geozonas';
-        return 'Parcialmente configurado';
-    };
-
-    if (!campo) return null;
 
     return (
-        <>
-            <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-                <DialogTitle>
-                    <Box display="flex" alignItems="center" justifyContent="space-between">
-                        <Typography variant="h6">
-                            Gestión de Regadores - {campo.nombre_campo}
+        <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+            <DialogTitle>
+                {regadorEdit ? 'Editar Regador' : 'Configurar Nuevo Regador'}
+            </DialogTitle>
+            <DialogContent>
+                <Grid container spacing={3}>
+                    {/* Información básica */}
+                    <Grid item xs={12}>
+                        <Typography variant="h6" gutterBottom>
+                            Información del Dispositivo
                         </Typography>
-                        <Chip 
-                            label={`${regadores.length} Regador${regadores.length !== 1 ? 'es' : ''}`}
-                            color="primary"
-                            variant="outlined"
+                    </Grid>
+                    
+                    <Grid item xs={12} md={6}>
+                        <TextField
+                            fullWidth
+                            name="nombre_dispositivo"
+                            label="Nombre del Dispositivo GPS"
+                            value={regador.nombre_dispositivo}
+                            onChange={handleInputChange}
+                            error={!!errors.nombre_dispositivo}
+                            helperText={errors.nombre_dispositivo || "Debe coincidir exactamente con el nombre en Traccar (ej: 'GPS FRANCO')"}
+                            required
                         />
-                    </Box>
-                </DialogTitle>
-
-                <DialogContent>
-                    {regadores.length === 0 ? (
-                        <Alert severity="info" sx={{ mb: 2 }}>
-                            No hay regadores configurados en este campo. Agrega un regador GPS para comenzar.
-                        </Alert>
-                    ) : (
-                        <Alert severity="success" sx={{ mb: 2 }}>
-                            Campo con {regadores.length} regador{regadores.length !== 1 ? 'es' : ''} configurado{regadores.length !== 1 ? 's' : ''}
-                        </Alert>
-                    )}
-
-                    <Grid container spacing={2}>
-                        {regadores.map((regador) => (
-                            <Grid item xs={12} md={6} key={regador.id}>
-                                <Card variant="outlined">
-                                    <CardHeader
-                                        avatar={getRegadorStatusIcon(regador)}
-                                        title={regador.nombre_dispositivo}
-                                        subheader={
-                                            <Box>
-                                                <Typography variant="caption" display="block">
-                                                    {regador.tipo_regador} - Radio: {regador.radio_cobertura}m
-                                                </Typography>
-                                                <Chip 
-                                                    label={getRegadorStatusText(regador)}
-                                                    size="small"
-                                                    color={regador.activo ? 'success' : 'default'}
-                                                />
-                                            </Box>
-                                        }
-                                        action={
-                                            <Box>
-                                                <Tooltip title="Editar regador">
-                                                    <IconButton onClick={() => handleEditRegador(regador)}>
-                                                        <Edit />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                <Tooltip title="Eliminar regador">
-                                                    <IconButton 
-                                                        onClick={() => handleDeleteRegador(regador.id)}
-                                                        color="error"
-                                                    >
-                                                        <Delete />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Box>
-                                        }
-                                    />
-                                    <CardContent>
-                                        <Typography variant="body2" color="textSecondary" gutterBottom>
-                                            Sectores configurados: {regador.sectores_activos}/{regador.total_sectores}
-                                        </Typography>
-
-                                        {regador.caudal && (
-                                            <Typography variant="body2" color="textSecondary">
-                                                Caudal: {regador.caudal} L/min
-                                            </Typography>
-                                        )}
-
-                                        {regador.tiempo_vuelta_completa && (
-                                            <Typography variant="body2" color="textSecondary">
-                                                Tiempo vuelta: {regador.tiempo_vuelta_completa} min
-                                            </Typography>
-                                        )}
-
-                                        <Divider sx={{ my: 2 }} />
-
-                                        <Typography variant="subtitle2" gutterBottom>
-                                            Configurar geozonas por lote:
-                                        </Typography>
-
-                                        {lotes.length === 0 ? (
-                                            <Alert severity="warning" size="small">
-                                                No hay lotes en este campo. Crea lotes primero.
-                                            </Alert>
-                                        ) : (
-                                            <Box sx={{ maxHeight: 150, overflow: 'auto' }}>
-                                                {lotes.map((lote) => (
-                                                    <Box key={lote.id} display="flex" alignItems="center" justifyContent="space-between" py={0.5}>
-                                                        <Typography variant="body2">
-                                                            {lote.nombre_lote}
-                                                        </Typography>
-                                                        <Button
-                                                            size="small"
-                                                            startIcon={<Settings />}
-                                                            onClick={() => handleConfigureGeozonas(regador, lote)}
-                                                            variant="outlined"
-                                                        >
-                                                            Geozonas
-                                                        </Button>
-                                                    </Box>
-                                                ))}
-                                            </Box>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                        ))}
+                    </Grid>
+                    
+                    <Grid item xs={12} md={6}>
+                        <FormControl fullWidth>
+                            <InputLabel>Tipo de Regador</InputLabel>
+                            <Select
+                                name="tipo_regador"
+                                value={regador.tipo_regador}
+                                onChange={handleInputChange}
+                                label="Tipo de Regador"
+                            >
+                                <MenuItem value="pivote">Pivote Central</MenuItem>
+                                <MenuItem value="lineal">Riego Lineal</MenuItem>
+                                <MenuItem value="aspersion">Aspersión</MenuItem>
+                            </Select>
+                        </FormControl>
                     </Grid>
 
-                    {/* Botón flotante para agregar regador */}
-                    <Fab
-                        color="primary"
-                        aria-label="add"
-                        onClick={handleAddRegador}
-                        sx={{
-                            position: 'fixed',
-                            bottom: 80,
-                            right: 24,
-                        }}
-                    >
-                        <Add />
-                    </Fab>
-                </DialogContent>
+                    <Grid item xs={12} md={6}>
+                        <TextField
+                            fullWidth
+                            name="radio_cobertura"
+                            label="Radio de Cobertura (metros)"
+                            type="number"
+                            value={regador.radio_cobertura}
+                            onChange={handleInputChange}
+                            error={!!errors.radio_cobertura}
+                            helperText={errors.radio_cobertura}
+                            required
+                        />
+                    </Grid>
 
-                <DialogActions>
-                    <Button onClick={onClose}>
-                        Cerrar
-                    </Button>
-                    <Button 
-                        onClick={handleAddRegador}
-                        variant="contained"
-                        startIcon={<Add />}
-                    >
-                        Agregar Regador
-                    </Button>
-                </DialogActions>
-            </Dialog>
+                    {/* Configuración de caudal o tiempo */}
+                    <Grid item xs={12}>
+                        <Divider />
+                        <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                            Configuración de Riego
+                        </Typography>
+                    </Grid>
 
-            {/* Diálogo de configuración de regador */}
-            <RegadorConfigDialog
-                open={openRegadorDialog}
-                onClose={() => {
-                    setOpenRegadorDialog(false);
-                    setRegadorEdit(null);
-                }}
-                onSave={handleSaveRegador}
-                campoId={campo?.id}
-                regadorEdit={regadorEdit}
-            />
+                    <Grid item xs={12}>
+                        <FormControl fullWidth>
+                            <InputLabel>Método de Configuración</InputLabel>
+                            <Select
+                                value={configuracionModo}
+                                onChange={(e) => setConfiguracionModo(e.target.value)}
+                                label="Método de Configuración"
+                            >
+                                <MenuItem value="caudal">Especificar Caudal Directo</MenuItem>
+                                <MenuItem value="tiempo">Especificar Tiempo de Vuelta</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Grid>
 
-            {/* Diálogo de configuración de geozonas */}
-            <GeozonaConfigDialog
-                open={openGeozonaDialog}
-                onClose={() => {
-                    setOpenGeozonaDialog(false);
-                    setSelectedRegador(null);
-                    setSelectedLote(null);
-                }}
-                onSave={handleSaveGeozonas}
-                lote={selectedLote}
-                regador={selectedRegador}
-            />
-        </>
+                    {configuracionModo === 'caudal' ? (
+                        <Grid item xs={12} md={6}>
+                            <TextField
+                                fullWidth
+                                name="caudal"
+                                label="Caudal (litros/minuto)"
+                                type="number"
+                                value={regador.caudal}
+                                onChange={handleInputChange}
+                                error={!!errors.caudal}
+                                helperText={errors.caudal}
+                                required
+                            />
+                        </Grid>
+                    ) : (
+                        <Grid item xs={12} md={6}>
+                            <TextField
+                                fullWidth
+                                name="tiempo_vuelta_completa"
+                                label="Tiempo Vuelta Completa (minutos)"
+                                type="number"
+                                value={regador.tiempo_vuelta_completa}
+                                onChange={handleInputChange}
+                                error={!!errors.tiempo_vuelta_completa}
+                                helperText={errors.tiempo_vuelta_completa || "Tiempo que tarda en completar una vuelta completa"}
+                                required
+                            />
+                        </Grid>
+                    )}
+
+                    {/* Información calculada */}
+                    <Grid item xs={12}>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            <Chip 
+                                label={`Área: ${calcularAreaCobertura()} ha`} 
+                                color="info" 
+                                variant="outlined"
+                            />
+                            <Chip 
+                                label={`Caudal estimado: ${calcularCaudalEstimado()} L/min`} 
+                                color="success" 
+                                variant="outlined"
+                            />
+                        </Box>
+                    </Grid>
+
+                    {/* Mapa para ubicación */}
+                    <Grid item xs={12}>
+                        <Typography variant="h6" gutterBottom>
+                            Ubicación del Pivote Central
+                        </Typography>
+                        {errors.ubicacion && (
+                            <Alert severity="error" sx={{ mb: 2 }}>
+                                {errors.ubicacion}
+                            </Alert>
+                        )}
+                        <Box sx={{ height: 400, border: '1px solid #ccc', borderRadius: 1 }}>
+                            <MapContainer 
+                                center={mapCenter} 
+                                zoom={15} 
+                                style={{ height: '100%', width: '100%' }}
+                            >
+                                <TileLayer
+                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                />
+                                
+                                <MapClickHandler onMapClick={handleMapClick} />
+                                
+                                {/* Marcador del centro del pivote */}
+                                {regador.latitud_centro && regador.longitud_centro && (
+                                    <>
+                                        <Marker position={[regador.latitud_centro, regador.longitud_centro]} />
+                                        {regador.radio_cobertura && (
+                                            <Circle
+                                                center={[regador.latitud_centro, regador.longitud_centro]}
+                                                radius={parseFloat(regador.radio_cobertura)}
+                                                pathOptions={{
+                                                    color: '#2196F3',
+                                                    fillColor: '#2196F3',
+                                                    fillOpacity: 0.2,
+                                                    weight: 2
+                                                }}
+                                            />
+                                        )}
+                                    </>
+                                )}
+                            </MapContainer>
+                        </Box>
+                        <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                            Haga clic en el mapa para establecer la ubicación del centro del pivote
+                        </Typography>
+                    </Grid>
+                </Grid>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onClose}>
+                    Cancelar
+                </Button>
+                <Button onClick={handleSave} variant="contained" color="primary">
+                    {regadorEdit ? 'Actualizar' : 'Guardar'} Regador
+                </Button>
+            </DialogActions>
+        </Dialog>
     );
 }
 

@@ -2,14 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../axiosConfig';
 import RegadorConfigDialog from './RegadorConfigDialog';
+import RegadoresManagement from './RegadoresManagement';
 import EstadoRiegoComponent from './EstadoRiegoComponent';
 import { Agriculture, Settings as SettingsIcon, Close} from '@mui/icons-material';
 import {
     Container, Typography, TextField, Button, List, ListItem, ListItemText,
     Select, MenuItem, FormControl, InputLabel, Grid, Dialog, DialogActions,
-    DialogContent, DialogContentText, DialogTitle, IconButton, Box, Chip, CircularProgress, Tooltip   
+    DialogContent, DialogContentText, DialogTitle, IconButton, Box, Chip, 
+    CircularProgress, Tooltip
 } from '@mui/material';
-import { Edit, Delete, Add, Refresh, Map } from '@mui/icons-material';
+import { 
+    Edit, Delete, Add, Refresh, Map, Agriculture, Settings as SettingsIcon,
+    Close, GpsFixed
+} from '@mui/icons-material';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -48,6 +53,10 @@ function CamposManagement() {
     const [regadores, setRegadores] = useState([]);
     const [openEstadoRiego, setOpenEstadoRiego] = useState(false);
     const [selectedCampoEstado, setSelectedCampoEstado] = useState(null);
+    const [openRegadoresDialog, setOpenRegadoresDialog] = useState(false);
+    const [selectedCampoRegadores, setSelectedCampoRegadores] = useState(null);
+
+
 
     const navigate = useNavigate();
 
@@ -71,6 +80,13 @@ function CamposManagement() {
         }
         return [-31.4201, -64.1888]; // Coordenadas predeterminadas para Córdoba, Argentina
     };
+
+    const handleGestionRegadores = (campo) => {
+        setSelectedCampoRegadores(campo);
+        setOpenRegadoresDialog(true);
+    };
+
+    
 
     // Funciones auxiliares para trabajar con módulos de estaciones
     const tieneModuloTemperatura = (estacion) => {
@@ -526,7 +542,7 @@ function CamposManagement() {
                                 <>
                                     <Tooltip title="Configurar regadores GPS">
                                         <IconButton 
-                                            onClick={() => handleConfigurearRegador(campo)}
+                                            onClick={() => handleGestionRegadores(campo)}
                                             sx={{ color: '#4CAF50' }}
                                         >
                                             <SettingsIcon />
@@ -991,6 +1007,16 @@ function CamposManagement() {
         />
 
         {/* Componente de estado de riego */}
+        <RegadoresManagement
+    open={openRegadoresDialog}
+    onClose={() => {
+        setOpenRegadoresDialog(false);
+        setSelectedCampoRegadores(null);
+    }}
+    campo={selectedCampoRegadores}
+/>
+
+{/* Diálogo de estado de riego en tiempo real */}
         <Dialog
             open={openEstadoRiego}
             onClose={() => {
