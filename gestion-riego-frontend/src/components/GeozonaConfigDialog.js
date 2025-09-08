@@ -444,28 +444,36 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                             Vista de Sectores
                         </Typography>
                         <Box sx={{ height: 600, border: '1px solid #ccc', borderRadius: 1 }}>
-                            <MapContainer 
-                                center={[regador.latitud_centro, regador.longitud_centro]} 
-                                zoom={16} 
-                                style={{ height: '100%', width: '100%' }}
-                            >
-                                <TileLayer
-                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                />
-                                
-                                {/* Marcador del centro del pivote */}
-                                <Marker position={[regador.latitud_centro, regador.longitud_centro]} />
-                                
-                                {/* Overlay de sectores */}
-                                <SectorOverlay
-                                    center={[regador.latitud_centro, regador.longitud_centro]}
-                                    radius={regador.radio_cobertura}
-                                    sectores={sectores}
-                                    selectedSector={selectedSector}
-                                    onSectorClick={handleSectorClick}
-                                />
-                            </MapContainer>
+                            {regador && regador.latitud_centro && regador.longitud_centro ? (
+                                <MapContainer 
+                                    center={[parseFloat(regador.latitud_centro), parseFloat(regador.longitud_centro)]} 
+                                    zoom={16} 
+                                    style={{ height: '100%', width: '100%' }}
+                                >
+                                    <TileLayer
+                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                    />
+                                    
+                                    {/* Marcador del centro del pivote */}
+                                    <Marker position={[parseFloat(regador.latitud_centro), parseFloat(regador.longitud_centro)]} />
+                                    
+                                    {/* Overlay de sectores */}
+                                    <SectorOverlay
+                                        center={[parseFloat(regador.latitud_centro), parseFloat(regador.longitud_centro)]}
+                                        radius={parseFloat(regador.radio_cobertura)}
+                                        sectores={sectores}
+                                        selectedSector={selectedSector}
+                                        onSectorClick={handleSectorClick}
+                                    />
+                                </MapContainer>
+                            ) : (
+                                <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                                    <Typography color="error">
+                                        Error: Ubicación del regador no válida
+                                    </Typography>
+                                </Box>
+                            )}
                         </Box>
                     </Grid>
                 </Grid>
