@@ -924,7 +924,7 @@ async function calcularProyeccionAU(loteId, aguaUtilInicial, aguaUtil1mInicial, 
         const etcCalculado = evapotranspiracion * kcPronostico;
         
         if (Math.abs(etcCalculado - etc) > 0.01) {
-            console.warn(`⚠️  ETC inconsistente: ETo(${evapotranspiracion.toFixed(2)}) * KC(${kcPronostico.toFixed(3)}) = ${etcCalculado.toFixed(2)}, pero pronóstico tiene ETC: ${etc.toFixed(2)}`);
+            //console.warn(`⚠️  ETC inconsistente: ETo(${evapotranspiracion.toFixed(2)}) * KC(${kcPronostico.toFixed(3)}) = ${etcCalculado.toFixed(2)}, pero pronóstico tiene ETC: ${etc.toFixed(2)}`);
         }
         
         // console.log(`KC usado: ${kcPronostico.toFixed(3)}, ETo: ${evapotranspiracion.toFixed(2)}mm`);

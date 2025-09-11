@@ -5,7 +5,7 @@ const pool = require('../db');
 
 router.get('/lote/:loteId', verifyToken, async (req, res) => {
     const { loteId } = req.params;
-    console.log('Solicitud de campañas para lote:', loteId);
+    //console.log('Solicitud de campañas para lote:', loteId);
     try {
         // Obtener la campaña del lote específico
         const result = await pool.query(
@@ -19,7 +19,7 @@ router.get('/lote/:loteId', verifyToken, async (req, res) => {
         }
 
         const campaña = result.rows[0].campaña;
-        console.log('Campaña encontrada:', campaña);
+        //console.log('Campaña encontrada:', campaña);
 
         // Obtener campañas específicas para este lote
         const loteCampañasResult = await pool.query(

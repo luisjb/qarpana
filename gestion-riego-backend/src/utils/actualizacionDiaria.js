@@ -117,19 +117,23 @@ async function actualizacionDiaria() {
 
 async function consultarEstacionesMeteorologicas(client) {
     try {
-        // Obtener todos los campos que tienen estación asociada
-        const { rows: camposConEstacion } = await client.query(`
-            SELECT DISTINCT c.id, c.estacion_id, c.nombre_campo
+        // CAMBIO: Obtener estaciones ÚNICAS y los campos que las usan
+        const { rows: estacionesUnicas } = await client.query(`
+            SELECT 
+                c.estacion_id,
+                array_agg(c.id) as campos_ids,
+                array_agg(c.nombre_campo) as nombres_campos
             FROM campos c
             WHERE c.estacion_id IS NOT NULL 
             AND c.estacion_id != ''
+            GROUP BY c.estacion_id
         `);
 
-        //console.log(`Encontrados ${camposConEstacion.length} campos con estaciones meteorológicas asociadas`);
+        console.log(`Encontradas ${estacionesUnicas.length} estaciones meteorológicas únicas`);
 
-        if (camposConEstacion.length === 0) {
+        if (estacionesUnicas.length === 0) {
             console.log('No hay estaciones meteorológicas configuradas. Continuando sin datos de estación.');
-            return false; // Indica que no se consultaron estaciones
+            return false;
         }
 
         // Crear tabla temporal para datos de estaciones
@@ -147,31 +151,38 @@ async function consultarEstacionesMeteorologicas(client) {
 
         let estacionesExitosas = 0;
 
-        for (const campo of camposConEstacion) {
+        // CAMBIO: Iterar por estaciones únicas, no por campos
+        for (const estacion of estacionesUnicas) {
             try {
-                //console.log(`Consultando estación ${campo.estacion_id} para campo ${campo.nombre_campo}...`);
-                const datosEstacion = await omixomService.obtenerUltimoDatoEstacion(campo.estacion_id);
+                console.log(`Consultando estación ${estacion.estacion_id} (usada por campos: ${estacion.nombres_campos.join(', ')})...`);
+                
+                // UNA SOLA consulta por estación
+                const datosEstacion = await omixomService.obtenerUltimoDatoEstacion(estacion.estacion_id);
                 
                 if (datosEstacion && datosEstacion.length > 0) {
-                    await guardarDatosEstacion(client, campo.id, datosEstacion);
+                    // Aplicar los datos a TODOS los campos que usan esta estación
+                    for (const campoId of estacion.campos_ids) {
+                        await guardarDatosEstacion(client, campoId, datosEstacion);
+                    }
                     estacionesExitosas++;
-                    //console.log(`✓ Datos obtenidos para campo ${campo.nombre_campo} - Estación ${campo.estacion_id}`);
-                    //console.log(`  Evapotranspiración: ${datosEstacion[0].evapotranspiracion} mm/día`);
+                    console.log(`✓ Datos obtenidos para estación ${estacion.estacion_id}`);
+                    console.log(`  Evapotranspiración: ${datosEstacion[0].evapotranspiracion} mm/día`);
+                    console.log(`  Aplicado a ${estacion.campos_ids.length} campos`);
                 } else {
-                    //console.log(`⚠ No se obtuvieron datos para estación ${campo.estacion_id} (campo: ${campo.nombre_campo})`);
+                    console.log(`⚠ No se obtuvieron datos para estación ${estacion.estacion_id}`);
                 }
             } catch (error) {
-                console.error(`✗ Error consultando estación ${campo.estacion_id} (campo: ${campo.nombre_campo}):`, error.message);
+                console.error(`✗ Error consultando estación ${estacion.estacion_id}:`, error.message);
                 // Continuar con la siguiente estación
             }
         }
 
-        //console.log(`Resumen consulta estaciones: ${estacionesExitosas}/${camposConEstacion.length} exitosas`);
-        return true; // Indica que se intentó consultar estaciones (aunque algunas hayan fallado)
+        console.log(`Resumen consulta estaciones: ${estacionesExitosas}/${estacionesUnicas.length} estaciones exitosas`);
+        return true;
 
     } catch (error) {
         console.error('Error en consultarEstacionesMeteorologicas:', error);
-        return false; // Indica que no se pudo consultar estaciones
+        return false;
     }
 }
 
