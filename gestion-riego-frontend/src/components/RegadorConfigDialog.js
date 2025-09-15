@@ -36,15 +36,12 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
     const [regador, setRegador] = useState({
         nombre_dispositivo: '',
         tipo_regador: 'pivote',
-        radio_cobertura: '',
+        radio_cobertura_default: '',
         caudal: '',
         tiempo_vuelta_completa: '',
-        latitud_centro: '',
-        longitud_centro: '',
         activo: true
     });
     
-    const [mapCenter, setMapCenter] = useState([-31.4201, -64.1888]);
     const [configuracionModo, setConfiguracionModo] = useState('caudal'); // 'caudal' o 'tiempo'
     const [errors, setErrors] = useState({});
 
@@ -52,27 +49,21 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
         if (regadorEdit) {
             setRegador({
                 ...regadorEdit,
-                radio_cobertura: regadorEdit.radio_cobertura || '',
+                radio_cobertura_default: regadorEdit.radio_cobertura_default || regadorEdit.radio_cobertura || '',
                 caudal: regadorEdit.caudal || '',
                 tiempo_vuelta_completa: regadorEdit.tiempo_vuelta_completa || ''
             });
-            if (regadorEdit.latitud_centro && regadorEdit.longitud_centro) {
-                setMapCenter([regadorEdit.latitud_centro, regadorEdit.longitud_centro]);
-            }
             setConfiguracionModo(regadorEdit.caudal ? 'caudal' : 'tiempo');
         } else {
             // Resetear para nuevo regador
             setRegador({
                 nombre_dispositivo: '',
                 tipo_regador: 'pivote',
-                radio_cobertura: '',
+                radio_cobertura_default: '',
                 caudal: '',
                 tiempo_vuelta_completa: '',
-                latitud_centro: '',
-                longitud_centro: '',
                 activo: true
             });
-            setMapCenter([-31.4201, -64.1888]);
             setConfiguracionModo('caudal');
         }
         setErrors({});
@@ -94,28 +85,11 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
         }
     };
 
-    const handleMapClick = (latlng) => {
-        setRegador(prev => ({
-            ...prev,
-            latitud_centro: latlng.lat,
-            longitud_centro: latlng.lng
-        }));
-        setMapCenter([latlng.lat, latlng.lng]);
-    };
-
     const validateForm = () => {
         const newErrors = {};
         
         if (!regador.nombre_dispositivo.trim()) {
             newErrors.nombre_dispositivo = 'El nombre del dispositivo es requerido';
-        }
-        
-        if (!regador.radio_cobertura || regador.radio_cobertura <= 0) {
-            newErrors.radio_cobertura = 'El radio de cobertura debe ser mayor a 0';
-        }
-        
-        if (!regador.latitud_centro || !regador.longitud_centro) {
-            newErrors.ubicacion = 'Debe seleccionar la ubicación del pivote en el mapa';
         }
         
         if (configuracionModo === 'caudal') {
@@ -140,9 +114,7 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
         const regadorData = {
             ...regador,
             campo_id: campoId,
-            radio_cobertura: parseFloat(regador.radio_cobertura),
-            latitud_centro: parseFloat(regador.latitud_centro),
-            longitud_centro: parseFloat(regador.longitud_centro),
+            radio_cobertura_default: regador.radio_cobertura_default ? parseFloat(regador.radio_cobertura_default) : null,
             caudal: configuracionModo === 'caudal' ? parseFloat(regador.caudal) : null,
             tiempo_vuelta_completa: configuracionModo === 'tiempo' ? parseInt(regador.tiempo_vuelta_completa) : null
         };
@@ -150,18 +122,12 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
         onSave(regadorData);
     };
 
-    const calcularAreaCobertura = () => {
-        if (!regador.radio_cobertura) return 0;
-        const radio = parseFloat(regador.radio_cobertura);
-        return (Math.PI * radio * radio / 10000).toFixed(2); // Convertir a hectáreas
-    };
-
     const calcularCaudalEstimado = () => {
         if (configuracionModo === 'caudal' && regador.caudal) {
             return parseFloat(regador.caudal);
-        } else if (configuracionModo === 'tiempo' && regador.tiempo_vuelta_completa && regador.radio_cobertura) {
+        } else if (configuracionModo === 'tiempo' && regador.tiempo_vuelta_completa && regador.radio_cobertura_default) {
             // Estimación básica: asumiendo aplicación de 20mm de agua por vuelta
-            const area = Math.PI * Math.pow(parseFloat(regador.radio_cobertura), 2);
+            const area = Math.PI * Math.pow(parseFloat(regador.radio_cobertura_default), 2);
             const volumenLitros = area * 0.02; // 20mm = 0.02m
             const tiempoMinutos = parseInt(regador.tiempo_vuelta_completa);
             return (volumenLitros / tiempoMinutos).toFixed(0);
@@ -215,14 +181,12 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
                     <Grid item xs={12} md={6}>
                         <TextField
                             fullWidth
-                            name="radio_cobertura"
-                            label="Radio de Cobertura (metros)"
+                            name="radio_cobertura_default"
+                            label="Radio de Cobertura por Defecto (metros)"
                             type="number"
-                            value={regador.radio_cobertura}
+                            value={regador.radio_cobertura_default}
                             onChange={handleInputChange}
-                            error={!!errors.radio_cobertura}
-                            helperText={errors.radio_cobertura}
-                            required
+                            helperText="Se puede ajustar individualmente por lote"
                         />
                     </Grid>
 
@@ -282,63 +246,23 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
                     <Grid item xs={12}>
                         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                             <Chip 
-                                label={`Área: ${calcularAreaCobertura()} ha`} 
-                                color="info" 
-                                variant="outlined"
-                            />
-                            <Chip 
                                 label={`Caudal estimado: ${calcularCaudalEstimado()} L/min`} 
                                 color="success" 
                                 variant="outlined"
                             />
+                            {regador.radio_cobertura_default && (
+                                <Chip 
+                                    label={`Radio default: ${regador.radio_cobertura_default}m`} 
+                                    color="info" 
+                                    variant="outlined"
+                                />
+                            )}
                         </Box>
                     </Grid>
 
-                    {/* Mapa para ubicación */}
                     <Grid item xs={12}>
-                        <Typography variant="h6" gutterBottom>
-                            Ubicación del Pivote Central
-                        </Typography>
-                        {errors.ubicacion && (
-                            <Alert severity="error" sx={{ mb: 2 }}>
-                                {errors.ubicacion}
-                            </Alert>
-                        )}
-                        <Box sx={{ height: 400, border: '1px solid #ccc', borderRadius: 1 }}>
-                            <MapContainer 
-                                center={mapCenter} 
-                                zoom={15} 
-                                style={{ height: '100%', width: '100%' }}
-                            >
-                                <TileLayer
-                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                />
-                                
-                                <MapClickHandler onMapClick={handleMapClick} />
-                                
-                                {/* Marcador del centro del pivote */}
-                                {regador.latitud_centro && regador.longitud_centro && (
-                                    <>
-                                        <Marker position={[regador.latitud_centro, regador.longitud_centro]} />
-                                        {regador.radio_cobertura && (
-                                            <Circle
-                                                center={[regador.latitud_centro, regador.longitud_centro]}
-                                                radius={parseFloat(regador.radio_cobertura)}
-                                                pathOptions={{
-                                                    color: '#2196F3',
-                                                    fillColor: '#2196F3',
-                                                    fillOpacity: 0.2,
-                                                    weight: 2
-                                                }}
-                                            />
-                                        )}
-                                    </>
-                                )}
-                            </MapContainer>
-                        </Box>
-                        <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
-                            Haga clic en el mapa para establecer la ubicación del centro del pivote
+                        <Typography variant="body2" color="textSecondary">
+                            <strong>Nota:</strong> La ubicación del pivote se configurará individualmente para cada lote al crear las geozonas.
                         </Typography>
                     </Grid>
                 </Grid>
