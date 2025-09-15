@@ -4,16 +4,17 @@ import {
     Box, LinearProgress, Chip, IconButton, Button, List, ListItem,
     ListItemText, ListItemIcon, Dialog, DialogTitle, DialogContent,
     DialogActions, Table, TableBody, TableCell, TableContainer,
-    TableHead, TableRow, Paper, Tooltip, CircularProgress
+    TableHead, TableRow, Paper, Tooltip, CircularProgress, Tab, Tabs
 } from '@mui/material';
 import {
     WaterDrop, PlayArrow, Pause, Stop, Refresh, Timeline,
     CheckCircle, RadioButtonChecked, Schedule, Warning,
-    Settings, Visibility, MyLocation
+    Settings, Visibility, MyLocation, PieChart, ViewList
 } from '@mui/icons-material';
 import { format, formatDistance } from 'date-fns';
 import { es } from 'date-fns/locale';
 import axios from '../axiosConfig';
+import CircularRiegoVisualization from './CircularRiegoVisualization';
 
 // Componente para tarjeta de regador individual
 function RegadorCard({ regador, onViewDetails, onRefresh }) {
@@ -155,6 +156,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const [sectoresDetalle, setSectoresDetalle] = useState([]);
     const [eventosRecientes, setEventosRecientes] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [tabValue, setTabValue] = useState(0);
 
     useEffect(() => {
         if (campoId) {
@@ -296,90 +298,151 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                     </Box>
                 </DialogTitle>
                 <DialogContent>
-                    <Grid container spacing={3}>
-                        {/* Sectores */}
-                        <Grid item xs={12} md={6}>
-                            <Typography variant="h6" gutterBottom>
-                                Estado de Sectores
-                            </Typography>
-                            <TableContainer component={Paper} variant="outlined">
-                                <Table size="small">
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>Sector</TableCell>
-                                            <TableCell>Estado</TableCell>
-                                            <TableCell>Progreso</TableCell>
-                                            <TableCell>Agua (L)</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {sectoresDetalle.map((sector) => (
-                                            <TableRow key={sector.id}>
-                                                <TableCell>
-                                                    <Box display="flex" alignItems="center" gap={1}>
-                                                        <Box
-                                                            sx={{
-                                                                width: 16,
-                                                                height: 16,
-                                                                backgroundColor: sector.color_display,
-                                                                borderRadius: '50%'
-                                                            }}
-                                                        />
-                                                        {sector.nombre_sector}
-                                                    </Box>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Chip 
-                                                        label={sector.estado || 'pendiente'}
-                                                        size="small"
-                                                        color={getEstadoColor(sector.estado)}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    {sector.progreso_porcentaje || 0}%
-                                                </TableCell>
-                                                <TableCell>
-                                                    {sector.agua_aplicada_litros || 0}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        </Grid>
+                    <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+                        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
+                            <Tab 
+                                icon={<PieChart />} 
+                                label="Vista Circular" 
+                                iconPosition="start"
+                            />
+                            <Tab 
+                                icon={<ViewList />} 
+                                label="Vista Detallada" 
+                                iconPosition="start"
+                            />
+                        </Tabs>
+                    </Box>
 
-                        {/* Eventos recientes */}
-                        <Grid item xs={12} md={6}>
-                            <Typography variant="h6" gutterBottom>
-                                Eventos Recientes
-                            </Typography>
-                            <Paper variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
-                                <List dense>
-                                    {eventosRecientes.map((evento, index) => (
-                                        <ListItem key={index}>
-                                            <ListItemIcon>
-                                                {evento.tipo_evento === 'entrada' && <PlayArrow color="success" />}
-                                                {evento.tipo_evento === 'salida' && <Stop color="error" />}
-                                                {evento.tipo_evento === 'movimiento' && <MyLocation color="info" />}
-                                            </ListItemIcon>
-                                            <ListItemText
-                                                primary={`${evento.tipo_evento} ${evento.nombre_sector ? `- ${evento.nombre_sector}` : ''}`}
-                                                secondary={formatFecha(evento.fecha_evento)}
-                                            />
-                                        </ListItem>
-                                    ))}
-                                    {eventosRecientes.length === 0 && (
-                                        <ListItem>
-                                            <ListItemText 
-                                                primary="No hay eventos recientes"
-                                                secondary="Los eventos aparecerán aquí cuando el dispositivo esté activo"
-                                            />
-                                        </ListItem>
-                                    )}
-                                </List>
-                            </Paper>
+                    {tabValue === 0 && (
+                        /* Vista Circular */
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} md={8}>
+                                <CircularRiegoVisualization 
+                                    sectores={sectoresDetalle}
+                                    regador={selectedRegador}
+                                    size={400}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={4}>
+                                <Typography variant="h6" gutterBottom>
+                                    Eventos Recientes
+                                </Typography>
+                                <Paper variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
+                                    <List dense>
+                                        {eventosRecientes.map((evento, index) => (
+                                            <ListItem key={index}>
+                                                <ListItemIcon>
+                                                    {evento.tipo_evento === 'entrada' && <PlayArrow color="success" />}
+                                                    {evento.tipo_evento === 'salida' && <Stop color="error" />}
+                                                    {evento.tipo_evento === 'movimiento' && <MyLocation color="info" />}
+                                                </ListItemIcon>
+                                                <ListItemText
+                                                    primary={`${evento.tipo_evento} ${evento.nombre_sector ? `- ${evento.nombre_sector}` : ''}`}
+                                                    secondary={formatFecha(evento.fecha_evento)}
+                                                />
+                                            </ListItem>
+                                        ))}
+                                        {eventosRecientes.length === 0 && (
+                                            <ListItem>
+                                                <ListItemText 
+                                                    primary="No hay eventos recientes"
+                                                    secondary="Los eventos aparecerán aquí cuando el dispositivo esté activo"
+                                                />
+                                            </ListItem>
+                                        )}
+                                    </List>
+                                </Paper>
+                            </Grid>
                         </Grid>
-                    </Grid>
+                    )}
+
+                    {tabValue === 1 && (
+                        /* Vista Detallada */
+                        <Grid container spacing={3}>
+                            {/* Sectores */}
+                            <Grid item xs={12} md={6}>
+                                <Typography variant="h6" gutterBottom>
+                                    Estado de Sectores
+                                </Typography>
+                                <TableContainer component={Paper} variant="outlined">
+                                    <Table size="small">
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>Sector</TableCell>
+                                                <TableCell>Estado</TableCell>
+                                                <TableCell>Progreso</TableCell>
+                                                <TableCell>Agua (L)</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {sectoresDetalle.map((sector) => (
+                                                <TableRow key={sector.id}>
+                                                    <TableCell>
+                                                        <Box display="flex" alignItems="center" gap={1}>
+                                                            <Box
+                                                                sx={{
+                                                                    width: 16,
+                                                                    height: 16,
+                                                                    backgroundColor: sector.color_display,
+                                                                    borderRadius: '50%'
+                                                                }}
+                                                            />
+                                                            {sector.nombre_sector}
+                                                        </Box>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Chip 
+                                                            label={sector.estado || 'pendiente'}
+                                                            size="small"
+                                                            color={getEstadoColor(sector.estado)}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {sector.progreso_porcentaje || 0}%
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {sector.agua_aplicada_litros || 0}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            </Grid>
+
+                            {/* Eventos recientes */}
+                            <Grid item xs={12} md={6}>
+                                <Typography variant="h6" gutterBottom>
+                                    Eventos Recientes
+                                </Typography>
+                                <Paper variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
+                                    <List dense>
+                                        {eventosRecientes.map((evento, index) => (
+                                            <ListItem key={index}>
+                                                <ListItemIcon>
+                                                    {evento.tipo_evento === 'entrada' && <PlayArrow color="success" />}
+                                                    {evento.tipo_evento === 'salida' && <Stop color="error" />}
+                                                    {evento.tipo_evento === 'movimiento' && <MyLocation color="info" />}
+                                                </ListItemIcon>
+                                                <ListItemText
+                                                    primary={`${evento.tipo_evento} ${evento.nombre_sector ? `- ${evento.nombre_sector}` : ''}`}
+                                                    secondary={formatFecha(evento.fecha_evento)}
+                                                />
+                                            </ListItem>
+                                        ))}
+                                        {eventosRecientes.length === 0 && (
+                                            <ListItem>
+                                                <ListItemText 
+                                                    primary="No hay eventos recientes"
+                                                    secondary="Los eventos aparecerán aquí cuando el dispositivo esté activo"
+                                                />
+                                            </ListItem>
+                                        )}
+                                    </List>
+                                </Paper>
+                            </Grid>
+                        </Grid>
+                    )}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDetalleDialog(false)}>
