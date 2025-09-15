@@ -64,9 +64,20 @@ function CircularRiegoVisualization({ sectores, regador, size = 300 }) {
 
     // Función para calcular posición del texto
     const getTextPosition = (startAngle, endAngle) => {
-        const midAngle = (startAngle + endAngle) / 2;
+        let midAngle = (startAngle + endAngle) / 2;
+        
+        // Manejar el caso donde el sector cruza 0° (ej: 350° a 10°)
+        if (endAngle < startAngle) {
+            midAngle = ((startAngle + endAngle + 360) / 2) % 360;
+        }
+        
         const textRadius = radius * 0.7;
-        return polarToCartesian(centerX, centerY, textRadius, midAngle);
+        const angleInRadians = (midAngle - 90) * Math.PI / 180.0;
+        
+        return {
+            x: centerX + (textRadius * Math.cos(angleInRadians)),
+            y: centerY + (textRadius * Math.sin(angleInRadians))
+        };
     };
 
     return (
@@ -90,8 +101,14 @@ function CircularRiegoVisualization({ sectores, regador, size = 300 }) {
 
                         {/* Sectores */}
                         {sectores.map((sector, index) => {
-                            const startAngle = sector.angulo_inicio || 0;
-                            const endAngle = sector.angulo_fin || 0;
+                            const startAngle = parseFloat(sector.angulo_inicio) || 0;
+                            const endAngle = parseFloat(sector.angulo_fin) || 0;
+                            
+                            // Validar ángulos
+                            if (startAngle === endAngle || startAngle < 0 || endAngle < 0 || startAngle >= 360 || endAngle > 360) {
+                                return null;
+                            }
+                            
                             const sectorPath = createSectorPath(centerX, centerY, radius, startAngle, endAngle);
                             const textPos = getTextPosition(startAngle, endAngle);
                             const isHovered = hoveredSector === index;
