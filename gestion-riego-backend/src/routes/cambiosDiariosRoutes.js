@@ -149,51 +149,30 @@ router.post('/', verifyToken, async (req, res) => {
         // Calcular días desde siembra de forma segura
         let diasDesdeSiembra;
         try {
-            // Normalizar los formatos de fecha (asegurándonos de tratar solo la parte de la fecha)
-            const fechaSiembraStr = loteInfo.fecha_siembra.toISOString 
-                ? loteInfo.fecha_siembra.toISOString().split('T')[0] 
-                : loteInfo.fecha_siembra.split('T')[0];
-                
-            const fechaCambioStr = fecha_cambio.split('T')[0];
+            const { rows: [{ dias_calculados }] } = await client.query(
+                `SELECT ($2::date - $1::date) + 1 as dias_calculados`,
+                [loteInfo.fecha_siembra, fecha_cambio]
+            );
             
-            // Crear objetos de fecha usando el mismo formato para ambos
-            const fechaSiembra = new Date(`${fechaSiembraStr}T12:00:00Z`);
-            const fechaCambio = new Date(`${fechaCambioStr}T12:00:00Z`);
+            diasDesdeSiembra = parseInt(dias_calculados);
             
-            // Validar que las fechas son válidas
-            if (isNaN(fechaSiembra.getTime())) {
-                throw new Error(`Fecha de siembra inválida: ${loteInfo.fecha_siembra}`);
+            // Validación de seguridad
+            if (isNaN(diasDesdeSiembra) || diasDesdeSiembra < 1) {
+                console.error(`Días calculados inválidos: ${dias_calculados}. Fechas: siembra=${loteInfo.fecha_siembra}, cambio=${fecha_cambio}`);
+                return res.status(400).json({ 
+                    error: 'Error en el cálculo de días desde siembra',
+                    details: `Fecha de siembra: ${loteInfo.fecha_siembra}, Fecha de cambio: ${fecha_cambio}`
+                });
             }
             
-            if (isNaN(fechaCambio.getTime())) {
-                throw new Error(`Fecha de cambio inválida: ${fecha_cambio}`);
-            }
+            console.log(`Días desde siembra calculados correctamente: ${diasDesdeSiembra} (siembra: ${loteInfo.fecha_siembra}, cambio: ${fecha_cambio})`);
             
-            // Cálculo de días (desde siembra hasta el cambio)
-            const diferenciaMs = fechaCambio.getTime() - fechaSiembra.getTime();
-            const diferenciaDias = diferenciaMs / (1000 * 60 * 60 * 24);
-            
-            // Redondear a un entero y asegurar que sea al menos 1
-            diasDesdeSiembra = Math.max(1, Math.round(diferenciaDias + 1));
-            
-            /*console.log('Cálculo de días desde siembra:', {
-                fechaSiembraStr,
-                fechaCambioStr,
-                fechaSiembra: fechaSiembra.toISOString(),
-                fechaCambio: fechaCambio.toISOString(),
-                diferenciaDias,
-                diasDesdeSiembra
-            });*/
-            
-            // Validación final
-            if (isNaN(diasDesdeSiembra)) {
-                throw new Error(`Resultado inválido en el cálculo de días: ${diasDesdeSiembra}`);
-            }
         } catch (error) {
-            console.error('Error al calcular días desde siembra:', error);
-            // Usar un valor seguro por defecto
-            diasDesdeSiembra = 1;
-            //console.log('Usando valor por defecto para días:', diasDesdeSiembra);
+            console.error('Error al calcular días desde siembra con PostgreSQL:', error);
+            return res.status(400).json({ 
+                error: 'Error en el cálculo de días desde siembra',
+                details: error.message
+            });
         }
 
         // Rechazar si se excede el máximo de días
@@ -322,22 +301,29 @@ router.put('/:id', verifyToken, async (req, res) => {
         // Calcular días desde siembra de forma segura
         let diasDesdeSiembra;
         try {
-            const fechaSiembra = new Date(cambioActual.fecha_siembra + 'T12:00:00Z');
-            const fechaCambio = new Date(cambioActual.fecha_cambio + 'T12:00:00Z');
+            const { rows: [{ dias_calculados }] } = await client.query(
+                `SELECT ($2::date - $1::date) + 1 as dias_calculados`,
+                [cambioActual.fecha_siembra, cambioActual.fecha_cambio]
+            );
             
-            if (isNaN(fechaSiembra.getTime()) || isNaN(fechaCambio.getTime())) {
-                throw new Error('Fechas inválidas');
-            }
-            
-            const diferenciaMilisegundos = fechaCambio.getTime() - fechaSiembra.getTime();
-            diasDesdeSiembra = Math.round(diferenciaMilisegundos / (1000 * 60 * 60 * 24)) + 1;
+            diasDesdeSiembra = parseInt(dias_calculados);
             
             if (isNaN(diasDesdeSiembra) || diasDesdeSiembra < 1) {
-                throw new Error(`Cálculo inválido: ${diasDesdeSiembra}`);
+                console.error(`Días calculados inválidos en actualización: ${dias_calculados}`);
+                await client.query('ROLLBACK');
+                return res.status(400).json({ 
+                    error: 'Error en el cálculo de días desde siembra',
+                    details: `Fecha de siembra: ${cambioActual.fecha_siembra}, Fecha de cambio: ${cambioActual.fecha_cambio}`
+                });
             }
+            
         } catch (error) {
-            console.error('Error al calcular días desde siembra:', error);
-            diasDesdeSiembra = 1;
+            console.error('Error al calcular días desde siembra en actualización:', error);
+            await client.query('ROLLBACK');
+            return res.status(400).json({ 
+                error: 'Error en el cálculo de días desde siembra',
+                details: error.message
+            });
         }
         
         // Calcular KC y ETC de forma segura
