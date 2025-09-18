@@ -13,6 +13,21 @@ const convertToNumberOrZero = (value) => {
     return isNaN(number) ? 0 : number;
 };
 
+const calcularETC = (evapotranspiracion, kc) => {
+    const eto = parseFloat(evapotranspiracion) || 0;
+    const kcValue = parseFloat(kc) || 0;
+    const etc = eto * kcValue;
+    
+    // Validar que el resultado sea un número válido
+    if (isNaN(etc)) {
+        console.warn(`ETC resultó en NaN: ETo(${eto}) * KC(${kcValue})`);
+        return 0;
+    }
+    
+    return etc;
+};
+
+
 
 // Función para calcular crecimiento radicular
 async function calcularCrecimientoRadicular(client, loteId, diasDesdeSiembra) {
@@ -205,16 +220,12 @@ router.post('/', verifyToken, async (req, res) => {
                     diasDesdeSiembra: diasDesdeSiembra
                 });
             }
-            // Calcular ETC y lluvia efectiva
-            etc = safeEvapotranspiracion * kc;
+            
+            // Calcular ETC usando la función helper consistente
+            etc = calcularETC(safeEvapotranspiracion, kc);
             lluvia_efectiva = calcularLluviaEfectiva(safePrecipitaciones);
             
-            // Validación
-            if (isNaN(etc)) {
-                console.warn(`ETC resultó en NaN: ${safeEvapotranspiracion} * ${kc}`);
-                etc = 0;
-            }
-            
+            // Validación adicional de lluvia efectiva
             if (isNaN(lluvia_efectiva)) {
                 console.warn(`Lluvia efectiva resultó en NaN: de ${safePrecipitaciones}`);
                 lluvia_efectiva = 0;
@@ -222,7 +233,7 @@ router.post('/', verifyToken, async (req, res) => {
             
         } catch (error) {
             console.error('Error al calcular KC, ETC o lluvia efectiva:', error);
-            kc = 0.8;  // Valor por defecto
+            kc = null;  // Valor por defecto
             etc = 0;
             lluvia_efectiva = 0;
         }
@@ -344,16 +355,12 @@ router.put('/:id', verifyToken, async (req, res) => {
                     diasDesdeSiembra: diasDesdeSiembra
                 });
             }
-            // Calcular ETC y lluvia efectiva
-            etc = safeEvapotranspiracion * kc;
+            
+            // Calcular ETC usando la función helper consistente
+            etc = calcularETC(safeEvapotranspiracion, kc);
             lluvia_efectiva = calcularLluviaEfectiva(safePrecipitaciones);
             
-            // Validación
-            if (isNaN(etc)) {
-                console.warn(`ETC resultó en NaN: ${safeEvapotranspiracion} * ${kc}`);
-                etc = 0;
-            }
-            
+            // Validación adicional de lluvia efectiva
             if (isNaN(lluvia_efectiva)) {
                 console.warn(`Lluvia efectiva resultó en NaN: de ${safePrecipitaciones}`);
                 lluvia_efectiva = 0;
@@ -472,7 +479,7 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
                     console.error(`No se puede calcular KC para lote ${loteId}, día ${diasDesdeSiembra}. Saltando este registro.`);
                     continue; // Saltar este lote y continuar con el siguiente
                 }
-                const etc = evapotranspiracion * kc;
+                const etc = calcularETC(evapotranspiracion, kc);
                 const lluvia_efectiva = precipitaciones ? calcularLluviaEfectiva(precipitaciones) : 0;
 
                 if (existingRecord) {
