@@ -14,6 +14,8 @@ const campañasRoutes = require('./src/routes/campañaRoutes');
 const observacionesRoutes = require('./src/routes/observacionesRoutes');
 const recomendacionesRoutes = require('./src/routes/recomendacionesRoutes');
 const estacionesRoutes = require('./src/routes/estacionesRoutes');
+const gpsRoutes = require('./src/routes/gpsRoutes');
+
 
 // NUEVA IMPORTACIÓN DE TRACCAR
 const traccarRoutes = require('./src/routes/traccarRoutes');
@@ -86,6 +88,7 @@ app.use('/api/estaciones', estacionesRoutes);
 // NUEVA RUTA DE TRACCAR
 app.use('/api/traccar', traccarRoutes);
 app.use('/api/regadores', regadoresRoutes);
+app.use('/api/gps', gpsRoutes);
 
 // Endpoint de actualización forzada
 app.post('/api/forzar-actualizacion', async (req, res) => {

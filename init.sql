@@ -654,3 +654,74 @@ CREATE INDEX IF NOT EXISTS idx_geozonas_lote ON geozonas_pivote(lote_id);
 CREATE INDEX IF NOT EXISTS idx_eventos_riego_regador ON eventos_riego(regador_id);
 CREATE INDEX IF NOT EXISTS idx_eventos_riego_fecha ON eventos_riego(fecha_evento);
 CREATE INDEX IF NOT EXISTS idx_estado_sectores_geozona ON estado_sectores_riego(geozona_id);
+
+-- Tabla para almacenar datos operacionales históricos del GPS
+CREATE TABLE IF NOT EXISTS datos_operacion_gps (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    regador_id BIGINT REFERENCES regadores(id) ON DELETE CASCADE,
+    geozona_id BIGINT REFERENCES geozonas_pivote(id) ON DELETE SET NULL,
+    
+    -- Timestamp y posición
+    timestamp TIMESTAMP NOT NULL,
+    latitud NUMERIC NOT NULL,
+    longitud NUMERIC NOT NULL,
+    
+    -- Datos del GPS
+    altitud NUMERIC, -- metros
+    velocidad NUMERIC, -- km/h
+    curso NUMERIC, -- grados (0-360)
+    
+    -- Datos calculados
+    presion NUMERIC, -- PSI (calculado desde IO9)
+    io9_raw NUMERIC, -- Valor original de IO9
+    angulo_actual NUMERIC, -- Ángulo desde el centro del pivote
+    distancia_centro NUMERIC, -- Distancia al centro en metros
+    
+    -- Estado
+    dentro_geozona BOOLEAN DEFAULT false,
+    regando BOOLEAN DEFAULT false,
+    
+    -- Metadata
+    traccar_position_id BIGINT,
+    procesado BOOLEAN DEFAULT false,
+    
+    CONSTRAINT unique_position_timestamp UNIQUE (regador_id, timestamp)
+);
+
+-- Índices para optimizar consultas
+CREATE INDEX IF NOT EXISTS idx_datos_operacion_regador_timestamp ON datos_operacion_gps(regador_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_datos_operacion_geozona ON datos_operacion_gps(geozona_id);
+CREATE INDEX IF NOT EXISTS idx_datos_operacion_timestamp ON datos_operacion_gps(timestamp DESC);
+
+-- Tabla para ciclos de riego completados
+CREATE TABLE IF NOT EXISTS ciclos_riego (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    regador_id BIGINT REFERENCES regadores(id) ON DELETE CASCADE,
+    geozona_id BIGINT REFERENCES geozonas_pivote(id) ON DELETE CASCADE,
+    
+    -- Tiempos
+    fecha_inicio TIMESTAMP NOT NULL,
+    fecha_fin TIMESTAMP NOT NULL,
+    duracion_minutos INTEGER,
+    
+    -- Datos de riego
+    agua_aplicada_litros NUMERIC NOT NULL,
+    lamina_aplicada_mm NUMERIC, -- Calculada según área
+    area_regada_m2 NUMERIC,
+    
+    -- Promedios durante el ciclo
+    presion_promedio NUMERIC,
+    presion_min NUMERIC,
+    presion_max NUMERIC,
+    altitud_promedio NUMERIC,
+    velocidad_promedio NUMERIC,
+    
+    -- Estado
+    completado BOOLEAN DEFAULT true,
+    
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ciclos_riego_regador ON ciclos_riego(regador_id);
+CREATE INDEX IF NOT EXISTS idx_ciclos_riego_geozona ON ciclos_riego(geozona_id);
+CREATE INDEX IF NOT EXISTS idx_ciclos_riego_fecha ON ciclos_riego(fecha_inicio);
