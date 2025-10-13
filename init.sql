@@ -725,3 +725,36 @@ CREATE TABLE IF NOT EXISTS ciclos_riego (
 CREATE INDEX IF NOT EXISTS idx_ciclos_riego_regador ON ciclos_riego(regador_id);
 CREATE INDEX IF NOT EXISTS idx_ciclos_riego_geozona ON ciclos_riego(geozona_id);
 CREATE INDEX IF NOT EXISTS idx_ciclos_riego_fecha ON ciclos_riego(fecha_inicio);
+
+-- Agregar columnas de estado a datos_operacion_gps
+ALTER TABLE datos_operacion_gps 
+ADD COLUMN IF NOT EXISTS encendido BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS moviendose BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS estado_texto VARCHAR(50);
+
+CREATE INDEX IF NOT EXISTS idx_datos_operacion_estado ON datos_operacion_gps(regador_id, estado_texto);
+
+-- Vista para el último estado de cada regador
+CREATE OR REPLACE VIEW v_estado_actual_regadores AS
+SELECT DISTINCT ON (r.id)
+    r.id as regador_id,
+    r.nombre_dispositivo,
+    r.tipo_regador,
+    dog.timestamp as ultima_actualizacion,
+    dog.latitud,
+    dog.longitud,
+    dog.presion,
+    dog.altitud,
+    dog.velocidad,
+    dog.encendido,
+    dog.regando,
+    dog.moviendose,
+    dog.estado_texto,
+    dog.dentro_geozona,
+    gp.nombre_sector,
+    gp.numero_sector
+FROM regadores r
+LEFT JOIN datos_operacion_gps dog ON r.id = dog.regador_id
+LEFT JOIN geozonas_pivote gp ON dog.geozona_id = gp.id
+WHERE r.activo = true
+ORDER BY r.id, dog.timestamp DESC;

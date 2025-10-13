@@ -92,12 +92,16 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
             newErrors.nombre_dispositivo = 'El nombre del dispositivo es requerido';
         }
         
+        if (!regador.radio_cobertura_default || parseFloat(regador.radio_cobertura_default) <= 0) {
+            newErrors.radio_cobertura_default = 'El radio de cobertura es requerido y debe ser mayor a 0';
+        }
+        
         if (configuracionModo === 'caudal') {
-            if (!regador.caudal || regador.caudal <= 0) {
+            if (!regador.caudal || parseFloat(regador.caudal) <= 0) {
                 newErrors.caudal = 'El caudal debe ser mayor a 0';
             }
         } else {
-            if (!regador.tiempo_vuelta_completa || regador.tiempo_vuelta_completa <= 0) {
+            if (!regador.tiempo_vuelta_completa || parseInt(regador.tiempo_vuelta_completa) <= 0) {
                 newErrors.tiempo_vuelta_completa = 'El tiempo de vuelta debe ser mayor a 0';
             }
         }
@@ -114,9 +118,9 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
         const regadorData = {
             ...regador,
             campo_id: campoId,
-            radio_cobertura_default: regador.radio_cobertura_default ? parseFloat(regador.radio_cobertura_default) : null,
-            caudal: configuracionModo === 'caudal' ? parseFloat(regador.caudal) : null,
-            tiempo_vuelta_completa: configuracionModo === 'tiempo' ? parseInt(regador.tiempo_vuelta_completa) : null
+            radio_cobertura_default: parseFloat(regador.radio_cobertura_default),
+            caudal: configuracionModo === 'caudal' && regador.caudal ? parseFloat(regador.caudal) : null,
+            tiempo_vuelta_completa: configuracionModo === 'tiempo' && regador.tiempo_vuelta_completa ? parseInt(regador.tiempo_vuelta_completa) : null
         };
 
         onSave(regadorData);
@@ -141,7 +145,7 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
                 {regadorEdit ? 'Editar Regador' : 'Configurar Nuevo Regador'}
             </DialogTitle>
             <DialogContent>
-                <Grid container spacing={3}>
+                <Grid container spacing={3} sx={{ mt: 1 }}>
                     {/* Información básica */}
                     <Grid item xs={12}>
                         <Typography variant="h6" gutterBottom>
@@ -186,7 +190,10 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
                             type="number"
                             value={regador.radio_cobertura_default}
                             onChange={handleInputChange}
-                            helperText="Se puede ajustar individualmente por lote"
+                            error={!!errors.radio_cobertura_default}
+                            helperText={errors.radio_cobertura_default || "Se puede ajustar individualmente por lote"}
+                            required
+                            inputProps={{ min: 1, step: 0.1 }}
                         />
                     </Grid>
 
@@ -224,6 +231,7 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
                                 error={!!errors.caudal}
                                 helperText={errors.caudal}
                                 required
+                                inputProps={{ min: 1, step: 0.1 }}
                             />
                         </Grid>
                     ) : (
@@ -238,6 +246,7 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
                                 error={!!errors.tiempo_vuelta_completa}
                                 helperText={errors.tiempo_vuelta_completa || "Tiempo que tarda en completar una vuelta completa"}
                                 required
+                                inputProps={{ min: 1, step: 1 }}
                             />
                         </Grid>
                     )}
@@ -261,9 +270,11 @@ function RegadorConfigDialog({ open, onClose, onSave, campoId, regadorEdit = nul
                     </Grid>
 
                     <Grid item xs={12}>
-                        <Typography variant="body2" color="textSecondary">
-                            <strong>Nota:</strong> La ubicación del pivote se configurará individualmente para cada lote al crear las geozonas.
-                        </Typography>
+                        <Alert severity="info">
+                            <Typography variant="body2">
+                                <strong>Nota:</strong> La ubicación del pivote se configurará individualmente para cada lote al crear las geozonas.
+                            </Typography>
+                        </Alert>
                     </Grid>
                 </Grid>
             </DialogContent>

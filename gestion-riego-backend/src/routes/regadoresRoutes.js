@@ -42,12 +42,20 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
             campo_id,
             nombre_dispositivo,
             tipo_regador,
-            radio_cobertura,
+            radio_cobertura_default,
             caudal,
             tiempo_vuelta_completa,
             latitud_centro,
             longitud_centro
         } = req.body;
+
+        // Validación: radio_cobertura_default es requerido
+        if (!radio_cobertura_default || radio_cobertura_default <= 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ 
+                error: 'El radio de cobertura es requerido y debe ser mayor a 0' 
+            });
+        }
 
         // Verificar que no exista otro regador con el mismo nombre en el campo
         const existeRegador = await client.query(
@@ -74,11 +82,11 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
             campo_id,
             nombre_dispositivo,
             tipo_regador,
-            radio_cobertura,
-            caudal,
-            tiempo_vuelta_completa,
-            latitud_centro,
-            longitud_centro
+            parseFloat(radio_cobertura_default), // Usar radio_cobertura_default del frontend
+            caudal ? parseFloat(caudal) : null,
+            tiempo_vuelta_completa ? parseInt(tiempo_vuelta_completa) : null,
+            latitud_centro || null,
+            longitud_centro || null
         ]);
 
         await client.query('COMMIT');
@@ -100,7 +108,7 @@ router.put('/:regadorId', verifyToken, isAdmin, async (req, res) => {
         const {
             nombre_dispositivo,
             tipo_regador,
-            radio_cobertura,
+            radio_cobertura_default,
             caudal,
             tiempo_vuelta_completa,
             latitud_centro,
@@ -126,11 +134,11 @@ router.put('/:regadorId', verifyToken, isAdmin, async (req, res) => {
         const { rows } = await client.query(updateQuery, [
             nombre_dispositivo,
             tipo_regador,
-            radio_cobertura,
-            caudal,
-            tiempo_vuelta_completa,
-            latitud_centro,
-            longitud_centro,
+            radio_cobertura_default ? parseFloat(radio_cobertura_default) : null,
+            caudal ? parseFloat(caudal) : null,
+            tiempo_vuelta_completa ? parseInt(tiempo_vuelta_completa) : null,
+            latitud_centro || null,
+            longitud_centro || null,
             activo,
             regadorId
         ]);
@@ -247,8 +255,8 @@ router.post('/:regadorId/geozonas', verifyToken, isAdmin, async (req, res) => {
                 sector.angulo_fin,
                 sector.radio_interno || 0,
                 sector.radio_externo,
-                sector.activo,
-                sector.color_display,
+                sector.activo !== false,
+                sector.color_display || '#4CAF50',
                 sector.coeficiente_riego || 1.0,
                 sector.prioridad || 1
             ]);
