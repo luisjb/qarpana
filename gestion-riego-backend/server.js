@@ -15,7 +15,7 @@ const observacionesRoutes = require('./src/routes/observacionesRoutes');
 const recomendacionesRoutes = require('./src/routes/recomendacionesRoutes');
 const estacionesRoutes = require('./src/routes/estacionesRoutes');
 const gpsRoutes = require('./src/routes/gpsRoutes');
-const geozonasPivoteRoutes = require('./routes/geozonasPivoteRoutes');
+const geozonasPivoteRoutes = require('./src/routes/geozonasPivoteRoutes');
 
 
 
