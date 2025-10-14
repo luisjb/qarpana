@@ -193,7 +193,21 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
             
             // Si existe configuración, cargar los datos
             if (data.sectores && data.sectores.length > 0) {
-                setSectores(data.sectores);
+                // Convertir todos los valores numéricos a números
+                const sectoresNormalizados = data.sectores.map(sector => ({
+                    ...sector,
+                    numero_sector: parseInt(sector.numero_sector),
+                    angulo_inicio: parseFloat(sector.angulo_inicio),
+                    angulo_fin: parseFloat(sector.angulo_fin),
+                    radio_interno: parseFloat(sector.radio_interno || 0),
+                    radio_externo: parseFloat(sector.radio_externo),
+                    coeficiente_riego: parseFloat(sector.coeficiente_riego || 1.0),
+                    prioridad: parseInt(sector.prioridad || 1),
+                    activo: sector.activo !== false,
+                    mostrar_preview: true
+                }));
+                
+                setSectores(sectoresNormalizados);
                 setCentroPivote({
                     latitud_centro: data.latitud_centro || '',
                     longitud_centro: data.longitud_centro || '',
@@ -483,14 +497,14 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
     };
 
     const handleSaveGeozonas = async () => {
-    const errores = validarConfiguracion();
-    
-    if (errores.length > 0) {
-        setErrors({ validacion: errores });
-        return;
-    }
+        const errores = validarConfiguracion();
+        
+        if (errores.length > 0) {
+            setErrors({ validacion: errores });
+            return;
+        }
 
-    const datosGuardar = {
+        const datosGuardar = {
             regador_id: regador.id,
             lote_id: lote.id,
             latitud_centro: parseFloat(centroPivote.latitud_centro),
@@ -528,7 +542,6 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
             });
         }
     };
-
     const calcularAreaSector = (sector) => {
         let anguloRadianes;
         
