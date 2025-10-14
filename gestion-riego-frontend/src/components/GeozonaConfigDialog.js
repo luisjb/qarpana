@@ -14,6 +14,8 @@ import {
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import axios from '../axiosConfig';
+
 
 // Configurar iconos de Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -184,36 +186,37 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
     const cargarConfiguracionExistente = async () => {
         try {
             // Intentar cargar configuración existente del lote para este regador
-            const response = await fetch(`/api/geozonas-pivote/lote/${lote.id}/regador/${regador.id}`);
+            const response = await axios.get(`/geozonas-pivote/lote/${lote.id}/regador/${regador.id}`);
             
-            if (response.ok) {
-                const data = await response.json();
-                setConfiguracionExistente(data);
+            const data = response.data;
+            setConfiguracionExistente(data);
+            
+            // Si existe configuración, cargar los datos
+            if (data.sectores && data.sectores.length > 0) {
+                setSectores(data.sectores);
+                setCentroPivote({
+                    latitud_centro: data.latitud_centro || '',
+                    longitud_centro: data.longitud_centro || '',
+                    radio_cobertura: data.radio_cobertura || regador.radio_cobertura_default || ''
+                });
                 
-                // Si existe configuración, cargar los datos
-                if (data.sectores && data.sectores.length > 0) {
-                    setSectores(data.sectores);
-                    setCentroPivote({
-                        latitud_centro: data.latitud_centro || '',
-                        longitud_centro: data.longitud_centro || '',
-                        radio_cobertura: data.radio_cobertura || regador.radio_cobertura_default || ''
-                    });
-                    
-                    // Actualizar centro del mapa si hay coordenadas válidas
-                    if (data.latitud_centro && data.longitud_centro) {
-                        setMapCenter([parseFloat(data.latitud_centro), parseFloat(data.longitud_centro)]);
-                    }
-                } else {
-                    // Nueva configuración - usar valores por defecto del regador
-                    inicializarNuevaConfiguracion();
+                // Actualizar centro del mapa si hay coordenadas válidas
+                if (data.latitud_centro && data.longitud_centro) {
+                    setMapCenter([parseFloat(data.latitud_centro), parseFloat(data.longitud_centro)]);
                 }
             } else {
-                // No existe configuración - crear nueva
+                // Nueva configuración - usar valores por defecto del regador
                 inicializarNuevaConfiguracion();
             }
         } catch (error) {
-            console.error('Error cargando configuración:', error);
-            inicializarNuevaConfiguracion();
+            // Si es un error 404, significa que no hay configuración existente
+            if (error.response && error.response.status === 404) {
+                console.log('No existe configuración previa, creando nueva');
+                inicializarNuevaConfiguracion();
+            } else {
+                console.error('Error cargando configuración:', error);
+                inicializarNuevaConfiguracion();
+            }
         }
     };
 
@@ -480,14 +483,14 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
     };
 
     const handleSaveGeozonas = async () => {
-        const errores = validarConfiguracion();
-        
-        if (errores.length > 0) {
-            setErrors({ validacion: errores });
-            return;
-        }
+    const errores = validarConfiguracion();
+    
+    if (errores.length > 0) {
+        setErrors({ validacion: errores });
+        return;
+    }
 
-        const datosGuardar = {
+    const datosGuardar = {
             regador_id: regador.id,
             lote_id: lote.id,
             latitud_centro: parseFloat(centroPivote.latitud_centro),
@@ -508,28 +511,21 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
         };
 
         try {
-            const method = configuracionExistente ? 'PUT' : 'POST';
-            const url = configuracionExistente 
-                ? `/api/geozonas-pivote/${configuracionExistente.id}`
-                : '/api/geozonas-pivote';
-                
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(datosGuardar)
-            });
-
-            if (response.ok) {
-                onSave(datosGuardar);
+            if (configuracionExistente && configuracionExistente.id) {
+                // Actualizar configuración existente
+                await axios.put(`/geozonas-pivote/${configuracionExistente.id}`, datosGuardar);
             } else {
-                const errorData = await response.json();
-                setErrors({ general: errorData.message || 'Error al guardar la configuración' });
+                // Crear nueva configuración
+                await axios.post('/geozonas-pivote', datosGuardar);
             }
+            
+            onSave(datosGuardar);
+            onClose();
         } catch (error) {
             console.error('Error guardando configuración:', error);
-            setErrors({ general: 'Error al guardar la configuración' });
+            setErrors({ 
+                general: error.response?.data?.error || 'Error al guardar la configuración' 
+            });
         }
     };
 

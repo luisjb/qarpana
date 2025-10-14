@@ -15,6 +15,8 @@ const observacionesRoutes = require('./src/routes/observacionesRoutes');
 const recomendacionesRoutes = require('./src/routes/recomendacionesRoutes');
 const estacionesRoutes = require('./src/routes/estacionesRoutes');
 const gpsRoutes = require('./src/routes/gpsRoutes');
+const geozonasPivoteRoutes = require('./routes/geozonasPivoteRoutes');
+
 
 
 // NUEVA IMPORTACIÓN DE TRACCAR
@@ -84,6 +86,8 @@ app.use('/api/campanas', campañasRoutes);
 app.use('/api/observaciones', observacionesRoutes);
 app.use('/api/recomendaciones', recomendacionesRoutes);
 app.use('/api/estaciones', estacionesRoutes);
+app.use('/api/geozonas-pivote', geozonasPivoteRoutes);
+
 
 // NUEVA RUTA DE TRACCAR
 app.use('/api/traccar', traccarRoutes);
