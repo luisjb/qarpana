@@ -23,7 +23,7 @@
     
     <!-- OPTIONAL: POSITION FORWARDING TAMBIÉN -->
     <entry key='forward.enable'>true</entry>
-    <entry key='forward.url'>http://backend:5000/api/traccar-positions</entry>
+    <entry key='forward.url'>http://backend:5000/api/gps/posicion</entry>
     <entry key='forward.json'>true</entry>
     
     <entry key='event.geofence.enable'>true</entry>
