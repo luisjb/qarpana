@@ -85,8 +85,8 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
             parseFloat(radio_cobertura_default), // Usar radio_cobertura_default del frontend
             caudal ? parseFloat(caudal) : null,
             tiempo_vuelta_completa ? parseInt(tiempo_vuelta_completa) : null,
-            latitud_centro || null,
-            longitud_centro || null
+            latitud_centro || 0, // Valor temporal, se configura al crear geozonas
+            longitud_centro || 0 // Valor temporal, se configura al crear geozonas
         ]);
 
         await client.query('COMMIT');
@@ -351,6 +351,200 @@ router.get('/:regadorId/eventos', verifyToken, async (req, res) => {
         res.json(rows);
     } catch (err) {
         console.error('Error al obtener eventos de riego:', err);
+        res.status(500).json({ error: 'Error del servidor' });
+    } finally {
+        client.release();
+    }
+});
+
+// Obtener datos de operación del GPS (histórico)
+router.get('/:regadorId/datos-operacion', verifyToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { regadorId } = req.params;
+        const { desde, hasta, incluir_presion, incluir_altitud, limit = 1000 } = req.query;
+        
+        // Construir query dinámicamente según parámetros
+        let query = `
+            SELECT 
+                dog.id,
+                dog.timestamp,
+                dog.latitud,
+                dog.longitud,
+                dog.velocidad,
+                dog.curso,
+                dog.angulo_actual,
+                dog.distancia_centro,
+                dog.dentro_geozona,
+                dog.regando,
+                dog.encendido,
+                dog.moviendose,
+                dog.estado_texto,
+                ${incluir_presion === 'true' ? 'dog.presion, dog.io9_raw,' : ''}
+                ${incluir_altitud === 'true' ? 'dog.altitud,' : ''}
+                gp.nombre_sector,
+                gp.numero_sector,
+                l.nombre_lote
+            FROM datos_operacion_gps dog
+            LEFT JOIN geozonas_pivote gp ON dog.geozona_id = gp.id
+            LEFT JOIN lotes l ON gp.lote_id = l.id
+            WHERE dog.regador_id = $1
+        `;
+        
+        const params = [regadorId];
+        let paramIndex = 2;
+        
+        if (desde) {
+            query += ` AND dog.timestamp >= ${paramIndex}`;
+            params.push(desde);
+            paramIndex++;
+        }
+        
+        if (hasta) {
+            query += ` AND dog.timestamp <= ${paramIndex}`;
+            params.push(hasta);
+            paramIndex++;
+        }
+        
+        query += ` ORDER BY dog.timestamp DESC LIMIT ${paramIndex}`;
+        params.push(parseInt(limit));
+        
+        const { rows } = await client.query(query, params);
+        res.json(rows);
+    } catch (err) {
+        console.error('Error al obtener datos de operación:', err);
+        res.status(500).json({ error: 'Error del servidor' });
+    } finally {
+        client.release();
+    }
+});
+
+// Obtener último estado conocido del regador
+router.get('/:regadorId/ultimo-estado', verifyToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { regadorId } = req.params;
+        
+        const query = `
+            SELECT 
+                dog.*,
+                gp.nombre_sector,
+                gp.numero_sector,
+                l.nombre_lote
+            FROM datos_operacion_gps dog
+            LEFT JOIN geozonas_pivote gp ON dog.geozona_id = gp.id
+            LEFT JOIN lotes l ON gp.lote_id = l.id
+            WHERE dog.regador_id = $1
+            ORDER BY dog.timestamp DESC
+            LIMIT 1
+        `;
+        
+        const { rows } = await client.query(query, [regadorId]);
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'No hay datos de operación para este regador' });
+        }
+        
+        res.json(rows[0]);
+    } catch (err) {
+        console.error('Error al obtener último estado:', err);
+        res.status(500).json({ error: 'Error del servidor' });
+    } finally {
+        client.release();
+    }
+});
+
+// Obtener ciclos de riego completados
+router.get('/:regadorId/ciclos-riego', verifyToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { regadorId } = req.params;
+        const { desde, hasta, limit = 50 } = req.query;
+        
+        let query = `
+            SELECT 
+                cr.*,
+                gp.nombre_sector,
+                l.nombre_lote
+            FROM ciclos_riego cr
+            LEFT JOIN geozonas_pivote gp ON cr.geozona_id = gp.id
+            LEFT JOIN lotes l ON gp.lote_id = l.id
+            WHERE cr.regador_id = $1
+        `;
+        
+        const params = [regadorId];
+        let paramIndex = 2;
+        
+        if (desde) {
+            query += ` AND cr.fecha_inicio >= ${paramIndex}`;
+            params.push(desde);
+            paramIndex++;
+        }
+        
+        if (hasta) {
+            query += ` AND cr.fecha_fin <= ${paramIndex}`;
+            params.push(hasta);
+            paramIndex++;
+        }
+        
+        query += ` ORDER BY cr.fecha_inicio DESC LIMIT ${paramIndex}`;
+        params.push(parseInt(limit));
+        
+        const { rows } = await client.query(query, params);
+        res.json(rows);
+    } catch (err) {
+        console.error('Error al obtener ciclos de riego:', err);
+        res.status(500).json({ error: 'Error del servidor' });
+    } finally {
+        client.release();
+    }
+});
+
+// Obtener estadísticas del regador
+router.get('/:regadorId/estadisticas', verifyToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { regadorId } = req.params;
+        const { periodo = '7' } = req.query; // Días por defecto
+        
+        const query = `
+            SELECT 
+                COUNT(DISTINCT DATE(dog.timestamp)) as dias_operacion,
+                COUNT(*) as total_registros,
+                AVG(dog.presion) as presion_promedio,
+                MIN(dog.presion) as presion_minima,
+                MAX(dog.presion) as presion_maxima,
+                AVG(dog.velocidad) as velocidad_promedio,
+                SUM(CASE WHEN dog.regando THEN 1 ELSE 0 END) as registros_regando,
+                SUM(CASE WHEN dog.moviendose THEN 1 ELSE 0 END) as registros_movimiento,
+                COUNT(DISTINCT dog.geozona_id) as sectores_visitados
+            FROM datos_operacion_gps dog
+            WHERE dog.regador_id = $1
+                AND dog.timestamp >= NOW() - INTERVAL '${parseInt(periodo)} days'
+        `;
+        
+        const { rows } = await client.query(query, [regadorId]);
+        
+        // Obtener agua aplicada en el período
+        const aguaQuery = `
+            SELECT 
+                COALESCE(SUM(agua_aplicada_litros), 0) as agua_total_aplicada,
+                COUNT(*) as ciclos_completados,
+                AVG(duracion_minutos) as duracion_promedio
+            FROM ciclos_riego
+            WHERE regador_id = $1
+                AND fecha_inicio >= NOW() - INTERVAL '${parseInt(periodo)} days'
+                AND completado = true
+        `;
+        
+        const aguaResult = await client.query(aguaQuery, [regadorId]);
+        
+        res.json({
+            operacion: rows[0],
+            riego: aguaResult.rows[0]
+        });
+    } catch (err) {
+        console.error('Error al obtener estadísticas:', err);
         res.status(500).json({ error: 'Error del servidor' });
     } finally {
         client.release();
