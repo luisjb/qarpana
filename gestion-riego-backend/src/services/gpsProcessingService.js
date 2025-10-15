@@ -182,17 +182,19 @@ class GPSProcessingService {
      */
     async buscarRegador(nombreDispositivo) {
         const query = `
-            SELECT r.*, 
-                   COALESCE(gc.latitud_centro, r.latitud_centro) as latitud_centro,
-                   COALESCE(gc.longitud_centro, r.longitud_centro) as longitud_centro
+            SELECT 
+                r.id,
+                r.nombre_dispositivo,
+                r.tipo_regador,
+                r.radio_cobertura,
+                r.caudal,
+                r.tiempo_vuelta_completa,
+                r.latitud_centro,
+                r.longitud_centro,
+                r.activo
             FROM regadores r
-            LEFT JOIN LATERAL (
-                SELECT gp.latitud_centro, gp.longitud_centro
-                FROM geozonas_pivote gp
-                WHERE gp.regador_id = r.id
-                LIMIT 1
-            ) gc ON true
-            WHERE r.nombre_dispositivo = $1 AND r.activo = true
+            WHERE r.nombre_dispositivo = $1 
+            AND r.activo = true
             LIMIT 1
         `;
         
