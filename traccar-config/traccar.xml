@@ -25,6 +25,10 @@
     <entry key='forward.enable'>true</entry>
     <entry key='forward.url'>http://backend:5000/api/gps/posicion</entry>
     <entry key='forward.json'>true</entry>
+    <entry key='forward.type'>json</entry>
+    <entry key='forward.retry.enable'>true</entry>
+    <entry key='forward.retry.delay'>30000</entry>
+    <entry key='forward.retry.count'>10</entry>
     
     <entry key='event.geofence.enable'>true</entry>
     <entry key='event.motion.enable'>true</entry>
