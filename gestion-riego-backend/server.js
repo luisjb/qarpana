@@ -16,6 +16,8 @@ const recomendacionesRoutes = require('./src/routes/recomendacionesRoutes');
 const estacionesRoutes = require('./src/routes/estacionesRoutes');
 const gpsRoutes = require('./src/routes/gpsRoutes');
 const geozonasPivoteRoutes = require('./src/routes/geozonasPivoteRoutes');
+const gpsController = require('./src/controllers/gpsController');
+
 
 
 
@@ -114,6 +116,18 @@ app.post('/api/forzar-actualizacion', async (req, res) => {
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).send('Algo salió mal!');
+});
+
+app.post('/api/gps/posicion', async (req, res) => {
+    console.log('📍 Position Forwarding recibido');
+    console.log('📦 Dispositivo:', req.body.device?.name);
+    
+    try {
+        await gpsController.procesarPosicion(req, res);
+    } catch (error) {
+        console.error('❌ Error procesando posición:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.listen(port, '0.0.0.0', () => {
