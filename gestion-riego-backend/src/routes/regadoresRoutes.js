@@ -1,4 +1,3 @@
-// src/routes/regadoresRoutes.js
 const express = require('express');
 const router = express.Router();
 const { verifyToken, isAdmin } = require('../middleware/auth');
@@ -82,11 +81,11 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
             campo_id,
             nombre_dispositivo,
             tipo_regador,
-            parseFloat(radio_cobertura_default), // Usar radio_cobertura_default del frontend
+            parseFloat(radio_cobertura_default),
             caudal ? parseFloat(caudal) : null,
             tiempo_vuelta_completa ? parseInt(tiempo_vuelta_completa) : null,
-            latitud_centro || 0, // Valor temporal, se configura al crear geozonas
-            longitud_centro || 0 // Valor temporal, se configura al crear geozonas
+            latitud_centro || null,
+            longitud_centro || null
         ]);
 
         await client.query('COMMIT');
@@ -379,9 +378,9 @@ router.get('/:regadorId/datos-operacion', verifyToken, async (req, res) => {
                 dog.regando,
                 dog.encendido,
                 dog.moviendose,
-                dog.estado_texto,
-                ${incluir_presion === 'true' ? 'dog.presion, dog.io9_raw,' : ''}
-                ${incluir_altitud === 'true' ? 'dog.altitud,' : ''}
+                dog.estado_texto
+                ${incluir_presion === 'true' ? ', dog.presion, dog.io9_raw' : ''}
+                ${incluir_altitud === 'true' ? ', dog.altitud' : ''},
                 gp.nombre_sector,
                 gp.numero_sector,
                 l.nombre_lote
@@ -395,25 +394,25 @@ router.get('/:regadorId/datos-operacion', verifyToken, async (req, res) => {
         let paramIndex = 2;
         
         if (desde) {
-            query += ` AND dog.timestamp >= ${paramIndex}`;
+            query += ` AND dog.timestamp >= $${paramIndex}::timestamp`;
             params.push(desde);
             paramIndex++;
         }
         
         if (hasta) {
-            query += ` AND dog.timestamp <= ${paramIndex}`;
+            query += ` AND dog.timestamp <= $${paramIndex}::timestamp`;
             params.push(hasta);
             paramIndex++;
         }
         
-        query += ` ORDER BY dog.timestamp DESC LIMIT ${paramIndex}`;
+        query += ` ORDER BY dog.timestamp DESC LIMIT $${paramIndex}`;
         params.push(parseInt(limit));
         
         const { rows } = await client.query(query, params);
         res.json(rows);
     } catch (err) {
         console.error('Error al obtener datos de operación:', err);
-        res.status(500).json({ error: 'Error del servidor' });
+        res.status(500).json({ error: 'Error del servidor', details: err.message });
     } finally {
         client.release();
     }
@@ -476,18 +475,18 @@ router.get('/:regadorId/ciclos-riego', verifyToken, async (req, res) => {
         let paramIndex = 2;
         
         if (desde) {
-            query += ` AND cr.fecha_inicio >= ${paramIndex}`;
+            query += ` AND cr.fecha_inicio >= $${paramIndex}::timestamp`;
             params.push(desde);
             paramIndex++;
         }
         
         if (hasta) {
-            query += ` AND cr.fecha_fin <= ${paramIndex}`;
+            query += ` AND cr.fecha_fin <= $${paramIndex}::timestamp`;
             params.push(hasta);
             paramIndex++;
         }
         
-        query += ` ORDER BY cr.fecha_inicio DESC LIMIT ${paramIndex}`;
+        query += ` ORDER BY cr.fecha_inicio DESC LIMIT $${paramIndex}`;
         params.push(parseInt(limit));
         
         const { rows } = await client.query(query, params);
