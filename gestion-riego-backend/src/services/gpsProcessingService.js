@@ -235,31 +235,37 @@ class GPSProcessingService {
         // Margen de tolerancia de 10 metros para detección (no afecta cálculos de área)
         const MARGEN_TOLERANCIA = 10;
         
-        const query = `
+         const query = `
             SELECT gp.*
             FROM geozonas_pivote gp
             WHERE gp.regador_id = $1
               AND gp.activo = true
               AND $2 >= gp.radio_interno
               AND $2 <= (gp.radio_externo + $3)
+            ORDER BY gp.numero_sector
         `;
         
         const result = await pool.query(query, [regadorId, distancia, MARGEN_TOLERANCIA]);
         
         // Filtrar por ángulo en JavaScript (más preciso)
         for (const geozona of result.rows) {
+            let dentroDelSector = false;
+            
             if (geozona.angulo_fin > geozona.angulo_inicio) {
-                if (angulo >= geozona.angulo_inicio && angulo <= geozona.angulo_fin) {
-                    return geozona;
-                }
+                // Sector normal (no cruza 0°)
+                dentroDelSector = (angulo >= geozona.angulo_inicio && angulo < geozona.angulo_fin);
             } else {
-                // Sector que cruza 0°
-                if (angulo >= geozona.angulo_inicio || angulo <= geozona.angulo_fin) {
-                    return geozona;
-                }
+                // Sector que cruza 0° (ej: 300° a 60°)
+                dentroDelSector = (angulo >= geozona.angulo_inicio || angulo < geozona.angulo_fin);
+            }
+            
+            if (dentroDelSector) {
+                console.log(`🎯 GPS en ${angulo.toFixed(1)}° → ${geozona.nombre_sector} (${geozona.angulo_inicio}°-${geozona.angulo_fin}°)`);
+                return geozona;
             }
         }
         
+        console.log(`⚠️ GPS en ${angulo.toFixed(1)}° → Fuera de todos los sectores`);
         return null;
     }
     
