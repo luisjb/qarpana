@@ -256,18 +256,34 @@ class GPSProcessingService {
             // Normalizar ángulo a 0-360
             const anguloNormalizado = ((angulo % 360) + 360) % 360;
             
-            if (geozona.angulo_fin > geozona.angulo_inicio) {
-                // Sector normal (no cruza 0°)
-                dentroDelSector = (anguloNormalizado >= geozona.angulo_inicio && anguloNormalizado < geozona.angulo_fin);
-                console.log(`  ${geozona.nombre_sector} (${geozona.angulo_inicio}°-${geozona.angulo_fin}°): ${dentroDelSector ? '✓' : '✗'}`);
+            // Normalizar ángulos del sector
+            const anguloInicio = geozona.angulo_inicio % 360;
+            const anguloFin = geozona.angulo_fin % 360;
+            
+            // Determinar si el sector cruza 0° (ejemplo: 300° a 60°, o 300° a 360°)
+            const cruzaCero = anguloFin < anguloInicio || 
+                            (anguloFin === 360 && anguloInicio > 0) ||
+                            (anguloFin === 0 && anguloInicio > 0);
+            
+            if (cruzaCero) {
+                // Sector que cruza 0° 
+                // Ejemplos válidos: 300°-60° (fin < inicio), 300°-360°, 300°-0°
+                if (anguloFin === 360 || anguloFin === 0) {
+                    // Caso especial: sector hasta 360° o 0°
+                    dentroDelSector = (anguloNormalizado >= anguloInicio);
+                } else {
+                    // Caso normal: cruza 0° (ej: 300° a 60°)
+                    dentroDelSector = (anguloNormalizado >= anguloInicio || anguloNormalizado < anguloFin);
+                }
+                console.log(`  ${geozona.nombre_sector} (${anguloInicio}°-${anguloFin}° cruza 0°): ${dentroDelSector ? '✓' : '✗'}`);
             } else {
-                // Sector que cruza 0° (ej: 300° a 60°)
-                dentroDelSector = (anguloNormalizado >= geozona.angulo_inicio || anguloNormalizado < geozona.angulo_fin);
-                console.log(`  ${geozona.nombre_sector} (${geozona.angulo_inicio}°-${geozona.angulo_fin}° cruza 0°): ${dentroDelSector ? '✓' : '✗'}`);
+                // Sector normal (no cruza 0°)
+                dentroDelSector = (anguloNormalizado >= anguloInicio && anguloNormalizado < anguloFin);
+                console.log(`  ${geozona.nombre_sector} (${anguloInicio}°-${anguloFin}°): ${dentroDelSector ? '✓' : '✗'}`);
             }
             
             if (dentroDelSector) {
-                console.log(`🎯 GPS en ${angulo.toFixed(1)}° → ${geozona.nombre_sector} (${geozona.angulo_inicio}°-${geozona.angulo_fin}°)`);
+                console.log(`🎯 GPS en ${angulo.toFixed(1)}° → ${geozona.nombre_sector} (${anguloInicio}°-${anguloFin}°)`);
                 return geozona;
             }
         }
