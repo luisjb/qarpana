@@ -372,7 +372,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const fetchEstadoRiego = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(`/regadores/campo/${campoId}/estado-riego`);
+            const response = await axios.get(`/gps/campos/${campoId}/estado-riego`);
             setRegadores(response.data);
             
             // Log para debugging en caso de múltiples regadores
@@ -389,7 +389,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const fetchDatosOperacion = async (regadorId) => {
         try {
             // Obtener datos de operación de las últimas 24 horas o del ciclo actual
-            const response = await axios.get(`/regadores/${regadorId}/datos-operacion`, {
+                const response = await axios.get(`/gps/regadores/${regadorId}/datos-operacion`, {
                 params: {
                     desde: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Últimas 24 horas
                     incluir_presion: true,
@@ -408,11 +408,11 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
             setSelectedRegador(regador);
             
             // Cargar sectores detallados
-            const sectoresResponse = await axios.get(`/regadores/${regador.regador_id}/geozonas`);
+            const sectoresResponse = await axios.get(`/geozonas-pivote/regador/${regador.regador_id}`);
             setSectoresDetalle(sectoresResponse.data);
             
             // Cargar eventos recientes
-            const eventosResponse = await axios.get(`/regadores/${regador.regador_id}/eventos?limit=20`);
+            const eventosResponse = await axios.get(`/gps/regadores/${regador.regador_id}/eventos?limit=20`);
             setEventosRecientes(eventosResponse.data);
             
             // Cargar datos de operación

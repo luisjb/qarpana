@@ -53,6 +53,9 @@ class GPSController {
                     dog.velocidad,
                     dog.dentro_geozona,
                     dog.regando,
+                    dog.encendido,
+                    dog.moviendose,
+                    dog.estado_texto,
                     ${incluir_presion === 'true' ? 'dog.presion,' : ''}
                     ${incluir_altitud === 'true' ? 'dog.altitud,' : ''}
                     gp.nombre_sector,
@@ -79,11 +82,10 @@ class GPSController {
             
             const result = await pool.query(query, params);
             
-            res.json({
-                success: true,
-                count: result.rows.length,
-                data: result.rows
-            });
+            // IMPORTANTE: Devolver directamente el array, no wrapped en .data
+            // Porque axios ya parsea response.data, entonces:
+            // Backend: res.json([...])  →  Frontend: response.data = [...]
+            res.json(result.rows);
             
         } catch (error) {
             console.error('Error obteniendo datos operación:', error);

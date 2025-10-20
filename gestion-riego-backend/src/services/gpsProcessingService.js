@@ -418,7 +418,7 @@ class GPSProcessingService {
     /**
      * Actualiza el estado del sector durante el riego
      */
-     async actualizarEstadoSector(geozonaId, datosOperacion) {
+    async actualizarEstadoSector(geozonaId, datosOperacion) {
         try {
             // Obtener información del regador y el sector
             const queryInfo = `
@@ -450,18 +450,18 @@ class GPSProcessingService {
                 ? gpsCalc.calcularAguaAplicada(sector.caudal, duracionMinutos, sector.coeficiente_riego)
                 : 0;
             
-            // Calcular área del sector (para estimar progreso)
+            // Calcular área del sector
             const areaSector = gpsCalc.calcularAreaSector(sector);
             
-            // Estimar progreso basado en tiempo (simplificado)
-            // Asumiendo que una vuelta completa = 100%
+            // Calcular progreso basado en lámina aplicada
             let progreso = 0;
-            if (sector.tiempo_vuelta_completa) {
-                progreso = Math.min(100, (duracionMinutos / sector.tiempo_vuelta_completa) * 100);
-            } else if (areaSector > 0 && aguaAplicada > 0) {
-                // Estimar progreso basado en lámina aplicada (20mm objetivo)
-                const laminaAplicada = gpsCalc.calcularLaminaAplicada(aguaAplicada, areaSector);
-                progreso = Math.min(100, (laminaAplicada / 20) * 100);
+            let laminaAplicada = 0;
+            
+            if (areaSector > 0 && aguaAplicada > 0) {
+                laminaAplicada = gpsCalc.calcularLaminaAplicada(aguaAplicada, areaSector);
+                // Objetivo: 20mm de lámina = 100%
+                // No limitar aquí - dejar que suba naturalmente
+                progreso = (laminaAplicada / 20) * 100;
             }
             
             // Actualizar estado del sector
@@ -473,10 +473,7 @@ class GPSProcessingService {
                 ) VALUES ($1, $2, $3, $4, $5, $6)
                 ON CONFLICT (geozona_id) 
                 DO UPDATE SET
-                    estado = CASE 
-                        WHEN EXCLUDED.progreso_porcentaje >= 100 THEN 'completado'
-                        ELSE 'en_progreso'
-                    END,
+                    estado = 'en_progreso',
                     progreso_porcentaje = EXCLUDED.progreso_porcentaje,
                     agua_aplicada_litros = EXCLUDED.agua_aplicada_litros,
                     ultima_actualizacion = EXCLUDED.ultima_actualizacion,
@@ -486,7 +483,7 @@ class GPSProcessingService {
             
             const result = await pool.query(queryUpdate, [
                 geozonaId,
-                progreso >= 100 ? 'completado' : 'en_progreso',
+                'en_progreso',
                 Math.round(progreso * 100) / 100,
                 fechaInicio,
                 Math.round(aguaAplicada),
@@ -494,7 +491,7 @@ class GPSProcessingService {
             ]);
             
             if (progreso > 0) {
-                console.log(`📊 Sector actualizado - ${sector.nombre_sector}: ${progreso.toFixed(1)}% - ${Math.round(aguaAplicada)}L`);
+                console.log(`📊 Sector actualizado - ${sector.nombre_sector}: ${progreso.toFixed(1)}% - ${Math.round(aguaAplicada)}L - Lámina: ${laminaAplicada.toFixed(1)}mm`);
             }
             
             return result.rows[0];
