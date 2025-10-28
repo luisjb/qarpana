@@ -15,7 +15,7 @@ class GPSProcessingService {
      determinarEstadoRegador(position, presion, velocidad) {
         const ignition = position.attributes?.ignition || false;
         
-        // Presión > 20 PSI indica que está regando
+        // Presión > 20 PSI indica que está regand o
         const regando = presion && presion > 20;
         
         // Velocidad > 0.1 km/h indica movimiento (ajustado, antes era 0.5)
