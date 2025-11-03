@@ -5,6 +5,8 @@ import { CheckCircle, Schedule, PlayArrow, Pause } from '@mui/icons-material';
 // Componente de visualización circular SVG
 function CircularRiegoVisualization({ sectores, regador, size = 300 }) {
     const [hoveredSector, setHoveredSector] = useState(null);
+    const [sectorActual, setSectorActual] = useState(null); // ⭐ NUEVO
+    const [vueltaActual, setVueltaActual] = useState(null); // ⭐ NUEVO
     
     const centerX = size / 2;
     const centerY = size / 2;
@@ -39,6 +41,9 @@ function CircularRiegoVisualization({ sectores, regador, size = 300 }) {
         const estado = sector.estado || 'pendiente';
         const progreso = sector.progreso_porcentaje || 0;
 
+        if (sectorActual === sector.nombre_sector) {
+            return '#4CAF50'; // Verde brillante
+        }
         switch (estado) {
             case 'completado':
                 return baseColor; // Color completo
@@ -61,6 +66,30 @@ function CircularRiegoVisualization({ sectores, regador, size = 300 }) {
             default: return 'Pendiente';
         }
     };
+
+    useEffect(() => {
+        const cargarEstadoActual = async () => {
+            try {
+                // Posición actual
+                const responsePosicion = await axios.get(`/gps/${regador.id}/posicion-actual`);
+                if (responsePosicion.data.success) {
+                    setSectorActual(responsePosicion.data.data.nombre_sector);
+                }
+                
+                // Vuelta actual
+                const responseVuelta = await axios.get(`/regadores/${regador.id}/vuelta-actual`);
+                if (responseVuelta.data.success && responseVuelta.data.data) {
+                    setVueltaActual(responseVuelta.data.data.vuelta);
+                }
+            } catch (error) {
+                console.error('Error cargando estado actual:', error);
+            }
+        };
+
+        cargarEstadoActual();
+        const interval = setInterval(cargarEstadoActual, 10000); // cada 10 seg
+        return () => clearInterval(interval);
+    }, [regador.id]);
 
     // Función para calcular posición del texto
     const getTextPosition = (startAngle, endAngle) => {
@@ -88,6 +117,13 @@ function CircularRiegoVisualization({ sectores, regador, size = 300 }) {
                 </Typography>
                 
                 <Box display="flex" justifyContent="center" mb={2}>
+                    {sectorActual && (
+                        <Box mb={2} p={2} bgcolor="primary.light" borderRadius={2}>
+                            <Typography variant="h6" color="white" textAlign="center">
+                                🎯 Regando: {sectorActual}
+                            </Typography>
+                        </Box>
+                    )}
                     <svg width={size} height={size} style={{ overflow: 'visible' }}>
                         {/* Círculo de fondo */}
                         <circle
@@ -179,30 +215,30 @@ function CircularRiegoVisualization({ sectores, regador, size = 300 }) {
                         <circle
                             cx={centerX}
                             cy={centerY}
-                            r="30"
+                            r="40"
                             fill="#ffffff"
-                            stroke="#e0e0e0"
-                            strokeWidth="2"
+                            stroke="#2196F3"
+                            strokeWidth="3"
                         />
                         <text
                             x={centerX}
-                            y={centerY - 5}
+                            y={centerY - 10}
                             textAnchor="middle"
-                            dominantBaseline="middle"
-                            fontSize="10"
-                            fill="#666"
+                            fontSize="18"
+                            fill="#2196F3"
+                            fontWeight="bold"
                         >
-                            {regador.progreso_promedio ? Math.round(regador.progreso_promedio) : 0}%
+                            Vuelta
                         </text>
                         <text
                             x={centerX}
-                            y={centerY + 8}
+                            y={centerY + 10}
                             textAnchor="middle"
-                            dominantBaseline="middle"
-                            fontSize="8"
-                            fill="#999"
+                            fontSize="24"
+                            fill="#2196F3"
+                            fontWeight="bold"
                         >
-                            Total
+                            {vueltaActual ? vueltaActual.numero_vuelta : '-'}
                         </text>
                     </svg>
                 </Box>

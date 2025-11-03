@@ -10,7 +10,7 @@ import {
     WaterDrop, PlayArrow, Pause, Stop, Refresh, Timeline,
     CheckCircle, RadioButtonChecked, Schedule, Warning,
     Settings, Visibility, MyLocation, PieChart, ViewList,
-    ShowChart, Speed, Terrain
+    ShowChart, Speed, Terrain, Autorenew
 } from '@mui/icons-material';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -20,6 +20,8 @@ import { format, formatDistance } from 'date-fns';
 import { es } from 'date-fns/locale';
 import axios from '../axiosConfig';
 import CircularRiegoVisualization from './CircularRiegoVisualization';
+import { Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
+import { ExpandMore } from '@mui/icons-material';
 
 // Componente para el gráfico de presión y altitud
 function PresionAltitudChart({ datosOperacion, regador }) {
@@ -148,51 +150,38 @@ function PresionAltitudChart({ datosOperacion, regador }) {
                 </Grid>
             </Grid>
 
-            {/* Gráfico */}
-            <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
-                    <ShowChart />
-                    Presión y Altitud durante la Operación
+            {/* Gráfico de líneas dual */}
+            <Paper sx={{ p: 2 }}>
+                <Typography variant="h6" gutterBottom>
+                    📈 Presión y Altitud en el Tiempo
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={datosFormateados} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={datosFormateados}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis 
                             dataKey="tiempo" 
+                            tick={{ fontSize: 11 }}
                             interval="preserveStartEnd"
-                            tick={{ fontSize: 12 }}
                         />
                         <YAxis 
                             yAxisId="presion"
-                            orientation="left"
                             label={{ value: 'Presión (PSI)', angle: -90, position: 'insideLeft' }}
-                            tick={{ fontSize: 12 }}
+                            stroke="#1976d2"
                         />
                         <YAxis 
                             yAxisId="altitud"
                             orientation="right"
                             label={{ value: 'Altitud (m)', angle: 90, position: 'insideRight' }}
-                            tick={{ fontSize: 12 }}
+                            stroke="#d32f2f"
                         />
                         <RechartsTooltip content={<CustomTooltip />} />
                         <Legend />
-                        
-                        {/* Línea de presión promedio */}
                         <ReferenceLine 
                             yAxisId="presion"
                             y={presionPromedio} 
                             stroke="#1976d2" 
                             strokeDasharray="5 5" 
-                            label="Prom. Presión"
-                        />
-                        
-                        {/* Línea de altitud promedio */}
-                        <ReferenceLine 
-                            yAxisId="altitud"
-                            y={altitudPromedio} 
-                            stroke="#d32f2f" 
-                            strokeDasharray="5 5" 
-                            label="Prom. Altitud"
+                            label={{ value: 'Promedio', position: 'insideTopRight' }}
                         />
                         
                         <Line 
@@ -362,6 +351,12 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const [datosOperacion, setDatosOperacion] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
     const [tabValue, setTabValue] = useState(0);
+    
+    // ⭐ NUEVOS ESTADOS PARA VUELTAS
+    const [vueltas, setVueltas] = useState([]);
+    const [vueltaActual, setVueltaActual] = useState(null);
+    const [estadisticasGenerales, setEstadisticasGenerales] = useState(null);
+    const [loadingVueltas, setLoadingVueltas] = useState(false);
 
     useEffect(() => {
         if (campoId) {
@@ -369,13 +364,29 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
         }
     }, [campoId]);
 
+    // Actualización automática cada 30 segundos
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (selectedRegador && detalleDialog) {
+                // Actualizar datos cuando está viendo detalles
+                fetchDatosOperacion(selectedRegador.regador_id);
+                
+                // Si está en el tab de vueltas, actualizar vueltas
+                if (tabValue === 3) {
+                    cargarVueltasYEstadisticas(selectedRegador.regador_id);
+                }
+            }
+        }, 30000);
+
+        return () => clearInterval(interval);
+    }, [selectedRegador, detalleDialog, tabValue]);
+
     const fetchEstadoRiego = async () => {
         try {
             setLoading(true);
             const response = await axios.get(`/gps/campos/${campoId}/estado-riego`);
             setRegadores(response.data);
             
-            // Log para debugging en caso de múltiples regadores
             if (response.data.length > 1) {
                 console.log(`📡 Campo ${nombreCampo} tiene ${response.data.length} regadores configurados`);
             }
@@ -388,10 +399,9 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
 
     const fetchDatosOperacion = async (regadorId) => {
         try {
-            // Obtener datos de operación de las últimas 24 horas o del ciclo actual
-                const response = await axios.get(`/gps/regadores/${regadorId}/datos-operacion`, {
+            const response = await axios.get(`/gps/regadores/${regadorId}/datos-operacion`, {
                 params: {
-                    desde: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Últimas 24 horas
+                    desde: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
                     incluir_presion: true,
                     incluir_altitud: true
                 }
@@ -400,6 +410,28 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
         } catch (error) {
             console.error('Error al obtener datos de operación:', error);
             setDatosOperacion([]);
+        }
+    };
+
+    // ⭐ NUEVA FUNCIÓN - Cargar vueltas y estadísticas
+    const cargarVueltasYEstadisticas = async (regadorId) => {
+        try {
+            setLoadingVueltas(true);
+            
+            const response = await axios.get(`/regadores/${regadorId}/resumen-completo`);
+            
+            if (response.data.success) {
+                setVueltas(response.data.data.vueltas || []);
+                setVueltaActual(response.data.data.vuelta_actual);
+                setEstadisticasGenerales(response.data.data.estadisticas_generales);
+            }
+        } catch (error) {
+            console.error('Error cargando vueltas:', error);
+            setVueltas([]);
+            setVueltaActual(null);
+            setEstadisticasGenerales(null);
+        } finally {
+            setLoadingVueltas(false);
         }
     };
 
@@ -418,6 +450,9 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
             // Cargar datos de operación
             await fetchDatosOperacion(regador.regador_id);
             
+            // ⭐ NUEVO - Cargar vueltas y estadísticas
+            await cargarVueltasYEstadisticas(regador.regador_id);
+            
             setDetalleDialog(true);
         } catch (error) {
             console.error('Error al obtener detalles del regador:', error);
@@ -427,12 +462,14 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const handleRefresh = async (regadorId = null) => {
         setRefreshing(true);
         try {
-            if (regadorId) {
-                // Refrescar solo un regador específico
-                await fetchEstadoRiego();
-            } else {
-                // Refrescar todo
-                await fetchEstadoRiego();
+            await fetchEstadoRiego();
+            
+            // Si hay un regador seleccionado, actualizar sus detalles también
+            if (selectedRegador && detalleDialog) {
+                await fetchDatosOperacion(selectedRegador.regador_id);
+                if (tabValue === 3) {
+                    await cargarVueltasYEstadisticas(selectedRegador.regador_id);
+                }
             }
         } catch (error) {
             console.error('Error al actualizar:', error);
@@ -441,43 +478,42 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
         }
     };
 
-    const getEstadoColor = (estado) => {
-        switch (estado) {
-            case 'completado': return 'success';
-            case 'en_progreso': return 'primary';
-            case 'pausado': return 'warning';
-            default: return 'default';
-        }
-    };
-
-    const formatFecha = (fecha) => {
-        if (!fecha) return 'No definido';
-        try {
-            return format(new Date(fecha), 'dd/MM/yyyy HH:mm', { locale: es });
-        } catch (error) {
-            return 'Fecha inválida';
-        }
+    const handleCloseDialog = () => {
+        setDetalleDialog(false);
+        setSelectedRegador(null);
+        setSectoresDetalle([]);
+        setEventosRecientes([]);
+        setDatosOperacion([]);
+        setTabValue(0);
+        // Limpiar datos de vueltas
+        setVueltas([]);
+        setVueltaActual(null);
+        setEstadisticasGenerales(null);
     };
 
     if (loading) {
         return (
-            <Container maxWidth="xl">
-                <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-                    <CircularProgress />
+            <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+                <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+                    <CircularProgress size={60} />
                 </Box>
             </Container>
         );
     }
 
     return (
-        <Container maxWidth="xl">
+        <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+            {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h4" gutterBottom>
-                    Estado de Riego - {nombreCampo}
-                </Typography>
+                <Box display="flex" alignItems="center" gap={2}>
+                    <WaterDrop sx={{ fontSize: 40, color: '#1976d2' }} />
+                    <Typography variant="h4" component="h1">
+                        Estado de Riego - {nombreCampo}
+                    </Typography>
+                </Box>
                 <Button
-                    variant="outlined"
-                    startIcon={refreshing ? <CircularProgress size={20} /> : <Refresh />}
+                    variant="contained"
+                    startIcon={<Refresh />}
                     onClick={() => handleRefresh()}
                     disabled={refreshing}
                 >
@@ -485,20 +521,25 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                 </Button>
             </Box>
 
+            {/* Grid de regadores */}
             {regadores.length === 0 ? (
-                <Paper sx={{ p: 4, textAlign: 'center' }}>
-                    <WaterDrop sx={{ fontSize: 64, color: 'gray', mb: 2 }} />
-                    <Typography variant="h6" color="textSecondary">
-                        No hay regadores configurados en este campo
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                        Configure regadores en la gestión de campos para ver el estado de riego
-                    </Typography>
-                </Paper>
+                <Card>
+                    <CardContent>
+                        <Box textAlign="center" py={4}>
+                            <Warning sx={{ fontSize: 48, color: 'warning.main', mb: 2 }} />
+                            <Typography variant="h6" gutterBottom>
+                                No hay regadores configurados en este campo
+                            </Typography>
+                            <Typography color="textSecondary">
+                                Configure un regador GPS desde la gestión de campos
+                            </Typography>
+                        </Box>
+                    </CardContent>
+                </Card>
             ) : (
                 <Grid container spacing={3}>
                     {regadores.map((regador) => (
-                        <Grid item xs={12} sm={6} lg={4} key={regador.regador_id}>
+                        <Grid item xs={12} md={6} lg={4} key={regador.regador_id}>
                             <RegadorCard
                                 regador={regador}
                                 onViewDetails={handleViewDetails}
@@ -510,185 +551,392 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
             )}
 
             {/* Dialog de detalles */}
-            <Dialog 
-                open={detalleDialog} 
-                onClose={() => setDetalleDialog(false)}
+            <Dialog
+                open={detalleDialog}
+                onClose={handleCloseDialog}
                 maxWidth="xl"
                 fullWidth
+                PaperProps={{
+                    sx: { height: '90vh' }
+                }}
             >
                 <DialogTitle>
-                    <Box display="flex" alignItems="center" gap={2}>
-                        <WaterDrop />
-                        Detalles de Riego - {selectedRegador?.nombre_dispositivo}
+                    <Box display="flex" alignItems="center" justifyContent="space-between">
+                        <Box display="flex" alignItems="center" gap={2}>
+                            <MyLocation color="primary" />
+                            <Typography variant="h6">
+                                {selectedRegador?.nombre_dispositivo}
+                            </Typography>
+                        </Box>
+                        <Box display="flex" gap={1}>
+                            <Chip 
+                                label={`${sectoresDetalle.length} Sectores`}
+                                color="primary"
+                                size="small"
+                            />
+                            <Chip 
+                                label={selectedRegador?.regador_activo ? 'Activo' : 'Inactivo'}
+                                color={selectedRegador?.regador_activo ? 'success' : 'default'}
+                                size="small"
+                            />
+                        </Box>
                     </Box>
                 </DialogTitle>
-                <DialogContent>
-                    <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-                        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-                            <Tab 
-                                icon={<PieChart />} 
-                                label="Vista Circular" 
-                                iconPosition="start"
-                            />
-                            <Tab 
-                                icon={<ShowChart />} 
-                                label="Datos de Operación" 
-                                iconPosition="start"
-                            />
-                            <Tab 
-                                icon={<ViewList />} 
-                                label="Vista Detallada" 
-                                iconPosition="start"
-                            />
-                        </Tabs>
-                    </Box>
 
+                <DialogContent>
+                    <Tabs 
+                        value={tabValue} 
+                        onChange={(e, newValue) => setTabValue(newValue)}
+                        variant="scrollable"
+                        scrollButtons="auto"
+                        sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+                    >
+                        <Tab label="Visualización" icon={<PieChart />} />
+                        <Tab label="Sectores" icon={<ViewList />} />
+                        <Tab label="Gráficas" icon={<ShowChart />} />
+                        <Tab label="Vueltas" icon={<Autorenew />} /> {/* ⭐ NUEVO TAB */}
+                    </Tabs>
+
+                    {/* Tab 0: Visualización Circular */}
                     {tabValue === 0 && (
-                        /* Vista Circular */
-                        <Grid container spacing={3}>
-                            <Grid item xs={12} md={8}>
-                                <CircularRiegoVisualization 
+                        <Box>
+                            {sectoresDetalle.length > 0 ? (
+                                <CircularRiegoVisualization
                                     sectores={sectoresDetalle}
                                     regador={selectedRegador}
-                                    size={400}
+                                    size={500}
                                 />
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                                <Typography variant="h6" gutterBottom>
-                                    Eventos Recientes
-                                </Typography>
-                                <Paper variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
-                                    <List dense>
-                                        {eventosRecientes.map((evento, index) => (
-                                            <ListItem key={index}>
-                                                <ListItemIcon>
-                                                    {evento.tipo_evento === 'entrada' && <PlayArrow color="success" />}
-                                                    {evento.tipo_evento === 'salida' && <Stop color="error" />}
-                                                    {evento.tipo_evento === 'movimiento' && <MyLocation color="info" />}
-                                                </ListItemIcon>
-                                                <ListItemText
-                                                    primary={`${evento.tipo_evento} ${evento.nombre_sector ? `- ${evento.nombre_sector}` : ''}`}
-                                                    secondary={formatFecha(evento.fecha_evento)}
-                                                />
-                                            </ListItem>
-                                        ))}
-                                        {eventosRecientes.length === 0 && (
-                                            <ListItem>
-                                                <ListItemText 
-                                                    primary="No hay eventos recientes"
-                                                    secondary="Los eventos aparecerán aquí cuando el dispositivo esté activo"
-                                                />
-                                            </ListItem>
-                                        )}
-                                    </List>
-                                </Paper>
-                            </Grid>
-                        </Grid>
+                            ) : (
+                                <Box textAlign="center" py={4}>
+                                    <Typography color="textSecondary">
+                                        No hay sectores configurados para este regador
+                                    </Typography>
+                                </Box>
+                            )}
+                        </Box>
                     )}
 
+                    {/* Tab 1: Lista de Sectores */}
                     {tabValue === 1 && (
-                        /* Vista de Datos de Operación */
-                        <Grid container spacing={3}>
-                            <Grid item xs={12}>
-                                <PresionAltitudChart 
-                                    datosOperacion={datosOperacion}
-                                    regador={selectedRegador}
-                                />
-                            </Grid>
-                        </Grid>
+                        <TableContainer component={Paper}>
+                            <Table>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell>Sector</TableCell>
+                                        <TableCell>Lote</TableCell>
+                                        <TableCell>Estado</TableCell>
+                                        <TableCell align="right">Progreso</TableCell>
+                                        <TableCell align="right">Agua Aplicada</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {sectoresDetalle.map((sector) => (
+                                        <TableRow key={sector.id}>
+                                            <TableCell>
+                                                <Box display="flex" alignItems="center" gap={1}>
+                                                    <Box
+                                                        sx={{
+                                                            width: 12,
+                                                            height: 12,
+                                                            borderRadius: '50%',
+                                                            bgcolor: sector.color_display || '#e0e0e0'
+                                                        }}
+                                                    />
+                                                    {sector.nombre_sector}
+                                                </Box>
+                                            </TableCell>
+                                            <TableCell>{sector.nombre_lote || '-'}</TableCell>
+                                            <TableCell>
+                                                <Chip
+                                                    label={sector.estado || 'Pendiente'}
+                                                    size="small"
+                                                    color={
+                                                        sector.estado === 'completado' ? 'success' :
+                                                        sector.estado === 'en_progreso' ? 'primary' :
+                                                        'default'
+                                                    }
+                                                />
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                {sector.progreso_porcentaje ? 
+                                                    `${Math.round(sector.progreso_porcentaje)}%` : 
+                                                    '-'
+                                                }
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                {sector.agua_aplicada_litros ?
+                                                    `${Math.round(sector.agua_aplicada_litros)} L` :
+                                                    '-'
+                                                }
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
                     )}
 
+                    {/* Tab 2: Gráficas */}
                     {tabValue === 2 && (
-                        /* Vista Detallada */
-                        <Grid container spacing={3}>
-                            {/* Sectores */}
-                            <Grid item xs={12} md={6}>
-                                <Typography variant="h6" gutterBottom>
-                                    Estado de Sectores
-                                </Typography>
-                                <TableContainer component={Paper} variant="outlined">
-                                    <Table size="small">
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>Sector</TableCell>
-                                                <TableCell>Estado</TableCell>
-                                                <TableCell>Progreso</TableCell>
-                                                <TableCell>Agua (L)</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {sectoresDetalle.map((sector) => (
-                                                <TableRow key={sector.id}>
-                                                    <TableCell>
-                                                        <Box display="flex" alignItems="center" gap={1}>
-                                                            <Box
-                                                                sx={{
-                                                                    width: 16,
-                                                                    height: 16,
-                                                                    backgroundColor: sector.color_display,
-                                                                    borderRadius: '50%'
-                                                                }}
-                                                            />
-                                                            {sector.nombre_sector}
-                                                        </Box>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Chip 
-                                                            label={sector.estado || 'pendiente'}
-                                                            size="small"
-                                                            color={getEstadoColor(sector.estado)}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {sector.progreso_porcentaje || 0}%
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {sector.agua_aplicada_litros || 0}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            </Grid>
+                        <PresionAltitudChart
+                            datosOperacion={datosOperacion}
+                            regador={selectedRegador}
+                        />
+                    )}
 
-                            {/* Eventos recientes */}
-                            <Grid item xs={12} md={6}>
-                                <Typography variant="h6" gutterBottom>
-                                    Eventos Recientes
-                                </Typography>
-                                <Paper variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
-                                    <List dense>
-                                        {eventosRecientes.map((evento, index) => (
-                                            <ListItem key={index}>
-                                                <ListItemIcon>
-                                                    {evento.tipo_evento === 'entrada' && <PlayArrow color="success" />}
-                                                    {evento.tipo_evento === 'salida' && <Stop color="error" />}
-                                                    {evento.tipo_evento === 'movimiento' && <MyLocation color="info" />}
-                                                </ListItemIcon>
-                                                <ListItemText
-                                                    primary={`${evento.tipo_evento} ${evento.nombre_sector ? `- ${evento.nombre_sector}` : ''}`}
-                                                    secondary={formatFecha(evento.fecha_evento)}
+                    {/* ⭐ NUEVO TAB 3: Vueltas de Riego */}
+                    {tabValue === 3 && (
+                        <Box>
+                            {loadingVueltas ? (
+                                <Box display="flex" justifyContent="center" p={4}>
+                                    <CircularProgress />
+                                </Box>
+                            ) : (
+                                <>
+                                    {/* Header con estadísticas generales */}
+                                    {estadisticasGenerales && (
+                                        <Card sx={{ mb: 2 }}>
+                                            <CardContent>
+                                                <Typography variant="h6" gutterBottom>
+                                                    📊 Estadísticas Generales de Riego
+                                                </Typography>
+                                                <Grid container spacing={2} sx={{ mt: 1 }}>
+                                                    <Grid item xs={6} md={3}>
+                                                        <Box textAlign="center" p={2} bgcolor="primary.light" borderRadius={2}>
+                                                            <Typography variant="h4" color="primary.contrastText">
+                                                                {estadisticasGenerales.total_vueltas}
+                                                            </Typography>
+                                                            <Typography variant="caption" color="primary.contrastText">
+                                                                Vueltas Totales
+                                                            </Typography>
+                                                        </Box>
+                                                    </Grid>
+                                                    <Grid item xs={6} md={3}>
+                                                        <Box textAlign="center" p={2} bgcolor="success.light" borderRadius={2}>
+                                                            <Typography variant="h4" color="success.contrastText">
+                                                                {estadisticasGenerales.lamina_promedio_mm} mm
+                                                            </Typography>
+                                                            <Typography variant="caption" color="success.contrastText">
+                                                                Lámina Promedio
+                                                            </Typography>
+                                                        </Box>
+                                                    </Grid>
+                                                    <Grid item xs={6} md={3}>
+                                                        <Box textAlign="center" p={2} bgcolor="info.light" borderRadius={2}>
+                                                            <Typography variant="h4" color="info.contrastText">
+                                                                {parseFloat(estadisticasGenerales.agua_total_aplicada_m3).toFixed(1)} m³
+                                                            </Typography>
+                                                            <Typography variant="caption" color="info.contrastText">
+                                                                Agua Total Aplicada
+                                                            </Typography>
+                                                        </Box>
+                                                    </Grid>
+                                                    <Grid item xs={6} md={3}>
+                                                        <Box textAlign="center" p={2} bgcolor="warning.light" borderRadius={2}>
+                                                            <Typography variant="h4" color="warning.contrastText">
+                                                                {estadisticasGenerales.tiempo_total_horas} hs
+                                                            </Typography>
+                                                            <Typography variant="caption" color="warning.contrastText">
+                                                                Tiempo Total de Riego
+                                                            </Typography>
+                                                        </Box>
+                                                    </Grid>
+                                                </Grid>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {/* Vuelta actual en progreso */}
+                                    {vueltaActual && (
+                                        <Card sx={{ mb: 2, border: '2px solid', borderColor: 'primary.main' }}>
+                                            <CardContent>
+                                                <Box display="flex" alignItems="center" gap={1} mb={2}>
+                                                    <PlayArrow color="primary" />
+                                                    <Typography variant="h6">
+                                                        🔄 Vuelta {vueltaActual.numero_vuelta} - En Progreso
+                                                    </Typography>
+                                                </Box>
+                                                
+                                                <LinearProgress 
+                                                    variant="determinate" 
+                                                    value={parseFloat(vueltaActual.porcentaje_completado || 0)} 
+                                                    sx={{ mb: 2, height: 10, borderRadius: 5 }}
                                                 />
-                                            </ListItem>
-                                        ))}
-                                        {eventosRecientes.length === 0 && (
-                                            <ListItem>
-                                                <ListItemText 
-                                                    primary="No hay eventos recientes"
-                                                    secondary="Los eventos aparecerán aquí cuando el dispositivo esté activo"
-                                                />
-                                            </ListItem>
-                                        )}
-                                    </List>
-                                </Paper>
-                            </Grid>
-                        </Grid>
+                                                
+                                                <Grid container spacing={2}>
+                                                    <Grid item xs={6} md={3}>
+                                                        <Typography variant="caption" color="textSecondary">
+                                                            Progreso
+                                                        </Typography>
+                                                        <Typography variant="h6">
+                                                            {parseFloat(vueltaActual.porcentaje_completado || 0).toFixed(1)}%
+                                                        </Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6} md={3}>
+                                                        <Typography variant="caption" color="textSecondary">
+                                                            Ángulo Inicio
+                                                        </Typography>
+                                                        <Typography variant="h6">
+                                                            {parseFloat(vueltaActual.angulo_inicio).toFixed(1)}°
+                                                        </Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6} md={3}>
+                                                        <Typography variant="caption" color="textSecondary">
+                                                            Inicio
+                                                        </Typography>
+                                                        <Typography variant="body2">
+                                                            {format(new Date(vueltaActual.fecha_inicio), 'HH:mm:ss', { locale: es })}
+                                                        </Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6} md={3}>
+                                                        <Typography variant="caption" color="textSecondary">
+                                                            Tiempo Transcurrido
+                                                        </Typography>
+                                                        <Typography variant="body2">
+                                                            {formatDistance(new Date(vueltaActual.fecha_inicio), new Date(), { locale: es })}
+                                                        </Typography>
+                                                    </Grid>
+                                                </Grid>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {/* Historial de vueltas */}
+                                    <Card>
+                                        <CardHeader 
+                                            title="📜 Historial de Vueltas"
+                                            subheader={`${vueltas.length} vueltas registradas`}
+                                        />
+                                        <CardContent>
+                                            {vueltas.length === 0 ? (
+                                                <Box textAlign="center" py={4}>
+                                                    <Autorenew sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                                                    <Typography color="textSecondary">
+                                                        No hay vueltas registradas aún
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        Las vueltas aparecerán cuando el regador comience a regar
+                                                    </Typography>
+                                                </Box>
+                                            ) : (
+                                                vueltas.map((vuelta) => (
+                                                    <Accordion key={vuelta.vuelta_id} sx={{ mb: 1 }}>
+                                                        <AccordionSummary 
+                                                            expandIcon={<ExpandMore />}
+                                                            sx={{ 
+                                                                '&:hover': { bgcolor: 'action.hover' },
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                        >
+                                                            <Box display="flex" alignItems="center" gap={2} width="100%">
+                                                                <Chip 
+                                                                    label={`Vuelta ${vuelta.numero_vuelta}`}
+                                                                    color="primary"
+                                                                    size="small"
+                                                                />
+                                                                
+                                                                {vuelta.completada ? (
+                                                                    <Chip 
+                                                                        icon={<CheckCircle />}
+                                                                        label="Completada"
+                                                                        color="success"
+                                                                        size="small"
+                                                                    />
+                                                                ) : (
+                                                                    <Chip 
+                                                                        icon={<PlayArrow />}
+                                                                        label="En curso"
+                                                                        color="warning"
+                                                                        size="small"
+                                                                    />
+                                                                )}
+                                                                
+                                                                <Typography variant="body2" color="textSecondary">
+                                                                    {format(new Date(vuelta.fecha_inicio), 'dd/MM/yyyy HH:mm', { locale: es })}
+                                                                </Typography>
+                                                                
+                                                                <Box flexGrow={1} />
+                                                                
+                                                                <Box textAlign="right">
+                                                                    <Typography variant="body2" fontWeight="bold">
+                                                                        {parseFloat(vuelta.lamina_promedio_mm || 0).toFixed(1)} mm
+                                                                    </Typography>
+                                                                    <Typography variant="caption" color="textSecondary">
+                                                                        lámina aplicada
+                                                                    </Typography>
+                                                                </Box>
+                                                            </Box>
+                                                        </AccordionSummary>
+                                                        
+                                                        <AccordionDetails sx={{ bgcolor: 'background.default' }}>
+                                                            <Grid container spacing={2}>
+                                                                <Grid item xs={6} md={3}>
+                                                                    <Typography variant="caption" color="textSecondary">
+                                                                        ⏱️ Duración
+                                                                    </Typography>
+                                                                    <Typography variant="h6">
+                                                                        {vuelta.duracion_total_minutos} min
+                                                                    </Typography>
+                                                                </Grid>
+                                                                
+                                                                <Grid item xs={6} md={3}>
+                                                                    <Typography variant="caption" color="textSecondary">
+                                                                        💧 Agua Aplicada
+                                                                    </Typography>
+                                                                    <Typography variant="h6">
+                                                                        {parseFloat(vuelta.agua_total_litros || 0).toFixed(0)} L
+                                                                    </Typography>
+                                                                </Grid>
+                                                                
+                                                                <Grid item xs={6} md={3}>
+                                                                    <Typography variant="caption" color="textSecondary">
+                                                                        📏 Área Regada
+                                                                    </Typography>
+                                                                    <Typography variant="h6">
+                                                                        {parseFloat(vuelta.area_total_ha || 0).toFixed(2)} ha
+                                                                    </Typography>
+                                                                </Grid>
+                                                                
+                                                                <Grid item xs={6} md={3}>
+                                                                    <Typography variant="caption" color="textSecondary">
+                                                                        🔧 Presión Promedio
+                                                                    </Typography>
+                                                                    <Typography variant="h6">
+                                                                        {parseFloat(vuelta.presion_promedio_vuelta || 0).toFixed(1)} PSI
+                                                                    </Typography>
+                                                                </Grid>
+                                                                
+                                                                <Grid item xs={12}>
+                                                                    <Box display="flex" alignItems="center" gap={1} mt={1}>
+                                                                        <CheckCircle sx={{ fontSize: 16, color: 'success.main' }} />
+                                                                        <Typography variant="body2" color="textSecondary">
+                                                                            Sectores completados: {vuelta.sectores_completados} / {vuelta.sectores_pasados}
+                                                                        </Typography>
+                                                                    </Box>
+                                                                </Grid>
+                                                            </Grid>
+                                                        </AccordionDetails>
+                                                    </Accordion>
+                                                ))
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </>
+                            )}
+                        </Box>
                     )}
                 </DialogContent>
+
                 <DialogActions>
-                    <Button onClick={() => setDetalleDialog(false)}>
+                    <Button onClick={handleCloseDialog}>
                         Cerrar
+                    </Button>
+                    <Button 
+                        onClick={() => handleRefresh(selectedRegador?.regador_id)}
+                        startIcon={<Refresh />}
+                        disabled={refreshing}
+                    >
+                        Actualizar
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -758,3 +758,131 @@ LEFT JOIN datos_operacion_gps dog ON r.id = dog.regador_id
 LEFT JOIN geozonas_pivote gp ON dog.geozona_id = gp.id
 WHERE r.activo = true
 ORDER BY r.id, dog.timestamp DESC;
+
+-- Migraciones para el sistema de vueltas del regador
+
+-- 1. Tabla para registrar las vueltas completas
+CREATE TABLE IF NOT EXISTS vueltas_riego (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    regador_id BIGINT REFERENCES regadores(id) ON DELETE CASCADE,
+    numero_vuelta INTEGER NOT NULL,
+    fecha_inicio TIMESTAMP NOT NULL,
+    fecha_fin TIMESTAMP,
+    angulo_inicio NUMERIC NOT NULL,
+    angulo_fin NUMERIC,
+    duracion_minutos INTEGER,
+    completada BOOLEAN DEFAULT false,
+    completada_con_margen BOOLEAN DEFAULT false, -- Indica si se completó con el margen de seguridad
+    porcentaje_completado NUMERIC DEFAULT 0,
+    lamina_promedio_mm NUMERIC,
+    agua_total_litros NUMERIC,
+    area_total_ha NUMERIC,
+    presion_promedio NUMERIC,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT unique_vuelta_regador UNIQUE (regador_id, numero_vuelta)
+);
+
+-- 2. Tabla para registrar el paso por cada sector en cada vuelta
+CREATE TABLE IF NOT EXISTS sectores_por_vuelta (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    vuelta_id BIGINT REFERENCES vueltas_riego(id) ON DELETE CASCADE,
+    geozona_id BIGINT REFERENCES geozonas_pivote(id) ON DELETE CASCADE,
+    
+    -- Tiempos
+    fecha_entrada TIMESTAMP NOT NULL,
+    fecha_salida TIMESTAMP,
+    duracion_minutos INTEGER,
+    
+    -- Datos de riego
+    agua_aplicada_litros NUMERIC,
+    lamina_aplicada_mm NUMERIC,
+    area_sector_ha NUMERIC,
+    
+    -- Promedios durante el paso por el sector
+    presion_promedio NUMERIC,
+    presion_min NUMERIC,
+    presion_max NUMERIC,
+    velocidad_promedio NUMERIC,
+    
+    -- Control
+    completado BOOLEAN DEFAULT false,
+    orden_en_vuelta INTEGER, -- Para saber en qué orden pasó por los sectores
+    
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT unique_sector_vuelta UNIQUE (vuelta_id, geozona_id, orden_en_vuelta)
+);
+
+-- 3. Agregar columna a datos_operacion_gps para trackear la vuelta actual
+ALTER TABLE datos_operacion_gps 
+ADD COLUMN IF NOT EXISTS vuelta_actual INTEGER;
+
+-- 4. Agregar columnas a ciclos_riego para relacionar con vueltas
+ALTER TABLE ciclos_riego
+ADD COLUMN IF NOT EXISTS vuelta_id BIGINT REFERENCES vueltas_riego(id) ON DELETE SET NULL;
+
+-- 5. Índices para optimizar consultas
+CREATE INDEX IF NOT EXISTS idx_vueltas_riego_regador ON vueltas_riego(regador_id, numero_vuelta);
+CREATE INDEX IF NOT EXISTS idx_vueltas_riego_fecha ON vueltas_riego(fecha_inicio);
+CREATE INDEX IF NOT EXISTS idx_sectores_vuelta ON sectores_por_vuelta(vuelta_id);
+CREATE INDEX IF NOT EXISTS idx_sectores_geozona_vuelta ON sectores_por_vuelta(geozona_id, vuelta_id);
+
+-- 6. Vista para obtener resumen de vueltas con sus sectores
+CREATE OR REPLACE VIEW v_resumen_vueltas AS
+SELECT 
+    vr.id as vuelta_id,
+    vr.regador_id,
+    vr.numero_vuelta,
+    vr.fecha_inicio,
+    vr.fecha_fin,
+    vr.duracion_minutos as duracion_total_minutos,
+    vr.completada,
+    vr.completada_con_margen,
+    vr.porcentaje_completado,
+    vr.lamina_promedio_mm,
+    vr.agua_total_litros,
+    vr.area_total_ha,
+    vr.presion_promedio as presion_promedio_vuelta,
+    r.nombre_dispositivo,
+    COUNT(spv.id) as sectores_pasados,
+    SUM(CASE WHEN spv.completado THEN 1 ELSE 0 END) as sectores_completados
+FROM vueltas_riego vr
+JOIN regadores r ON vr.regador_id = r.id
+LEFT JOIN sectores_por_vuelta spv ON vr.id = spv.vuelta_id
+GROUP BY vr.id, r.nombre_dispositivo;
+
+-- 7. Vista para obtener detalle de sectores por vuelta
+CREATE OR REPLACE VIEW v_detalle_sectores_vuelta AS
+SELECT 
+    spv.id,
+    spv.vuelta_id,
+    spv.geozona_id,
+    spv.fecha_entrada,
+    spv.fecha_salida,
+    spv.duracion_minutos,
+    spv.agua_aplicada_litros,
+    spv.lamina_aplicada_mm,
+    spv.area_sector_ha,
+    spv.presion_promedio,
+    spv.presion_min,
+    spv.presion_max,
+    spv.velocidad_promedio,
+    spv.completado,
+    spv.orden_en_vuelta,
+    gp.nombre_sector,
+    gp.numero_sector,
+    gp.angulo_inicio,
+    gp.angulo_fin,
+    l.nombre_lote,
+    vr.numero_vuelta
+FROM sectores_por_vuelta spv
+JOIN geozonas_pivote gp ON spv.geozona_id = gp.id
+LEFT JOIN lotes l ON gp.lote_id = l.id
+JOIN vueltas_riego vr ON spv.vuelta_id = vr.id
+ORDER BY spv.vuelta_id, spv.orden_en_vuelta;
+
+COMMENT ON TABLE vueltas_riego IS 'Registra cada vuelta completa del regador';
+COMMENT ON TABLE sectores_por_vuelta IS 'Registra el paso del regador por cada sector en cada vuelta';
+COMMENT ON COLUMN vueltas_riego.completada_con_margen IS 'TRUE si se consideró completa por el margen de seguridad del 10%';
+COMMENT ON COLUMN vueltas_riego.porcentaje_completado IS 'Porcentaje real de la vuelta completada (puede ser > 100% si dio varias vueltas)';

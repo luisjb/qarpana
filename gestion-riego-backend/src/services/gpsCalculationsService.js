@@ -128,6 +128,108 @@ class GPSCalculationsService {
         return areaExterna - areaInterna;
     }
     
+    /**
+     * Verifica si completó la vuelta considerando un margen de seguridad
+     * @param {number} anguloInicio - Ángulo donde comenzó la vuelta
+     * @param {number} anguloActual - Ángulo actual del regador
+     * @param {number} margenPorcentaje - Margen de seguridad (por defecto 10%)
+     * @returns {object} - { completada, porcentajeCompletado, anguloObjetivo }
+     */
+    verificarVueltaCompletada(anguloInicio, anguloActual, margenPorcentaje = 10) {
+        // Normalizar ángulos a 0-360
+        anguloInicio = ((anguloInicio % 360) + 360) % 360;
+        anguloActual = ((anguloActual % 360) + 360) % 360;
+        
+        // Calcular el margen en grados
+        const margenGrados = 360 * (margenPorcentaje / 100);
+        
+        // Calcular el ángulo objetivo (restar el margen al inicio)
+        let anguloObjetivo = anguloInicio - margenGrados;
+        if (anguloObjetivo < 0) {
+            anguloObjetivo += 360;
+        }
+        
+        // Calcular cuánto ha avanzado desde el inicio
+        let avance = anguloActual - anguloInicio;
+        
+        // Ajustar si cruzó el 0°
+        if (avance < 0) {
+            avance += 360;
+        }
+        
+        // Calcular porcentaje completado
+        const anguloRequerido = 360 - margenGrados;
+        const porcentajeCompletado = (avance / anguloRequerido) * 100;
+        
+        // Verificar si completó la vuelta (llegó al objetivo o lo pasó)
+        let completada = false;
+        
+        if (anguloInicio > anguloObjetivo) {
+            // El objetivo está "antes" en el círculo (ej: inicio 90°, objetivo 54°)
+            completada = anguloActual <= anguloObjetivo || anguloActual >= anguloInicio;
+        } else {
+            // El objetivo está "después" (ej: inicio 10°, objetivo 334°)
+            completada = anguloActual >= anguloObjetivo || anguloActual <= anguloInicio;
+        }
+        
+        return {
+            completada,
+            porcentajeCompletado: Math.min(porcentajeCompletado, 100),
+            anguloObjetivo,
+            avanceGrados: avance
+        };
+    }
+    
+    /**
+     * Calcula la lámina en mm por hectárea
+     * @param {number} aguaLitros - Agua aplicada en litros
+     * @param {number} areaHectareas - Área en hectáreas
+     * @returns {number} - Lámina en mm
+     */
+    calcularLaminaPorHectarea(aguaLitros, areaHectareas) {
+        if (!aguaLitros || !areaHectareas || areaHectareas <= 0) return 0;
+        
+        // 1 litro = 0.001 m³
+        // 1 hectárea = 10,000 m²
+        // Lámina (mm) = (volumen m³ / área m²) * 1000
+        const areaM2 = areaHectareas * 10000;
+        const laminaMM = (aguaLitros * 0.001 / areaM2) * 1000;
+        
+        return laminaMM;
+    }
+    
+    /**
+     * Convierte área de m² a hectáreas
+     */
+    m2AHectareas(areaM2) {
+        return areaM2 / 10000;
+    }
+    
+    /**
+     * Calcula el área de un sector en hectáreas
+     */
+    calcularAreaSectorHectareas(sector) {
+        const areaM2 = this.calcularAreaSector(sector);
+        return this.m2AHectareas(areaM2);
+    }
+    
+    /**
+     * Calcula la diferencia angular más corta entre dos ángulos
+     * Útil para saber si está cerca del punto de inicio
+     */
+    diferenciaAngular(angulo1, angulo2) {
+        angulo1 = ((angulo1 % 360) + 360) % 360;
+        angulo2 = ((angulo2 % 360) + 360) % 360;
+        
+        let diff = Math.abs(angulo1 - angulo2);
+        
+        if (diff > 180) {
+            diff = 360 - diff;
+        }
+        
+        return diff;
+    }
+    
     // Utilidades
     toRadians(degrees) {
         return degrees * Math.PI / 180;

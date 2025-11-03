@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, isAdmin } = require('../middleware/auth');
 const pool = require('../db');
+const vueltasService = require('../services/vueltasRiegoService');
+
 
 // Obtener todos los regadores de un campo
 router.get('/campo/:campoId', verifyToken, async (req, res) => {
@@ -549,5 +551,244 @@ router.get('/:regadorId/estadisticas', verifyToken, async (req, res) => {
         client.release();
     }
 });
+
+
+/**
+ * GET /api/regadores/:regadorId/vueltas
+ * Obtiene el resumen de todas las vueltas de un regador
+ */
+router.get('/:regadorId/vueltas', async (req, res) => {
+    try {
+        const { regadorId } = req.params;
+        const { limite = 10 } = req.query;
+        
+        const vueltas = await vueltasService.obtenerResumenVueltas(regadorId, limite);
+        
+        res.json({
+            success: true,
+            count: vueltas.length,
+            data: vueltas
+        });
+        
+    } catch (error) {
+        console.error('Error obteniendo vueltas:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/regadores/:regadorId/vueltas/:vueltaId/sectores
+ * Obtiene el detalle de sectores de una vuelta específica
+ */
+router.get('/:regadorId/vueltas/:vueltaId/sectores', async (req, res) => {
+    try {
+        const { vueltaId } = req.params;
+        
+        const sectores = await vueltasService.obtenerDetalleSectoresVuelta(vueltaId);
+        
+        res.json({
+            success: true,
+            count: sectores.length,
+            data: sectores
+        });
+        
+    } catch (error) {
+        console.error('Error obteniendo sectores de vuelta:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/regadores/:regadorId/estadisticas-generales
+ * Obtiene estadísticas generales de riego del regador
+ */
+router.get('/:regadorId/estadisticas-generales', async (req, res) => {
+    try {
+        const { regadorId } = req.params;
+        
+        const estadisticas = await vueltasService.obtenerEstadisticasGenerales(regadorId);
+        
+        res.json({
+            success: true,
+            data: estadisticas
+        });
+        
+    } catch (error) {
+        console.error('Error obteniendo estadísticas:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/regadores/:regadorId/vuelta-actual
+ * Obtiene información de la vuelta actual en curso
+ */
+router.get('/:regadorId/vuelta-actual', async (req, res) => {
+    try {
+        const { regadorId } = req.params;
+        
+        const query = `
+            SELECT 
+                vr.*,
+                r.nombre_dispositivo,
+                COUNT(spv.id) as sectores_pasados
+            FROM vueltas_riego vr
+            JOIN regadores r ON vr.regador_id = r.id
+            LEFT JOIN sectores_por_vuelta spv ON vr.id = spv.vuelta_id
+            WHERE vr.regador_id = $1 AND vr.completada = false
+            GROUP BY vr.id, r.nombre_dispositivo
+            ORDER BY vr.fecha_inicio DESC
+            LIMIT 1
+        `;
+        
+        const result = await pool.query(query, [regadorId]);
+        
+        if (result.rows.length === 0) {
+            return res.json({
+                success: true,
+                data: null,
+                message: 'No hay vuelta activa'
+            });
+        }
+        
+        // Obtener sectores de la vuelta actual
+        const sectores = await vueltasService.obtenerDetalleSectoresVuelta(result.rows[0].id);
+        
+        res.json({
+            success: true,
+            data: {
+                vuelta: result.rows[0],
+                sectores: sectores
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error obteniendo vuelta actual:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/regadores/:regadorId/resumen-completo
+ * Obtiene un resumen completo del riego con vueltas y totales
+ */
+router.get('/:regadorId/resumen-completo', async (req, res) => {
+    try {
+        const { regadorId } = req.params;
+        
+        // Obtener estadísticas generales
+        const estadisticas = await vueltasService.obtenerEstadisticasGenerales(regadorId);
+        
+        // Obtener vueltas
+        const vueltas = await vueltasService.obtenerResumenVueltas(regadorId, 20);
+        
+        // Obtener vuelta actual si existe
+        const queryVueltaActual = `
+            SELECT * FROM vueltas_riego
+            WHERE regador_id = $1 AND completada = false
+            ORDER BY fecha_inicio DESC
+            LIMIT 1
+        `;
+        const resultActual = await pool.query(queryVueltaActual, [regadorId]);
+        const vueltaActual = resultActual.rows[0] || null;
+        
+        // Obtener información del regador
+        const queryRegador = `
+            SELECT * FROM regadores WHERE id = $1
+        `;
+        const resultRegador = await pool.query(queryRegador, [regadorId]);
+        const regador = resultRegador.rows[0];
+        
+        res.json({
+            success: true,
+            data: {
+                regador: {
+                    id: regador.id,
+                    nombre: regador.nombre_dispositivo,
+                    tipo: regador.tipo_regador,
+                    radio_cobertura: regador.radio_cobertura,
+                    caudal: regador.caudal,
+                    tiempo_vuelta_completa: regador.tiempo_vuelta_completa
+                },
+                estadisticas_generales: {
+                    total_vueltas: parseInt(estadisticas.total_vueltas || 0),
+                    vueltas_completadas: parseInt(estadisticas.vueltas_completadas || 0),
+                    agua_total_aplicada_litros: parseFloat(estadisticas.agua_total_aplicada || 0),
+                    agua_total_aplicada_m3: parseFloat((estadisticas.agua_total_aplicada || 0) / 1000),
+                    lamina_promedio_mm: parseFloat(estadisticas.lamina_promedio_general || 0).toFixed(1),
+                    tiempo_total_horas: parseFloat((estadisticas.tiempo_total_minutos || 0) / 60).toFixed(1),
+                    tiempo_promedio_vuelta_minutos: parseFloat(estadisticas.tiempo_promedio_vuelta || 0).toFixed(0),
+                    ultima_vuelta: estadisticas.ultima_vuelta
+                },
+                vuelta_actual: vueltaActual,
+                vueltas: vueltas
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error obteniendo resumen completo:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/regadores/:regadorId/vueltas/:vueltaId/detalles
+ * Obtiene detalles completos de una vuelta específica con sectores
+ */
+router.get('/:regadorId/vueltas/:vueltaId/detalles', async (req, res) => {
+    try {
+        const { vueltaId } = req.params;
+        
+        // Obtener información de la vuelta
+        const queryVuelta = `
+            SELECT * FROM v_resumen_vueltas
+            WHERE vuelta_id = $1
+        `;
+        const resultVuelta = await pool.query(queryVuelta, [vueltaId]);
+        
+        if (resultVuelta.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Vuelta no encontrada'
+            });
+        }
+        
+        const vuelta = resultVuelta.rows[0];
+        
+        // Obtener sectores
+        const sectores = await vueltasService.obtenerDetalleSectoresVuelta(vueltaId);
+        
+        res.json({
+            success: true,
+            data: {
+                vuelta: vuelta,
+                sectores: sectores
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error obteniendo detalles de vuelta:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 
 module.exports = router;
