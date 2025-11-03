@@ -82,9 +82,6 @@ class GPSController {
             
             const result = await pool.query(query, params);
             
-            // IMPORTANTE: Devolver directamente el array, no wrapped en .data
-            // Porque axios ya parsea response.data, entonces:
-            // Backend: res.json([...])  →  Frontend: response.data = [...]
             res.json(result.rows);
             
         } catch (error) {
@@ -103,130 +100,50 @@ class GPSController {
         try {
             const { regadorId } = req.params;
             
-            // Obtener información del regador y geozonas
-            const queryRegador = `
-                SELECT r.*, COUNT(gp.id) as total_sectores
+            const query = `
+                SELECT 
+                    r.id as regador_id,
+                    r.nombre_dispositivo,
+                    r.tipo_regador,
+                    r.radio_cobertura,
+                    r.activo,
+                    
+                    -- Sectores
+                    COUNT(DISTINCT gp.id) as total_sectores,
+                    COUNT(DISTINCT CASE WHEN esr.estado = 'completado' THEN gp.id END) as sectores_completados,
+                    COUNT(DISTINCT CASE WHEN esr.estado = 'en_progreso' THEN gp.id END) as sectores_en_progreso,
+                    COUNT(DISTINCT CASE WHEN esr.estado = 'pendiente' OR esr.estado IS NULL THEN gp.id END) as sectores_pendientes,
+                    
+                    -- Progreso
+                    COALESCE(AVG(esr.progreso_porcentaje), 0) as progreso_promedio,
+                    
+                    -- Agua y tiempo
+                    COALESCE(SUM(esr.agua_aplicada_litros), 0) as agua_total_aplicada,
+                    COALESCE(SUM(esr.tiempo_real_minutos), 0) as tiempo_total_riego,
+                    
+                    -- Última actividad
+                    MAX(dog.timestamp) as ultima_actividad
+                    
                 FROM regadores r
-                LEFT JOIN geozonas_pivote gp ON r.id = gp.regador_id AND gp.activo = true
+                LEFT JOIN geozonas_pivote gp ON r.id = gp.regador_id
+                LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
+                LEFT JOIN datos_operacion_gps dog ON r.id = dog.regador_id
                 WHERE r.id = $1
-                GROUP BY r.id
+                GROUP BY r.id, r.nombre_dispositivo, r.tipo_regador, r.radio_cobertura, r.activo
             `;
             
-            const regadorResult = await pool.query(queryRegador, [regadorId]);
+            const result = await pool.query(query, [regadorId]);
             
-            if (regadorResult.rows.length === 0) {
+            if (result.rows.length === 0) {
                 return res.status(404).json({
                     success: false,
                     error: 'Regador no encontrado'
                 });
             }
             
-            const regador = regadorResult.rows[0];
-            
-            // Obtener estado actual de cada sector
-            const querySectores = `
-                SELECT 
-                    gp.id,
-                    gp.nombre_sector,
-                    gp.numero_sector,
-                    gp.angulo_inicio,
-                    gp.angulo_fin,
-                    gp.radio_interno,
-                    gp.radio_externo,
-                    gp.color_display,
-                    gp.activo,
-                    gp.coeficiente_riego,
-                    esr.estado,
-                    esr.progreso_porcentaje,
-                    esr.agua_aplicada_litros,
-                    esr.fecha_inicio_real,
-                    esr.ultima_actualizacion,
-                    l.nombre_lote
-                FROM geozonas_pivote gp
-                LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
-                LEFT JOIN lotes l ON gp.lote_id = l.id
-                WHERE gp.regador_id = $1
-                ORDER BY gp.numero_sector
-            `;
-            
-            const sectoresResult = await pool.query(querySectores, [regadorId]);
-            
-            // Calcular área de cada sector y totales
-            let totalAreaRegada = 0;
-            let totalAguaAplicada = 0;
-            let sectoresActivos = 0;
-            let sectoresCompletados = 0;
-            
-            const sectoresConDatos = sectoresResult.rows.map(sector => {
-                const area = gpsCalc.calcularAreaSector(sector);
-                const areaHectareas = area / 10000;
-                
-                if (sector.estado === 'completado' && sector.agua_aplicada_litros) {
-                    totalAreaRegada += areaHectareas;
-                    totalAguaAplicada += parseFloat(sector.agua_aplicada_litros || 0);
-                    sectoresCompletados++;
-                }
-                
-                if (sector.estado === 'en_progreso') {
-                    sectoresActivos++;
-                }
-                
-                const laminaMM = sector.agua_aplicada_litros 
-                    ? gpsCalc.calcularLaminaAplicada(sector.agua_aplicada_litros, area)
-                    : 0;
-                
-                return {
-                    ...sector,
-                    area_m2: area,
-                    area_hectareas: areaHectareas,
-                    lamina_aplicada_mm: laminaMM
-                };
-            });
-            
-            // Obtener ciclos completados hoy
-            const queryCiclosHoy = `
-                SELECT 
-                    COUNT(*) as ciclos_completados,
-                    SUM(agua_aplicada_litros) as agua_total_hoy,
-                    AVG(presion_promedio) as presion_promedio_hoy
-                FROM ciclos_riego
-                WHERE regador_id = $1
-                  AND DATE(fecha_fin) = CURRENT_DATE
-            `;
-            
-            const ciclosHoyResult = await pool.query(queryCiclosHoy, [regadorId]);
-            const ciclosHoy = ciclosHoyResult.rows[0];
-            
-            // Calcular mm/ha promedio
-            const mmPorHectarea = totalAreaRegada > 0 
-                ? (totalAguaAplicada * 0.001 / totalAreaRegada) * 1000 / totalAreaRegada
-                : 0;
-            
             res.json({
                 success: true,
-                data: {
-                    regador: {
-                        id: regador.id,
-                        nombre: regador.nombre_dispositivo,
-                        tipo: regador.tipo_regador,
-                        radio_cobertura: regador.radio_cobertura,
-                        caudal: regador.caudal,
-                        activo: regador.activo
-                    },
-                    resumen: {
-                        total_sectores: regador.total_sectores,
-                        sectores_completados: sectoresCompletados,
-                        sectores_activos: sectoresActivos,
-                        area_total_regada_ha: parseFloat(totalAreaRegada.toFixed(2)),
-                        agua_total_aplicada_litros: parseFloat(totalAguaAplicada.toFixed(0)),
-                        agua_total_aplicada_m3: parseFloat((totalAguaAplicada / 1000).toFixed(2)),
-                        lamina_promedio_mm: parseFloat(mmPorHectarea.toFixed(1)),
-                        ciclos_completados_hoy: parseInt(ciclosHoy.ciclos_completados || 0),
-                        agua_aplicada_hoy_litros: parseFloat(ciclosHoy.agua_total_hoy || 0),
-                        presion_promedio_hoy: parseFloat(ciclosHoy.presion_promedio_hoy || 0)
-                    },
-                    sectores: sectoresConDatos
-                }
+                data: result.rows[0]
             });
             
         } catch (error) {
@@ -239,31 +156,34 @@ class GPSController {
     }
     
     /**
-     * Obtiene el historial de ciclos de riego
+     * Obtiene historial de ciclos de riego completados
      */
     async obtenerHistorialRiego(req, res) {
         try {
             const { regadorId } = req.params;
-            const { desde, hasta, geozonaId } = req.query;
+            const { limite = 50, desde, hasta } = req.query;
             
             let query = `
                 SELECT 
-                    cr.*,
+                    cr.id,
+                    cr.fecha_inicio,
+                    cr.fecha_fin,
+                    cr.duracion_minutos,
+                    cr.agua_aplicada_litros,
+                    cr.lamina_aplicada_mm,
+                    cr.area_regada_m2,
+                    cr.presion_promedio,
+                    cr.completado,
                     gp.nombre_sector,
                     gp.numero_sector,
                     l.nombre_lote
                 FROM ciclos_riego cr
-                JOIN geozonas_pivote gp ON cr.geozona_id = gp.id
+                LEFT JOIN geozonas_pivote gp ON cr.geozona_id = gp.id
                 LEFT JOIN lotes l ON gp.lote_id = l.id
                 WHERE cr.regador_id = $1
             `;
             
             const params = [regadorId];
-            
-            if (geozonaId) {
-                params.push(geozonaId);
-                query += ` AND cr.geozona_id = $${params.length}`;
-            }
             
             if (desde) {
                 params.push(desde);
@@ -275,7 +195,7 @@ class GPSController {
                 query += ` AND cr.fecha_fin <= $${params.length}`;
             }
             
-            query += ' ORDER BY cr.fecha_inicio DESC LIMIT 100';
+            query += ` ORDER BY cr.fecha_inicio DESC LIMIT ${parseInt(limite)}`;
             
             const result = await pool.query(query, params);
             
@@ -300,15 +220,22 @@ class GPSController {
     async obtenerEventosRiego(req, res) {
         try {
             const { regadorId } = req.params;
-            const { limit = 50 } = req.query;
+            const { limit = 20 } = req.query;
             
             const query = `
                 SELECT 
-                    er.*,
+                    er.id,
+                    er.tipo_evento,
+                    er.fecha_evento,
+                    er.angulo_actual,
+                    er.dispositivo_online,
+                    er.velocidad,
                     gp.nombre_sector,
-                    gp.numero_sector
+                    gp.numero_sector,
+                    l.nombre_lote
                 FROM eventos_riego er
                 LEFT JOIN geozonas_pivote gp ON er.geozona_id = gp.id
+                LEFT JOIN lotes l ON gp.lote_id = l.id
                 WHERE er.regador_id = $1
                 ORDER BY er.fecha_evento DESC
                 LIMIT $2
@@ -316,11 +243,7 @@ class GPSController {
             
             const result = await pool.query(query, [regadorId, limit]);
             
-            res.json({
-                success: true,
-                count: result.rows.length,
-                data: result.rows
-            });
+            res.json(result.rows);
             
         } catch (error) {
             console.error('Error obteniendo eventos de riego:', error);
@@ -332,7 +255,7 @@ class GPSController {
     }
     
     /**
-     * Obtiene la posición actual del regador
+     * Obtiene la posición actual más reciente de un regador
      */
     async obtenerPosicionActual(req, res) {
         try {
@@ -340,12 +263,25 @@ class GPSController {
             
             const query = `
                 SELECT 
-                    dog.*,
+                    dog.timestamp,
+                    dog.latitud,
+                    dog.longitud,
+                    dog.angulo_actual,
+                    dog.distancia_centro,
+                    dog.presion,
+                    dog.altitud,
+                    dog.velocidad,
+                    dog.regando,
+                    dog.encendido,
+                    dog.moviendose,
+                    dog.estado_texto,
+                    dog.dentro_geozona,
                     gp.nombre_sector,
                     gp.numero_sector,
-                    gp.color_display
+                    l.nombre_lote
                 FROM datos_operacion_gps dog
                 LEFT JOIN geozonas_pivote gp ON dog.geozona_id = gp.id
+                LEFT JOIN lotes l ON gp.lote_id = l.id
                 WHERE dog.regador_id = $1
                 ORDER BY dog.timestamp DESC
                 LIMIT 1
@@ -426,6 +362,7 @@ class GPSController {
     }
 
     /**
+     * ⭐ FUNCIÓN CORREGIDA
      * Obtiene el estado actual en tiempo real de todos los regadores de un campo
      */
     async obtenerEstadoCampo(req, res) {
@@ -433,19 +370,80 @@ class GPSController {
             const { campoId } = req.params;
             
             const query = `
-                SELECT * FROM v_estado_actual_regadores
-                WHERE regador_id IN (
-                    SELECT id FROM regadores WHERE campo_id = $1
-                )
+                SELECT 
+                    r.id as regador_id,
+                    r.nombre_dispositivo,
+                    r.tipo_regador,
+                    r.radio_cobertura,
+                    r.caudal,
+                    r.tiempo_vuelta_completa,
+                    r.latitud_centro,
+                    r.longitud_centro,
+                    r.activo as regador_activo,
+                    
+                    -- Estadísticas de sectores
+                    COUNT(DISTINCT gp.id) as total_sectores,
+                    COUNT(DISTINCT CASE WHEN esr.estado = 'completado' THEN gp.id END) as sectores_completados,
+                    COUNT(DISTINCT CASE WHEN esr.estado = 'en_progreso' THEN gp.id END) as sectores_en_progreso,
+                    COUNT(DISTINCT CASE 
+                        WHEN esr.estado IS NULL OR esr.estado = 'pendiente' 
+                        THEN gp.id 
+                    END) as sectores_pendientes,
+                    
+                    -- Progreso promedio
+                    COALESCE(AVG(esr.progreso_porcentaje), 0) as progreso_promedio,
+                    
+                    -- Agua total aplicada
+                    COALESCE(SUM(esr.agua_aplicada_litros), 0) as agua_total_aplicada,
+                    
+                    -- Última actividad
+                    MAX(dog.timestamp) as ultima_actividad,
+                    
+                    -- Estado actual del dispositivo
+                    (SELECT estado_texto 
+                     FROM datos_operacion_gps 
+                     WHERE regador_id = r.id 
+                     ORDER BY timestamp DESC 
+                     LIMIT 1) as estado_actual,
+                    
+                    (SELECT regando 
+                     FROM datos_operacion_gps 
+                     WHERE regador_id = r.id 
+                     ORDER BY timestamp DESC 
+                     LIMIT 1) as regando_ahora,
+                     
+                    (SELECT presion 
+                     FROM datos_operacion_gps 
+                     WHERE regador_id = r.id 
+                     ORDER BY timestamp DESC 
+                     LIMIT 1) as presion_actual
+                    
+                FROM regadores r
+                LEFT JOIN geozonas_pivote gp ON r.id = gp.regador_id AND gp.activo = true
+                LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
+                LEFT JOIN datos_operacion_gps dog ON r.id = dog.regador_id
+                WHERE r.campo_id = $1
+                  AND r.activo = true
+                GROUP BY 
+                    r.id,
+                    r.nombre_dispositivo,
+                    r.tipo_regador,
+                    r.radio_cobertura,
+                    r.caudal,
+                    r.tiempo_vuelta_completa,
+                    r.latitud_centro,
+                    r.longitud_centro,
+                    r.activo
+                ORDER BY r.id
             `;
             
             const result = await pool.query(query, [campoId]);
             
-            res.json({
-                success: true,
-                count: result.rows.length,
-                data: result.rows
-            });
+            console.log(`📊 Estado campo ${campoId}:`, result.rows.length, 'regadores encontrados');
+            
+            // ⭐ IMPORTANTE: Devolver array directo (no wrapped)
+            // El frontend espera: response.data = [...]
+            res.json(result.rows);
             
         } catch (error) {
             console.error('Error obteniendo estado del campo:', error);
