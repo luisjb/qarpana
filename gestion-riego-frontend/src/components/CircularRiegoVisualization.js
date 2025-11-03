@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Box, Typography, Tooltip, Card, CardContent, Grid, Chip } from '@mui/material';
 import { CheckCircle, Schedule, PlayArrow, Pause } from '@mui/icons-material';
+import axios from '../axiosConfig';
+
 
 // Componente de visualización circular SVG
 function CircularRiegoVisualization({ sectores, regador, size = 300 }) {
