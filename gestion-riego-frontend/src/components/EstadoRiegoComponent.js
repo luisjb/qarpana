@@ -385,13 +385,17 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
         try {
             setLoading(true);
             const response = await axios.get(`/gps/campos/${campoId}/estado-riego`);
-            setRegadores(response.data);
             
-            if (response.data.length > 1) {
-                console.log(`📡 Campo ${nombreCampo} tiene ${response.data.length} regadores configurados`);
+            // Asegurar que siempre sea un array
+            const data = Array.isArray(response.data) ? response.data : [];
+            setRegadores(data);
+            
+            if (data.length > 1) {
+                console.log(`📡 Campo ${nombreCampo} tiene ${data.length} regadores configurados`);
             }
         } catch (error) {
             console.error('Error al obtener estado de riego:', error);
+            setRegadores([]); // Establecer array vacío en caso de error
         } finally {
             setLoading(false);
         }
@@ -420,13 +424,21 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
             
             const response = await axios.get(`/regadores/${regadorId}/resumen-completo`);
             
+            console.log('📊 Respuesta vueltas:', response.data);
+            
             if (response.data.success) {
-                setVueltas(response.data.data.vueltas || []);
-                setVueltaActual(response.data.data.vuelta_actual);
-                setEstadisticasGenerales(response.data.data.estadisticas_generales);
+                const vueltas = Array.isArray(response.data.data.vueltas) ? response.data.data.vueltas : [];
+                setVueltas(vueltas);
+                setVueltaActual(response.data.data.vuelta_actual || null);
+                setEstadisticasGenerales(response.data.data.estadisticas_generales || null);
+            } else {
+                setVueltas([]);
+                setVueltaActual(null);
+                setEstadisticasGenerales(null);
             }
         } catch (error) {
             console.error('Error cargando vueltas:', error);
+            console.error('Detalles del error:', error.response?.data || error.message);
             setVueltas([]);
             setVueltaActual(null);
             setEstadisticasGenerales(null);
@@ -441,11 +453,13 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
             
             // Cargar sectores detallados
             const sectoresResponse = await axios.get(`/geozonas-pivote/regador/${regador.regador_id}`);
-            setSectoresDetalle(sectoresResponse.data);
+            const sectores = Array.isArray(sectoresResponse.data) ? sectoresResponse.data : [];
+            setSectoresDetalle(sectores);
             
             // Cargar eventos recientes
             const eventosResponse = await axios.get(`/gps/regadores/${regador.regador_id}/eventos?limit=20`);
-            setEventosRecientes(eventosResponse.data);
+            const eventos = Array.isArray(eventosResponse.data) ? eventosResponse.data : [];
+            setEventosRecientes(eventos);
             
             // Cargar datos de operación
             await fetchDatosOperacion(regador.regador_id);
@@ -456,6 +470,10 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
             setDetalleDialog(true);
         } catch (error) {
             console.error('Error al obtener detalles del regador:', error);
+            console.error('Detalles del error:', error.response?.data || error.message);
+            // Establecer valores por defecto en caso de error
+            setSectoresDetalle([]);
+            setEventosRecientes([]);
         }
     };
 
