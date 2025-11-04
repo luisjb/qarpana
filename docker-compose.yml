@@ -61,6 +61,10 @@ services:
       - DB_PASSWORD=BambooAsesores2024
       - DB_PORT=5432
       - JWT_SECRET=tu_clave_secreta_muy_segura
+      - LETSENCRYPT_HOST=api.qarpana.com.ar
+      - LETSENCRYPT_EMAIL=tu@mail.com
+
+
       #- CORS_ORIGIN=http://localhost:3000
       #- VIRTUAL_HOST=localhost:5000
 
