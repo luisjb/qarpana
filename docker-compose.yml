@@ -97,12 +97,6 @@ services:
       - VIRTUAL_HOST=qarpana.com.ar
 
       - VIRTUAL_PORT=3000
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
     networks:
       - app-network
     #volumes:
