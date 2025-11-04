@@ -1,14 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Box, Typography, Card, CardContent, Grid, Chip, Alert } from '@mui/material';
+import React, { useRef, useEffect, useState } from 'react';
+import { Box, Typography, Tooltip, Card, CardContent, Grid, Chip, Alert } from '@mui/material';
 import { CheckCircle, Schedule, PlayArrow, Pause, MyLocation, WaterDrop } from '@mui/icons-material';
 import axios from '../axiosConfig';
-
-// Función auxiliar para convertir valores a número de forma segura
-const toNumber = (value) => {
-    if (value === null || value === undefined) return null;
-    const num = parseFloat(value);
-    return isNaN(num) ? null : num;
-};
 
 // Componente de visualización circular SVG
 function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
@@ -20,7 +13,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
     
     const centerX = size / 2;
     const centerY = size / 2;
-    const radius = (size / 2) - 60;
+    const radius = (size / 2) - 60; // Más margen para los indicadores
 
     useEffect(() => {
         const cargarEstadoActual = async () => {
@@ -46,11 +39,12 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
 
         if (regador && regador.regador_id) {
             cargarEstadoActual();
-            const interval = setInterval(cargarEstadoActual, 10000);
+            const interval = setInterval(cargarEstadoActual, 10000); // cada 10 seg
             return () => clearInterval(interval);
         }
     }, [regador?.regador_id]);
 
+    // Función para convertir ángulo a coordenadas
     const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
         const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
         return {
@@ -59,6 +53,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
         };
     };
 
+    // Función para crear el path del sector
     const createSectorPath = (centerX, centerY, radius, startAngle, endAngle) => {
         const start = polarToCartesian(centerX, centerY, radius, endAngle);
         const end = polarToCartesian(centerX, centerY, radius, startAngle);
@@ -72,13 +67,16 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
         ].join(" ");
     };
 
+    // Función para obtener color según estado
     const getSectorColor = (sector) => {
+        // ⭐ Si es el sector actual y está regando, verde brillante
         if (sectorActual === sector.nombre_sector && estadoActual?.regando) {
-            return '#4CAF50';
+            return '#4CAF50'; // Verde brillante para sector activo
         }
         
+        // Si es el sector actual pero no está regando, amarillo
         if (sectorActual === sector.nombre_sector && !estadoActual?.regando) {
-            return '#FFC107';
+            return '#FFC107'; // Amarillo para sector actual sin riego
         }
         
         const baseColor = sector.color_display || '#e0e0e0';
@@ -88,7 +86,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
             case 'completado':
                 return baseColor;
             case 'en_progreso':
-                return `${baseColor}BB`;
+                return `${baseColor}BB`; // Más opaco que antes
             case 'pausado':
                 return '#FF9800';
             default:
@@ -96,6 +94,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
         }
     };
 
+    // Función para obtener texto del estado
     const getEstadoTexto = (sector) => {
         if (sectorActual === sector.nombre_sector && estadoActual?.regando) {
             return '🚿 REGANDO AHORA';
@@ -112,6 +111,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
         }
     };
 
+    // Función para calcular posición del texto
     const getTextPosition = (startAngle, endAngle) => {
         let midAngle = (startAngle + endAngle) / 2;
         
@@ -128,16 +128,13 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
         };
     };
 
+    // Encontrar el sector actual en el array
     const sectorActualObj = sectores.find(s => s.nombre_sector === sectorActual);
-    
-    // Convertir valores de forma segura
-    const presion = toNumber(estadoActual?.presion);
-    const velocidad = toNumber(estadoActual?.velocidad);
-    const angulo = toNumber(estadoActual?.angulo_actual);
 
     return (
         <Card>
             <CardContent>
+                {/* Header con información del regador y sector actual */}
                 <Box mb={3}>
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                         <Typography variant="h6" fontWeight="bold">
@@ -150,6 +147,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                         />
                     </Box>
 
+                    {/* ⭐ INDICADOR PROMINENTE DEL SECTOR ACTUAL */}
                     {sectorActual && estadoActual ? (
                         <Alert 
                             severity={estadoActual.regando ? "success" : "info"}
@@ -169,7 +167,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                                             Presión
                                         </Typography>
                                         <Typography variant="body2" fontWeight="bold">
-                                            {presion !== null ? `${presion.toFixed(1)} PSI` : 'N/A'}
+                                            {estadoActual.presion ? `${estadoActual.presion.toFixed(1)} PSI` : 'N/A'}
                                         </Typography>
                                     </Grid>
                                     <Grid item xs={4}>
@@ -177,7 +175,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                                             Velocidad
                                         </Typography>
                                         <Typography variant="body2" fontWeight="bold">
-                                            {velocidad !== null ? `${velocidad.toFixed(1)} km/h` : 'N/A'}
+                                            {estadoActual.velocidad ? `${estadoActual.velocidad.toFixed(1)} km/h` : 'N/A'}
                                         </Typography>
                                     </Grid>
                                     <Grid item xs={4}>
@@ -185,7 +183,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                                             Ángulo
                                         </Typography>
                                         <Typography variant="body2" fontWeight="bold">
-                                            {angulo !== null ? `${angulo.toFixed(0)}°` : 'N/A'}
+                                            {estadoActual.angulo_actual ? `${estadoActual.angulo_actual.toFixed(0)}°` : 'N/A'}
                                         </Typography>
                                     </Grid>
                                 </Grid>
@@ -201,6 +199,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                         )
                     )}
 
+                    {/* Indicador de vuelta actual */}
                     {vueltaActual && (
                         <Box display="flex" alignItems="center" gap={1} p={1.5} bgcolor="primary.light" borderRadius={1}>
                             <PlayArrow sx={{ color: 'white' }} />
@@ -218,8 +217,10 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                     )}
                 </Box>
 
+                {/* Visualización circular */}
                 <Box display="flex" justifyContent="center" mb={2}>
                     <svg width={size} height={size} style={{ overflow: 'visible' }}>
+                        {/* Círculo de fondo */}
                         <circle
                             cx={centerX}
                             cy={centerY}
@@ -229,6 +230,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                             strokeWidth="2"
                         />
 
+                        {/* Sectores */}
                         {sectores.map((sector, index) => {
                             const startAngle = parseFloat(sector.angulo_inicio) || 0;
                             const endAngle = parseFloat(sector.angulo_fin) || 0;
@@ -244,6 +246,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
 
                             return (
                                 <g key={sector.id || index}>
+                                    {/* Sector principal */}
                                     <path
                                         d={sectorPath}
                                         fill={getSectorColor(sector)}
@@ -261,6 +264,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                                         onMouseLeave={() => setHoveredSector(null)}
                                     />
 
+                                    {/* Barra de progreso para sectores en progreso */}
                                     {sector.estado === 'en_progreso' && sector.progreso_porcentaje > 0 && (
                                         <path
                                             d={createSectorPath(
@@ -276,6 +280,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                                         />
                                     )}
 
+                                    {/* Número del sector */}
                                     <text
                                         x={textPos.x}
                                         y={textPos.y}
@@ -289,6 +294,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                                         {sector.numero_sector}
                                     </text>
 
+                                    {/* Icono especial para sector activo */}
                                     {isActive && estadoActual?.regando && (
                                         <g>
                                             <circle
@@ -314,6 +320,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                             );
                         })}
 
+                        {/* Centro del círculo con número de vuelta */}
                         <circle
                             cx={centerX}
                             cy={centerY}
@@ -356,6 +363,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                     </svg>
                 </Box>
 
+                {/* Leyenda de sectores */}
                 <Box sx={{ maxHeight: 250, overflow: 'auto' }}>
                     <Typography variant="subtitle2" gutterBottom fontWeight="bold">
                         Sectores ({sectores.length})
@@ -417,6 +425,7 @@ function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
                     </Grid>
                 </Box>
 
+                {/* Estadísticas generales */}
                 <Box display="flex" justifyContent="center" gap={1} mt={2} flexWrap="wrap">
                     <Chip 
                         icon={<CheckCircle />}

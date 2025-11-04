@@ -357,10 +357,6 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const [vueltaActual, setVueltaActual] = useState(null);
     const [estadisticasGenerales, setEstadisticasGenerales] = useState(null);
     const [loadingVueltas, setLoadingVueltas] = useState(false);
-    
-    // ⭐ NUEVO - Estados para mostrar en el título del Dialog
-    const [sectorActual, setSectorActual] = useState(null);
-    const [estadoActual, setEstadoActual] = useState(null);
 
     useEffect(() => {
         if (campoId) {
@@ -465,19 +461,6 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
             const eventos = Array.isArray(eventosResponse.data) ? eventosResponse.data : [];
             setEventosRecientes(eventos);
             
-            // ⭐ NUEVO - Cargar posición actual para el título
-            try {
-                const posicionResponse = await axios.get(`/gps/regadores/${regador.regador_id}/posicion-actual`);
-                if (posicionResponse.data.success) {
-                    setSectorActual(posicionResponse.data.data.nombre_sector);
-                    setEstadoActual(posicionResponse.data.data);
-                }
-            } catch (error) {
-                console.log('No hay posición actual disponible');
-                setSectorActual(null);
-                setEstadoActual(null);
-            }
-            
             // Cargar datos de operación
             await fetchDatosOperacion(regador.regador_id);
             
@@ -524,9 +507,6 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
         setVueltas([]);
         setVueltaActual(null);
         setEstadisticasGenerales(null);
-        // ⭐ NUEVO - Limpiar sector y estado actual
-        setSectorActual(null);
-        setEstadoActual(null);
     };
 
     if (loading) {
@@ -600,21 +580,11 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
             >
                 <DialogTitle>
                     <Box display="flex" alignItems="center" justifyContent="space-between">
-                        <Box display="flex" alignItems="center" gap={2} flexGrow={1}>
+                        <Box display="flex" alignItems="center" gap={2}>
                             <MyLocation color="primary" />
-                            <Box>
-                                <Typography variant="h6">
-                                    {selectedRegador?.nombre_dispositivo}
-                                </Typography>
-                                {/* ⭐ NUEVO - Mostrar sector actual si existe */}
-                                {sectorActual && estadoActual && (
-                                    <Typography variant="body2" color="textSecondary">
-                                        {estadoActual.regando ? '💧 Regando en: ' : '📍 Ubicado en: '}
-                                        <strong>{sectorActual}</strong>
-                                        {estadoActual.nombre_lote && ` - ${estadoActual.nombre_lote}`}
-                                    </Typography>
-                                )}
-                            </Box>
+                            <Typography variant="h6">
+                                {selectedRegador?.nombre_dispositivo}
+                            </Typography>
                         </Box>
                         <Box display="flex" gap={1}>
                             <Chip 
@@ -627,15 +597,6 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                 color={selectedRegador?.regador_activo ? 'success' : 'default'}
                                 size="small"
                             />
-                            {/* ⭐ NUEVO - Chip de estado actual */}
-                            {estadoActual && (
-                                <Chip 
-                                    icon={estadoActual.regando ? <WaterDrop /> : <Pause />}
-                                    label={estadoActual.regando ? 'Regando' : 'Detenido'}
-                                    color={estadoActual.regando ? 'success' : 'warning'}
-                                    size="small"
-                                />
-                            )}
                         </Box>
                     </Box>
                 </DialogTitle>
