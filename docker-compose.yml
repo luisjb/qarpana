@@ -86,10 +86,7 @@ services:
         max-file: "3"
 
   frontend:
-    build: 
-      context: ./gestion-riego-frontend
-      dockerfile: Dockerfile
-      shm_size: '2gb'
+    build:  ./gestion-riego-frontend
     ports:
       - "3000:3000"
     depends_on:
