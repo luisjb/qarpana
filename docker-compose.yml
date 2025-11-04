@@ -131,7 +131,7 @@ services:
     image: nginxproxy/acme-companion
     environment:
       - DEFAULT_EMAIL=tu@email.com
-      - NGINX_PROXY_CONTAINER=qarpana_nginx-proxy_1
+      - NGINX_PROXY_CONTAINER=nginx-proxy   # << CAMBIAR ESTO
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - certs:/etc/nginx/certs
