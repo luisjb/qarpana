@@ -3,18 +3,18 @@ FROM node:18
 
 WORKDIR /app
 
-RUN npm cache clean --force
+RUN npm cache clean --force && \
+    mkdir -p /root/.npm/_cacache && \
+    chmod -R 777 /root/.npm
 
-
-RUN npm install -g react-scripts
-
-RUN npm install -g serve
+RUN npm install -g react-scripts --force
+RUN npm install -g serve --force
 
 # Cambiar permisos
 RUN chmod -R 777 /app
 COPY package*.json ./
 
-RUN npm install
+RUN npm install --prefer-offline --no-audit
 
 COPY manifest.json ./public/
 COPY service-worker.js ./public/
