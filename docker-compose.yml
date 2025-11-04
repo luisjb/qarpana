@@ -95,6 +95,8 @@ services:
       #- REACT_APP_API_URL=http://localhost:5000
       #comentar la parte de arriba
       - VIRTUAL_HOST=qarpana.com.ar
+      - LETSENCRYPT_HOST=qarpana.com.ar
+      - LETSENCRYPT_EMAIL=tu@mail.com
       - VIRTUAL_PORT=3000
     deploy:
       resources:
