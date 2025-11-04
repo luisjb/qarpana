@@ -8,7 +8,7 @@ RUN npm cache clean --force && \
     chmod -R 777 /root/.npm
 
 #RUN npm install -g react-scripts --force
-#RUN npm install -g serve --force
+RUN npm install -g serve --force
 
 # Cambiar permisos
 RUN chmod -R 777 /app
