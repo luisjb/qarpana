@@ -83,7 +83,10 @@ services:
         max-file: "3"
 
   frontend:
-    build: ./gestion-riego-frontend
+    build: 
+      context: ./gestion-riego-frontend
+      dockerfile: Dockerfile
+      shm_size: '2gb'
     ports:
       - "3000:3000"
     depends_on:
@@ -93,6 +96,12 @@ services:
       #comentar la parte de arriba
       - VIRTUAL_HOST=qarpana.com.ar
       - VIRTUAL_PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
     networks:
       - app-network
     #volumes:
