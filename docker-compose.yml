@@ -71,6 +71,8 @@ services:
 
       - CORS_ORIGIN=https://qarpana.com.ar  
       - VIRTUAL_HOST=api.qarpana.com.ar 
+      - LETSENCRYPT_HOST=api.qarpana.com.ar
+      - LETSENCRYPT_EMAIL=info@qarpana.com.ar
       - TRACCAR_URL=http://traccar:8082
       - TRACCAR_USER=admin
       - TRACCAR_PASSWORD=admin
@@ -95,8 +97,9 @@ services:
       #- REACT_APP_API_URL=http://localhost:5000
       #comentar la parte de arriba
       - VIRTUAL_HOST=qarpana.com.ar
-
       - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=qarpana.com.ar
+      - LETSENCRYPT_EMAIL=info@qarpana.com.ar
     networks:
       - app-network
     #volumes:
@@ -109,6 +112,8 @@ services:
   
   nginx-proxy:
     image: nginxproxy/nginx-proxy
+    container_name: nginx-proxy
+
     ports:
       - "80:80"
       - "443:443"
@@ -117,6 +122,8 @@ services:
       - certs:/etc/nginx/certs
       - vhost:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
+      - ./nginx-custom:/etc/nginx/vhost.d:ro
+
     labels:
     - "com.github.nginx-proxy.nginx" 
     networks:
@@ -127,25 +134,27 @@ services:
         max-size: "10m"
         max-file: "3"
         
-#  acme-companion:
- #  environment:
- #     - DEFAULT_EMAIL=tu@email.com
- #     - NGINX_PROXY_CONTAINER=nginx-proxy   # << CAMBIAR ESTO
- #   volumes:
- #     - /var/run/docker.sock:/var/run/docker.sock:ro
- #     - certs:/etc/nginx/certs
- #     - vhost:/etc/nginx/vhost.d
- #     - html:/usr/share/nginx/html
- #     - acme:/etc/acme.sh
- #   depends_on:
- #     - nginx-proxy
- #   networks:
- #     - app-network
- #   logging:
- #     driver: "json-file"
- #     options:
- #       max-size: "10m"
- #       max-file: "3"
+  acme-companion:
+    image: nginxproxy/acme-companion:latest
+    container_name: acme-companion
+    environment:
+      - DEFAULT_EMAIL=tu@email.com
+      - NGINX_PROXY_CONTAINER=nginx-proxy   # << CAMBIAR ESTO
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - certs:/etc/nginx/certs
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - acme:/etc/acme.sh
+    depends_on:
+      - nginx-proxy
+    networks:
+      - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   app-network:
