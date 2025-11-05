@@ -122,7 +122,6 @@ services:
       - certs:/etc/nginx/certs
       - vhost:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
-      - ./nginx-custom:/etc/nginx/vhost.d:ro
 
     labels:
     - "com.github.nginx-proxy.nginx" 
