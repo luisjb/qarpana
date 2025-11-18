@@ -130,26 +130,25 @@ class GPSCalculationsService {
     
     /**
      * Verifica si completó la vuelta considerando un margen de seguridad
+     * CORREGIDO: Ahora verifica que realmente haya dado una vuelta completa
      * @param {number} anguloInicio - Ángulo donde comenzó la vuelta
      * @param {number} anguloActual - Ángulo actual del regador
-     * @param {number} margenPorcentaje - Margen de seguridad (por defecto 10%)
-     * @returns {object} - { completada, porcentajeCompletado, anguloObjetivo }
+     * @param {number} margenGrados - Margen de seguridad en grados (por defecto 36°, que es el 10% de 360°)
+     * @returns {object} - { completada, porcentajeCompletado, anguloObjetivo, avanceGrados, haAvanzadoSuficiente, enZonaObjetivo }
      */
-    verificarVueltaCompletada(anguloInicio, anguloActual, margenPorcentaje = 10) {
+    verificarVueltaCompletada(anguloInicio, anguloActual, margenGrados = 36) {
         // Normalizar ángulos a 0-360
         anguloInicio = ((anguloInicio % 360) + 360) % 360;
         anguloActual = ((anguloActual % 360) + 360) % 360;
         
-        // Calcular el margen en grados
-        const margenGrados = 360 * (margenPorcentaje / 100);
-        
-        // Calcular el ángulo objetivo (restar el margen al inicio)
+        // Calcular el ángulo objetivo (zona de llegada con margen)
+        // Restamos el margen al inicio para crear una "zona de llegada"
         let anguloObjetivo = anguloInicio - margenGrados;
         if (anguloObjetivo < 0) {
             anguloObjetivo += 360;
         }
         
-        // Calcular cuánto ha avanzado desde el inicio
+        // Calcular cuánto ha avanzado desde el inicio (en sentido horario)
         let avance = anguloActual - anguloInicio;
         
         // Ajustar si cruzó el 0°
@@ -157,26 +156,39 @@ class GPSCalculationsService {
             avance += 360;
         }
         
-        // Calcular porcentaje completado
+        // Calcular porcentaje completado (basado en 360° completos)
+        const porcentajeCompletado = (avance / 360) * 100;
+        
+        // CLAVE: Para considerar la vuelta completada, debe cumplir TODAS estas condiciones:
+        // 1. Haber avanzado al menos (360° - margen) grados
+        // 2. Estar dentro de la zona objetivo (entre anguloObjetivo y anguloInicio)
+        
         const anguloRequerido = 360 - margenGrados;
-        const porcentajeCompletado = (avance / anguloRequerido) * 100;
+        const haAvanzadoSuficiente = avance >= anguloRequerido;
         
-        // Verificar si completó la vuelta (llegó al objetivo o lo pasó)
-        let completada = false;
+        // Verificar si está en la zona objetivo (margen antes del inicio)
+        let enZonaObjetivo = false;
         
-        if (anguloInicio > anguloObjetivo) {
-            // El objetivo está "antes" en el círculo (ej: inicio 90°, objetivo 54°)
-            completada = anguloActual <= anguloObjetivo || anguloActual >= anguloInicio;
+        if (anguloObjetivo > anguloInicio) {
+            // El objetivo cruza el 0° (ej: inicio 10°, objetivo 334°)
+            // Debe estar entre objetivo y 360° O entre 0° y inicio
+            enZonaObjetivo = anguloActual >= anguloObjetivo || anguloActual <= anguloInicio;
         } else {
-            // El objetivo está "después" (ej: inicio 10°, objetivo 334°)
-            completada = anguloActual >= anguloObjetivo || anguloActual <= anguloInicio;
+            // El objetivo está "antes" en el círculo (ej: inicio 90°, objetivo 54°)
+            // Debe estar entre objetivo e inicio
+            enZonaObjetivo = anguloActual >= anguloObjetivo && anguloActual <= anguloInicio;
         }
+        
+        // La vuelta está completada SOLO si ha avanzado suficiente Y está en la zona objetivo
+        const completada = haAvanzadoSuficiente && enZonaObjetivo;
         
         return {
             completada,
             porcentajeCompletado: Math.min(porcentajeCompletado, 100),
             anguloObjetivo,
-            avanceGrados: avance
+            avanceGrados: avance,
+            haAvanzadoSuficiente,
+            enZonaObjetivo
         };
     }
     
