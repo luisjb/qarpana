@@ -365,7 +365,7 @@ class GPSController {
      * ⭐ FUNCIÓN CORREGIDA
      * Obtiene el estado actual en tiempo real de todos los regadores de un campo
      */
-    async obtenerEstadoCampo(req, res) {
+      async obtenerEstadoCampo(req, res) {
         try {
             const { campoId } = req.params;
             
@@ -381,7 +381,7 @@ class GPSController {
                     r.longitud_centro,
                     r.activo as regador_activo,
                     
-                    -- Estadísticas de sectores
+                    -- EstadÃ­sticas de sectores
                     COUNT(DISTINCT gp.id) as total_sectores,
                     COUNT(DISTINCT CASE WHEN esr.estado = 'completado' THEN gp.id END) as sectores_completados,
                     COUNT(DISTINCT CASE WHEN esr.estado = 'en_progreso' THEN gp.id END) as sectores_en_progreso,
@@ -396,7 +396,7 @@ class GPSController {
                     -- Agua total aplicada
                     COALESCE(SUM(esr.agua_aplicada_litros), 0) as agua_total_aplicada,
                     
-                    -- Última actividad
+                    -- Ãšltima actividad
                     MAX(dog.timestamp) as ultima_actividad,
                     
                     -- Estado actual del dispositivo
@@ -416,7 +416,28 @@ class GPSController {
                      FROM datos_operacion_gps 
                      WHERE regador_id = r.id 
                      ORDER BY timestamp DESC 
-                     LIMIT 1) as presion_actual
+                     LIMIT 1) as presion_actual,
+                    
+                    -- â­ NUEVO: Lote actual donde está regando
+                    (SELECT l.nombre_lote
+                     FROM datos_operacion_gps dog2
+                     LEFT JOIN geozonas_pivote gp2 ON dog2.geozona_id = gp2.id
+                     LEFT JOIN lotes l ON gp2.lote_id = l.id
+                     WHERE dog2.regador_id = r.id 
+                       AND dog2.dentro_geozona = true
+                       AND dog2.regando = true
+                     ORDER BY dog2.timestamp DESC 
+                     LIMIT 1) as lote_actual,
+                    
+                    -- â­ NUEVO: Sector actual donde está regando
+                    (SELECT gp2.nombre_sector
+                     FROM datos_operacion_gps dog2
+                     LEFT JOIN geozonas_pivote gp2 ON dog2.geozona_id = gp2.id
+                     WHERE dog2.regador_id = r.id 
+                       AND dog2.dentro_geozona = true
+                       AND dog2.regando = true
+                     ORDER BY dog2.timestamp DESC 
+                     LIMIT 1) as sector_actual
                     
                 FROM regadores r
                 LEFT JOIN geozonas_pivote gp ON r.id = gp.regador_id AND gp.activo = true
@@ -439,9 +460,9 @@ class GPSController {
             
             const result = await pool.query(query, [campoId]);
             
-            console.log(`📊 Estado campo ${campoId}:`, result.rows.length, 'regadores encontrados');
+            console.log(`ðŸ"Š Estado campo ${campoId}:`, result.rows.length, 'regadores encontrados');
             
-            // ⭐ IMPORTANTE: Devolver array directo (no wrapped)
+            // Devolver array directo (no wrapped)
             // El frontend espera: response.data = [...]
             res.json(result.rows);
             

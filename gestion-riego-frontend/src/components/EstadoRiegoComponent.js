@@ -232,23 +232,45 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
                 locale: es 
             });
         } catch (error) {
-            return 'Fecha inválida';
+            return 'Fecha invÃ¡lida';
         }
+    };
+
+    // â­ NUEVO: Calcular lámina aplicada en mm
+    const calcularLaminaAplicada = () => {
+        if (!regador.agua_total_aplicada || !regador.radio_cobertura) return 0;
+        
+        // Área del círculo en m²
+        const areaM2 = Math.PI * Math.pow(regador.radio_cobertura, 2);
+        
+        // Lámina (mm) = (agua en litros * 0.001 / área m²) * 1000
+        const laminaMM = (regador.agua_total_aplicada * 0.001 / areaM2) * 1000;
+        
+        return laminaMM.toFixed(2);
     };
 
     return (
         <Card sx={{ height: '100%' }}>
             <CardHeader
                 title={
-                    <Box display="flex" alignItems="center" gap={1}>
-                        {getStatusIcon(
-                            regador.sectores_en_progreso, 
-                            regador.sectores_completados, 
-                            regador.total_sectores
+                    <Box display="flex" flexDirection="column" gap={0.5}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                            {getStatusIcon(
+                                regador.sectores_en_progreso, 
+                                regador.sectores_completados, 
+                                regador.total_sectores
+                            )}
+                            <Typography variant="h6" component="div">
+                                {regador.nombre_dispositivo}
+                            </Typography>
+                        </Box>
+                        {/* â­ NUEVO: Mostrar lote/círculo actual si está regando */}
+                        {regador.lote_actual && (
+                            <Typography variant="caption" color="primary" sx={{ ml: 4 }}>
+                                📍 {regador.lote_actual}
+                                {regador.sector_actual && ` - Sector ${regador.sector_actual}`}
+                            </Typography>
                         )}
-                        <Typography variant="h6" component="div">
-                            {regador.nombre_dispositivo}
-                        </Typography>
                     </Box>
                 }
                 action={
@@ -295,7 +317,7 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
                         </Box>
                     </Grid>
 
-                    {/* Estadísticas de sectores */}
+                    {/* EstadÃ­sticas de sectores */}
                     <Grid item xs={12}>
                         <Box display="flex" gap={1} flexWrap="wrap">
                             <Chip 
@@ -322,16 +344,16 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
                         </Box>
                     </Grid>
 
-                    {/* Información adicional */}
+                    {/* â­ MODIFICADO: InformaciÃ³n adicional con lámina en lugar de litros */}
                     <Grid item xs={12}>
                         <Typography variant="body2" color="textSecondary">
                             <strong>Radio:</strong> {regador.radio_cobertura}m
                         </Typography>
                         <Typography variant="body2" color="textSecondary">
-                            <strong>Agua Aplicada:</strong> {regador.agua_total_aplicada || 0} L
+                            <strong>Lámina Aplicada:</strong> {calcularLaminaAplicada()} mm
                         </Typography>
                         <Typography variant="body2" color="textSecondary">
-                            <strong>Última Actividad:</strong> {formatUltimaActividad(regador.ultima_actividad)}
+                            <strong>Ãšltima Actividad:</strong> {formatUltimaActividad(regador.ultima_actividad)}
                         </Typography>
                     </Grid>
                 </Grid>
