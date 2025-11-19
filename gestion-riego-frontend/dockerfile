@@ -3,27 +3,13 @@ FROM node:18
 
 WORKDIR /app
 
-RUN npm cache clean --force && \
-    mkdir -p /root/.npm/_cacache && \
-    chmod -R 777 /root/.npm
+
 
 RUN npm install -g react-scripts --force
 RUN npm install -g serve --force
 
-# Cambiar permisos
-RUN chmod -R 777 /app
-COPY package*.json ./
+COPY build ./build
 
-RUN npm install --prefer-offline --no-audit
-
-COPY manifest.json ./public/
-COPY service-worker.js ./public/
-
-COPY . .
-
-ENV NODE_OPTIONS="--max-old-space-size=6144"
-
-RUN npm run build
 
 EXPOSE 3000
 
