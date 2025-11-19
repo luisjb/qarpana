@@ -5,8 +5,12 @@ class VueltasRiegoService {
     constructor() {
         // Almacenar vuelta activa por regador
         this.vueltasActivas = new Map();
-        // Margen de seguridad para considerar vuelta completa (10%)
-        this.MARGEN_SEGURIDAD = 10;
+        
+        // 🔒 CONFIGURACIÓN DE VALIDACIONES
+        this.MARGEN_SEGURIDAD = 10; // % de margen para completar (324° en lugar de 360°)
+        this.AVANCE_MINIMO_REQUERIDO = 50; // % mínimo que debe avanzar (180° mínimo)
+        this.DURACION_MINIMA_MINUTOS = 30; // Tiempo mínimo razonable para una vuelta real
+        this.SECTORES_MINIMOS_REQUERIDOS = 1; // Mínimo de sectores que debe pasar
     }
 
     /**
@@ -75,6 +79,7 @@ class VueltasRiegoService {
     }
 
     /**
+     * 🔒 VERSIÓN MEJORADA con validaciones más estrictas
      * Verifica si completó la vuelta y la cierra si es necesario
      */
     async verificarCompletarVuelta(regadorId, anguloActual, timestamp) {
@@ -85,17 +90,91 @@ class VueltasRiegoService {
                 return { completada: false };
             }
 
-            // Verificar si completó la vuelta con margen de seguridad
+            // 🔒 VALIDACIÓN 1: Verificar avance angular con requisito mínimo
             const verificacion = gpsCalc.verificarVueltaCompletada(
                 vueltaActiva.angulo_inicio,
                 anguloActual,
-                this.MARGEN_SEGURIDAD
+                this.MARGEN_SEGURIDAD,
+                this.AVANCE_MINIMO_REQUERIDO // 50% mínimo
             );
 
+            // Si no ha avanzado lo suficiente, no puede completar
+            if (!verificacion.haAvanzadoSuficiente) {
+                // Actualizar progreso pero no completar
+                if (verificacion.porcentajeCompletado > 0) {
+                    await this.actualizarProgresoVuelta(
+                        vueltaActiva.id,
+                        verificacion.porcentajeCompletado
+                    );
+                }
+                return { 
+                    completada: false, 
+                    progreso: verificacion.porcentajeCompletado,
+                    razon: `Avance insuficiente: ${verificacion.avanceGrados.toFixed(1)}° (${verificacion.porcentajeCompletado.toFixed(1)}%)`
+                };
+            }
+
+            // 🔒 VALIDACIÓN 2: Verificar tiempo mínimo transcurrido
+            const duracionMs = new Date(timestamp) - new Date(vueltaActiva.fecha_inicio);
+            const duracionMinutos = Math.round(duracionMs / 60000);
+
+            if (duracionMinutos < this.DURACION_MINIMA_MINUTOS) {
+                console.log(`⏱️ Vuelta ${vueltaActiva.numero_vuelta} - Tiempo insuficiente: ${duracionMinutos} min (mínimo: ${this.DURACION_MINIMA_MINUTOS})`);
+                
+                // Actualizar progreso
+                await this.actualizarProgresoVuelta(
+                    vueltaActiva.id,
+                    verificacion.porcentajeCompletado
+                );
+                
+                return { 
+                    completada: false, 
+                    progreso: verificacion.porcentajeCompletado,
+                    razon: `Tiempo insuficiente: ${duracionMinutos} min (mínimo: ${this.DURACION_MINIMA_MINUTOS})`
+                };
+            }
+
+            // 🔒 VALIDACIÓN 3: Verificar que pasó por al menos un sector
+            const querySectores = `
+                SELECT COUNT(*) as sectores_pasados
+                FROM sectores_por_vuelta
+                WHERE vuelta_id = $1 AND completado = true
+            `;
+
+            const resultSectores = await pool.query(querySectores, [vueltaActiva.id]);
+            const sectoresPasados = parseInt(resultSectores.rows[0].sectores_pasados);
+
+            if (sectoresPasados < this.SECTORES_MINIMOS_REQUERIDOS) {
+                console.log(`🚫 Vuelta ${vueltaActiva.numero_vuelta} - No pasó por suficientes sectores: ${sectoresPasados} (mínimo: ${this.SECTORES_MINIMOS_REQUERIDOS})`);
+                
+                // Actualizar progreso
+                await this.actualizarProgresoVuelta(
+                    vueltaActiva.id,
+                    verificacion.porcentajeCompletado
+                );
+                
+                return { 
+                    completada: false, 
+                    progreso: verificacion.porcentajeCompletado,
+                    razon: `Sectores insuficientes: ${sectoresPasados} (mínimo: ${this.SECTORES_MINIMOS_REQUERIDOS})`
+                };
+            }
+
+            // ✅ TODAS LAS VALIDACIONES PASADAS - Completar la vuelta
             if (verificacion.completada) {
-                // Completar la vuelta
                 await this.completarVuelta(regadorId, anguloActual, timestamp, verificacion);
-                return { completada: true, vuelta: vueltaActiva };
+                
+                console.log(`✅ Vuelta ${vueltaActiva.numero_vuelta} VÁLIDA completada:`);
+                console.log(`   • Avance: ${verificacion.avanceGrados.toFixed(1)}° (${verificacion.porcentajeCompletado.toFixed(1)}%)`);
+                console.log(`   • Duración: ${duracionMinutos} min`);
+                console.log(`   • Sectores: ${sectoresPasados}`);
+                
+                return { 
+                    completada: true, 
+                    vuelta: vueltaActiva,
+                    duracion: duracionMinutos,
+                    sectores: sectoresPasados
+                };
             }
 
             // Actualizar porcentaje de avance
@@ -106,7 +185,10 @@ class VueltasRiegoService {
                 );
             }
 
-            return { completada: false, progreso: verificacion.porcentajeCompletado };
+            return { 
+                completada: false, 
+                progreso: verificacion.porcentajeCompletado 
+            };
 
         } catch (error) {
             console.error('Error verificando completar vuelta:', error);

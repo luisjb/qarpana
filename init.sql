@@ -460,7 +460,7 @@ CREATE TABLE geozonas_pivote (
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- Constraints
-    CONSTRAINT unique_sector_regador UNIQUE (regador_id, numero_sector),
+    CONSTRAINT unique_sector_regador_lote UNIQUE (regador_id, lote_id, numero_sector),
     CONSTRAINT valid_angles CHECK (
         (angulo_fin > angulo_inicio) OR 
         (angulo_inicio > angulo_fin AND angulo_inicio > 180) -- Para sectores que cruzan 0°
@@ -584,7 +584,7 @@ CREATE TABLE IF NOT EXISTS geozonas_pivote (
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- Constraints
-    CONSTRAINT unique_sector_regador UNIQUE (regador_id, numero_sector),
+    CONSTRAINT unique_sector_regador_lote UNIQUE (regador_id, lote_id, numero_sector),
     CONSTRAINT valid_angles CHECK (
         (angulo_fin > angulo_inicio) OR 
         (angulo_inicio > angulo_fin AND angulo_inicio > 270) OR
