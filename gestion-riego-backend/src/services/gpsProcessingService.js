@@ -18,10 +18,10 @@ class GPSProcessingService {
         const ignition = position.attributes?.ignition || false;
 
         // Presión > 20 PSI indica que está regando
-        const regando = presion && presion > 20;
+        const regando = presion && presion > 10;
 
         // Velocidad > 0.1 km/h indica movimiento (ajustado, antes era 0.5)
-        const movimiento = velocidad && velocidad > 0.1;
+        const movimiento = velocidad && velocidad > 0.01;
 
         return {
             encendido: ignition,
