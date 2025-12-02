@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Container, Grid, Typography, Paper, FormControl, InputLabel, Select, MenuItem, 
+import {
+    Container, Grid, Typography, Paper, FormControl, InputLabel, Select, MenuItem,
     CircularProgress, useTheme, useMediaQuery, Box, Button
 } from '@mui/material';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, BarController, LineController } from 'chart.js';
@@ -44,16 +44,16 @@ function Simulations() {
 
     const GaugeIndicator = ({ percentage, size = 60 }) => {
         const safePercentage = percentage === null || percentage === undefined || isNaN(percentage) ? 0 : Math.round(Number(percentage));
-        
+
         const getColor = (value) => {
             value = Number(value) || 0;
-            if (value <= simulationData.porcentajeAguaUtilUmbral/2) return '#ef4444';
+            if (value <= simulationData.porcentajeAguaUtilUmbral / 2) return '#ef4444';
             if (value <= simulationData.porcentajeAguaUtilUmbral) return '#f97316';
             return '#22c55e';
         };
-    
+
         const color = getColor(safePercentage);
-        
+
         return (
             <div style={{
                 position: 'relative',
@@ -82,7 +82,7 @@ function Simulations() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         transform: 'rotate(90deg)', // Corrige la rotación para el texto
-                        fontSize: `${size/3}px`,
+                        fontSize: `${size / 3}px`,
                     }}>
                         {safePercentage}%
                     </div>
@@ -94,7 +94,7 @@ function Simulations() {
     useEffect(() => {
         fetchCampos();
         checkAdminStatus();
-        
+
         // Procesar parámetros de URL, si existen
         const params = new URLSearchParams(window.location.search);
         const loteId = params.get('lote');
@@ -110,7 +110,7 @@ function Simulations() {
                         setSelectedCampo(response.data.campo_id);
                         await fetchLotes(response.data.campo_id);
                         setSelectedLote(loteId);
-                        
+
                         if (campana) {
                             setSelectedCampaña(campana);
                             await fetchCultivos(loteId, campana);
@@ -122,7 +122,7 @@ function Simulations() {
                     console.error('Error al obtener información del lote:', error);
                 }
             };
-            
+
             findCampoForLote();
         }
     }, [location.search]);
@@ -150,8 +150,8 @@ function Simulations() {
     const fetchLotes = async (campoId) => {
         try {
             const response = await axios.get(`/lotes/campo/${campoId}`);
-            setLotes(Array.isArray(response.data) 
-                ? response.data.filter(lote => lote.activo) 
+            setLotes(Array.isArray(response.data)
+                ? response.data.filter(lote => lote.activo)
                 : (response.data.lotes || []).filter(lote => lote.activo));
         } catch (error) {
             console.error('Error al obtener lotes:', error);
@@ -167,9 +167,9 @@ function Simulations() {
                 const campañasLote = response.data.todasLasCampañas.filter(campaña => {
                     return response.data.campañasDelLote && response.data.campañasDelLote.includes(campaña);
                 });
-                
+
                 setCampañas(campañasLote);
-                
+
                 // Si solo hay una campaña, seleccionarla automáticamente
                 if (campañasLote.length === 1) {
                     setSelectedCampaña(campañasLote[0]);
@@ -286,7 +286,7 @@ function Simulations() {
             const response = await axios.get(`/simulations/${loteId}`, {
                 params: { campaña: campaña, cultivo: cultivo }
             });
-            
+
             if (!response.data || !Array.isArray(response.data.fechas) || response.data.fechas.length === 0) {
                 throw new Error('Datos de simulación inválidos o vacíos');
             }
@@ -345,21 +345,21 @@ function Simulations() {
         if (!dateString || !isValidDate(dateString)) return '';
         try {
             let date;
-            
+
             if (dateString.includes('T')) {
                 date = new Date(dateString);
             } else {
                 // Agregar mediodía para evitar problemas de zona horaria
                 date = new Date(dateString + 'T12:00:00');
             }
-            
+
             if (isNaN(date.getTime())) return '';
-            
+
             // Formatear manualmente
             const day = String(date.getDate()).padStart(2, '0');
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const year = date.getFullYear();
-            
+
             return `${day}/${month}/${year}`;
         } catch (error) {
             console.error('Error formatting date:', error);
@@ -382,7 +382,7 @@ function Simulations() {
         try {
             // Crear la fecha agregando hora del mediodía para evitar problemas de zona horaria
             let date;
-            
+
             if (dateString.includes('T')) {
                 // Si ya tiene información de tiempo, usarla directamente
                 date = new Date(dateString);
@@ -390,13 +390,13 @@ function Simulations() {
                 // Si es solo fecha (YYYY-MM-DD), agregar mediodía para evitar problemas de zona horaria
                 date = new Date(dateString + 'T12:00:00');
             }
-            
+
             if (isNaN(date.getTime())) return '';
-            
+
             // Formatear manualmente para evitar problemas de zona horaria
             const day = String(date.getDate()).padStart(2, '0');
             const month = String(date.getMonth() + 1).padStart(2, '0');
-            
+
             return `${day}/${month}`;
         } catch (error) {
             console.error('Error formatting short date:', error);
@@ -423,35 +423,35 @@ function Simulations() {
             capacidad1m: simulationData.agua_util_total,
             capacidad2m: simulationData.capacidad_almacenamiento_2m
         });
-        
+
         // Función interna para validar fechas
         const isDateValid = (dateString) => {
             if (!dateString) return false;
             const date = new Date(dateString);
             return date instanceof Date && !isNaN(date.getTime());
         };
-        
+
         // Usar la función de validación disponible o la interna
         const validateDate = typeof isValidDate === 'function' ? isValidDate : isDateValid;
-        
+
         // Combinar fechas válidas
         const fechasHistoricas = (simulationData.fechas || []).filter(date => validateDate(date));
         const fechasProyeccion = (simulationData.fechasProyeccion || []).filter(date => validateDate(date));
         const allDates = [...fechasHistoricas, ...fechasProyeccion];
-        
-        
+
+
         if (allDates.length === 0) {
             console.error('No hay fechas válidas para procesar');
             return [];
         }
-        
+
         // Funciones de formato
         const formatDecimal = (value) => parseFloat(value || 0).toFixed(2);
         const formatNumber = (value) => Math.round(parseFloat(value) || 0);
-        
+
         const capacidad1m = parseFloat(simulationData.agua_util_total);
         const capacidad2m = parseFloat(simulationData.capacidad_almacenamiento_2m);
-    
+
         const aguaUtil1mCompleto = [
             ...(simulationData.aguaUtil1m || []),
             // Para proyección, necesitamos extraer los valores proyectados si existen
@@ -473,46 +473,46 @@ function Simulations() {
                 return simulationData.aguaUtilProyectada?.[proyIndex] || 0;
             })
         ];
-    
+
         // Calcular días absolutos desde siembra
         let diasDesdeSiembra = [];
-        
+
         if (simulationData.fechaSiembra && validateDate(simulationData.fechaSiembra)) {
             const fechaSiembra = new Date(simulationData.fechaSiembra);
-            
+
             diasDesdeSiembra = allDates.map((date, index) => {
                 if (!validateDate(date)) return 0;
                 const dateObj = new Date(date);
                 const dias = Math.floor((dateObj - fechaSiembra) / (1000 * 60 * 60 * 24));
                 return Math.max(0, dias);
             });
-            
+
         } else {
             // Fallback si no hay fecha de siembra válida
             diasDesdeSiembra = allDates.map((_, index) => index);
         }
-        
+
         // Crear rangos de estados fenológicos
         let rangosEstadosFenologicos = [];
-        
-        if (simulationData.estadosFenologicos && 
-            Array.isArray(simulationData.estadosFenologicos) && 
+
+        if (simulationData.estadosFenologicos &&
+            Array.isArray(simulationData.estadosFenologicos) &&
             simulationData.estadosFenologicos.length > 0) {
-            
-            
+
+
             // Ordenar por días para asegurar secuencia correcta
-            const estadosOrdenados = [...simulationData.estadosFenologicos].sort((a, b) => 
+            const estadosOrdenados = [...simulationData.estadosFenologicos].sort((a, b) =>
                 parseInt(a.dias || 0) - parseInt(b.dias || 0)
             );
-            
+
             let startDay = 0;
             estadosOrdenados.forEach((estado, index) => {
                 const diasEstado = parseInt(estado.dias || 0);
-                
+
                 if (isNaN(diasEstado)) {
                     return;
                 }
-                
+
                 if (diasEstado >= startDay) {
                     rangosEstadosFenologicos.push({
                         fenologia: estado.fenologia,
@@ -522,7 +522,7 @@ function Simulations() {
                     startDay = diasEstado;
                 }
             });
-            
+
             // Agregar el último estado para cubrir días restantes
             if (rangosEstadosFenologicos.length > 0) {
                 const ultimoEstado = estadosOrdenados[estadosOrdenados.length - 1];
@@ -547,7 +547,7 @@ function Simulations() {
                 fin: Infinity
             });
         }
-        
+
         // Si no se crearon rangos, usar uno por defecto
         if (rangosEstadosFenologicos.length === 0) {
             rangosEstadosFenologicos.push({
@@ -556,15 +556,15 @@ function Simulations() {
                 fin: Infinity
             });
         }
-        
-        
-        
-        
+
+
+
+
         // Determinar el ciclo total del cultivo (último día definido en estados fenológicos)
-        const ultimoDiaDefinido = rangosEstadosFenologicos.length > 1 ? 
+        const ultimoDiaDefinido = rangosEstadosFenologicos.length > 1 ?
             rangosEstadosFenologicos[rangosEstadosFenologicos.length - 2].fin : 50;
-        
-        
+
+
         // Normalizar los días para que estén dentro del rango de estados fenológicos
         const diasNormalizados = diasDesdeSiembra.map(dia => {
             if (dia <= ultimoDiaDefinido) {
@@ -574,29 +574,29 @@ function Simulations() {
                 return dia % ultimoDiaDefinido;
             }
         });
-        
-        
+
+
         // Función para determinar estado fenológico basada en días normalizados
         const determinarEstadoFenologico = (dia) => {
             const diaNum = parseInt(dia);
             if (isNaN(diaNum)) {
                 return rangosEstadosFenologicos[0]?.fenologia || "Desconocido";
             }
-            
+
             for (const rango of rangosEstadosFenologicos) {
                 if (diaNum >= rango.inicio && diaNum < rango.fin) {
                     return rango.fenologia;
                 }
             }
-            
+
             return rangosEstadosFenologicos[rangosEstadosFenologicos.length - 1]?.fenologia || "Desconocido";
         };
-        
+
         // Verificar con ejemplos
         if (diasNormalizados.length > 0) {
             console.log('Ejemplos de asignación de estados con días normalizados:');
             const diasMuestra = [0, Math.floor(diasNormalizados.length / 3), Math.floor(diasNormalizados.length * 2 / 3)];
-            
+
             diasMuestra.forEach(indice => {
                 const diaAbs = diasDesdeSiembra[indice];
                 const diaNorm = diasNormalizados[indice];
@@ -604,25 +604,25 @@ function Simulations() {
                 console.log(`Fecha ${allDates[indice]}, Día absoluto ${diaAbs}, Día normalizado ${diaNorm}: Estado ${estado}`);
             });
         }
-        
+
         // Función para formatear fechas
         const formatDate = (dateString) => {
             if (!validateDate(dateString)) return '';
-            
+
             try {
                 const date = new Date(dateString);
-                return date.toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'});
+                return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
             } catch (error) {
                 console.error('Error al formatear fecha:', error);
                 return dateString;
             }
         };
-        
+
         // Preparar los datos para el CSV
         const csvData = allDates.map((date, index) => {
             const isHistorical = index < fechasHistoricas.length;
             const etcValue = formatDecimal(simulationData.etc?.[index] || 0);
-            
+
             let aguaUtil;
             if (isHistorical) {
                 aguaUtil = formatNumber(simulationData.aguaUtil?.[index] || 0);
@@ -630,34 +630,34 @@ function Simulations() {
                 const proyIndex = index - fechasHistoricas.length;
                 aguaUtil = formatNumber(simulationData.aguaUtilProyectada?.[proyIndex] || 0);
             }
-            
+
             const umbral = formatNumber(simulationData.aguaUtilUmbral?.[index] || 0);
-            
+
             let porcentajeAU = 0;
             if (umbral > 0 && simulationData.porcentajeAguaUtilUmbral) {
                 const porcentajeUmbral = parseFloat(simulationData.porcentajeAguaUtilUmbral) / 100;
                 porcentajeAU = formatNumber((aguaUtil / (umbral / porcentajeUmbral)) * 100);
             }
 
-             // NUEVOS CÁLCULOS: Agua útil y porcentajes para 1m y 2m
+            // NUEVOS CÁLCULOS: Agua útil y porcentajes para 1m y 2m
             const aguaUtil1m = formatNumber(aguaUtil1mCompleto[index] || 0);
             const aguaUtil2m = formatNumber(aguaUtil2mCompleto[index] || 0);
-            
+
             // Calcular porcentajes
-            const porcentajeAU1m = capacidad1m > 0 ? 
+            const porcentajeAU1m = capacidad1m > 0 ?
                 formatNumber((parseFloat(aguaUtil1m) / capacidad1m) * 100) : 0;
-            const porcentajeAU2m = capacidad2m > 0 ? 
+            const porcentajeAU2m = capacidad2m > 0 ?
                 formatNumber((parseFloat(aguaUtil2m) / capacidad2m) * 100) : 0;
-            
+
             // Usar día normalizado para determinar el estado fenológico
             const diaNormalizado = diasNormalizados[index];
             const estadoFenologico = determinarEstadoFenologico(diaNormalizado);
-            
+
             // Crear el objeto de datos
             return {
                 Fecha: formatDate(date),
-                'Agua Útil (mm)': isHistorical ? 
-                    formatNumber(simulationData.aguaUtil[index]) : 
+                'Agua Útil (mm)': isHistorical ?
+                    formatNumber(simulationData.aguaUtil[index]) :
                     formatNumber(simulationData.aguaUtilProyectada[index - simulationData.fechas.length]),
                 'Agua Útil Umbral (mm)': formatNumber(simulationData.aguaUtilUmbral[index]),
                 '% Agua Útil ZR': porcentajeAU,
@@ -673,22 +673,22 @@ function Simulations() {
                 'Estado Fenológico': estadoFenologico
             };
         });
-    
+
         return csvData;
     };
 
     const downloadCSV = (simulationData) => {
         const csvData = prepareCSVData(simulationData);
-        
+
         // Crear las cabeceras del CSV
         const headers = Object.keys(csvData[0]);
-        
+
         // Convertir los datos a formato CSV
         const csvContent = [
             headers.join(','),
             ...csvData.map(row => headers.map(header => row[header]).join(','))
         ].join('\n');
-    
+
         // Crear el blob y descargar
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -701,7 +701,7 @@ function Simulations() {
         document.body.removeChild(link);
     };
 
-    
+
     const getEstadosFenologicosAnnotations = () => {
         if (!simulationData || !simulationData.estadosFenologicos) return [];
 
@@ -710,7 +710,7 @@ function Simulations() {
         const colors = ['rgba(110, 243, 110, 0.2)', 'rgba(156, 105, 46, 0.2)', 'rgba(255, 238, 86, 0.2)', 'rgba(75, 192, 192, 0.2)'];
 
         const allAguaUtilValues = [
-            ...simulationData.aguaUtil, 
+            ...simulationData.aguaUtil,
             ...simulationData.aguaUtilProyectada.filter(val => val !== null && !isNaN(val))
         ];
 
@@ -734,7 +734,7 @@ function Simulations() {
                 z: -1 // Para que esté detrás de los datasets
 
             });
-            
+
             // Añadimos la etiqueta con el nombre del estado fenológico
             annotations.push({
                 type: 'label',
@@ -754,7 +754,7 @@ function Simulations() {
                     left: 6,
                     right: 6
                 },
-                 // Asegurar que la etiqueta siempre esté visible
+                // Asegurar que la etiqueta siempre esté visible
                 drawTime: 'afterDatasetsDraw',
                 z: 100, // Alto valor de z-index para asegurar que esté por encima de todo
                 position: {
@@ -778,12 +778,12 @@ function Simulations() {
             x: {
                 stacked: true,
                 ticks: {
-                    callback: function(value, index) {
+                    callback: function (value, index) {
                         return formatShortDateFixed(this.getLabelForValue(value));
                     }
                 }
             },
-            y: { 
+            y: {
                 stacked: true,
                 position: 'left',
                 title: {
@@ -794,7 +794,7 @@ function Simulations() {
                     drawOnChartArea: false
                 },
                 // Asegurar que haya suficiente espacio en la parte superior para las etiquetas
-                suggestedMax: function(context) {
+                suggestedMax: function (context) {
                     if (simulationData && simulationData.aguaUtil) {
                         const maxValue = Math.max(
                             ...simulationData.aguaUtil.filter(val => val !== null && !isNaN(val)),
@@ -815,7 +815,7 @@ function Simulations() {
                     drawOnChartArea: false
                 },
                 // Asegurar que haya suficiente espacio en la parte superior para las etiquetas
-                suggestedMax: function(context) {
+                suggestedMax: function (context) {
                     if (simulationData && simulationData.aguaUtil) {
                         const maxValue = Math.max(
                             ...simulationData.aguaUtil.filter(val => val !== null && !isNaN(val)),
@@ -830,7 +830,7 @@ function Simulations() {
         plugins: {
             tooltip: {
                 callbacks: {
-                    label: function(context) {
+                    label: function (context) {
                         let label = context.dataset.label || '';
                         if (label) {
                             label += ': ';
@@ -846,7 +846,7 @@ function Simulations() {
                     }
                 }
             },
-            legend: { 
+            legend: {
                 position: 'top',
                 labels: {
                     usePointStyle: true,
@@ -927,9 +927,34 @@ function Simulations() {
                 order: 0,
                 yAxisID: 'y1'
             },
+            // Datasets visibles solo para administradores
+            ...(isAdmin ? [
+                {
+                    type: 'line',
+                    label: 'ETC',
+                    data: simulationData.etc || [],
+                    borderColor: 'rgb(255, 159, 64)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1,
+                    order: 0,
+                    yAxisID: 'y1'
+                },
+                {
+                    type: 'line',
+                    label: 'Capacidad de Extracción',
+                    data: simulationData.capacidadExtraccion || [],
+                    borderColor: 'rgb(153, 102, 255)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1,
+                    order: 0,
+                    yAxisID: 'y1'
+                }
+            ] : [])
         ],
     } : null;
-    
+
     useEffect(() => {
         if (simulationData) {
             /*console.log('Datos recibidos en el frontend:', {
@@ -941,10 +966,10 @@ function Simulations() {
 
     const additionalWidgets = simulationData ? (
         <Grid item xs={12} md={4}>
-            <Widget 
-                title="Umbral de Agua Útil Configurado" 
+            <Widget
+                title="Umbral de Agua Útil Configurado"
                 value={simulationData.porcentajeAguaUtilUmbral}
-                unit="%" 
+                unit="%"
                 icon="waterDrop"
                 color='#3FA9F5'
             />
@@ -962,109 +987,109 @@ function Simulations() {
             <Typography variant="h4" gutterBottom sx={{ my: 4, fontWeight: 'bold', color: theme.palette.primary.main }}>
                 Balance Hídrico
             </Typography>
-            
+
             <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-            <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={4} lg={4.5}>
-                <FormControl fullWidth>
-                <InputLabel label="Campo" variant="outlined">Campo</InputLabel>
-                <Select
-                    value={selectedCampo}
-                    onChange={handleCampoChange}
-                    label="Campo"
-                >
-                    <MenuItem value=""><em>Seleccione un campo</em></MenuItem>
-                    {campos.map(campo => (
-                    <MenuItem key={campo.id} value={campo.id}>{campo.nombre_campo}</MenuItem>
-                    ))}
-                </Select>
-                </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={3} lg={3}>
-                <FormControl fullWidth>
-                <InputLabel>Lote</InputLabel>
-                <Select 
-                    value={selectedLote} 
-                    onChange={handleLoteChange}
-                    disabled={!selectedCampo}
-                    label="Lote"
-                >
-                    <MenuItem value=""><em>Seleccione un lote</em></MenuItem>
-                    {lotes.map(lote => (
-                    <MenuItem key={lote.id} value={lote.id}>{lote.nombre_lote}</MenuItem>
-                    ))}
-                </Select>
-                </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={2} lg={1.5}>
-                <FormControl fullWidth>
-                <InputLabel>Campaña</InputLabel>
-                <Select 
-                    value={selectedCampaña} 
-                    onChange={handleCampañaChange}
-                    disabled={!selectedLote}
-                    label="Campaña"
-                >
-                    {campañas.map((campaña) => (
-                    <MenuItem key={campaña} value={campaña}>{campaña}</MenuItem>
-                    ))}
-                </Select>
-                </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={3} lg={3}>
-                <FormControl fullWidth>
-                <InputLabel>Cultivo</InputLabel>
-                <Select 
-                    value={selectedCultivo} 
-                    onChange={handleCultivoChange}
-                    disabled={!selectedCampaña}
-                    label="Cultivo"
-                >
-                    <MenuItem value=""><em>Seleccione un cultivo</em></MenuItem>
-                    {cultivos.map((cultivo) => (
-                    <MenuItem key={cultivo.id} value={cultivo.especie}>{cultivo.especie}</MenuItem>
-                    ))}
-                </Select>
-                </FormControl>
-            </Grid>
-            </Grid>
-                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                            <Button
-                                variant="contained"
-                                color="primary"
-                                onClick={() => downloadCSV(simulationData)}
-                                startIcon={<DownloadIcon />}
-                                size="small"
+                <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6} md={4} lg={4.5}>
+                        <FormControl fullWidth>
+                            <InputLabel label="Campo" variant="outlined">Campo</InputLabel>
+                            <Select
+                                value={selectedCampo}
+                                onChange={handleCampoChange}
+                                label="Campo"
                             >
-                                Descargar CSV
-                            </Button>
-                            {isAdmin && (
-                            <Button 
-                                variant="contained" 
-                                color="primary" 
-                                onClick={handleForzarActualizacion}
-                                >
-                                Forzar Actualización Diaria
-                            </Button>
-                            )}
-                            {isAdmin && (
-                            <Button 
-                                variant="contained" 
-                                color="primary" 
-                                onClick={handleCorreccionDias}
-                                >
-                                Corrección de Días
-                            </Button>
-                            )}
-                        </Box>
+                                <MenuItem value=""><em>Seleccione un campo</em></MenuItem>
+                                {campos.map(campo => (
+                                    <MenuItem key={campo.id} value={campo.id}>{campo.nombre_campo}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6} md={3} lg={3}>
+                        <FormControl fullWidth>
+                            <InputLabel>Lote</InputLabel>
+                            <Select
+                                value={selectedLote}
+                                onChange={handleLoteChange}
+                                disabled={!selectedCampo}
+                                label="Lote"
+                            >
+                                <MenuItem value=""><em>Seleccione un lote</em></MenuItem>
+                                {lotes.map(lote => (
+                                    <MenuItem key={lote.id} value={lote.id}>{lote.nombre_lote}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6} md={2} lg={1.5}>
+                        <FormControl fullWidth>
+                            <InputLabel>Campaña</InputLabel>
+                            <Select
+                                value={selectedCampaña}
+                                onChange={handleCampañaChange}
+                                disabled={!selectedLote}
+                                label="Campaña"
+                            >
+                                {campañas.map((campaña) => (
+                                    <MenuItem key={campaña} value={campaña}>{campaña}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6} md={3} lg={3}>
+                        <FormControl fullWidth>
+                            <InputLabel>Cultivo</InputLabel>
+                            <Select
+                                value={selectedCultivo}
+                                onChange={handleCultivoChange}
+                                disabled={!selectedCampaña}
+                                label="Cultivo"
+                            >
+                                <MenuItem value=""><em>Seleccione un cultivo</em></MenuItem>
+                                {cultivos.map((cultivo) => (
+                                    <MenuItem key={cultivo.id} value={cultivo.especie}>{cultivo.especie}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                </Grid>
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => downloadCSV(simulationData)}
+                        startIcon={<DownloadIcon />}
+                        size="small"
+                    >
+                        Descargar CSV
+                    </Button>
+                    {isAdmin && (
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={handleForzarActualizacion}
+                        >
+                            Forzar Actualización Diaria
+                        </Button>
+                    )}
+                    {isAdmin && (
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={handleCorreccionDias}
+                        >
+                            Corrección de Días
+                        </Button>
+                    )}
+                </Box>
             </Paper>
 
             {loading && (
                 <Box display="flex" justifyContent="center" my={4}>
-                <CircularProgress />
+                    <CircularProgress />
                 </Box>
             )}
 
@@ -1075,209 +1100,209 @@ function Simulations() {
 
             {simulationData && (
                 <>
-                <Grid container spacing={2} sx={{ mb: 4 }}>
-                <Grid item xs={6} md={3}>
-                    <Widget 
-                        title="Cultivo" 
-                        value={simulationData.cultivo} 
-                        unit="" 
-                        icon="grass"
-                        small
-                        />
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                        <Widget 
-                            title="Variedad" 
-                            value={simulationData.variedad} 
-                            unit="" 
-                            icon="grass"
-                            small
+                    <Grid container spacing={2} sx={{ mb: 4 }}>
+                        <Grid item xs={6} md={3}>
+                            <Widget
+                                title="Cultivo"
+                                value={simulationData.cultivo}
+                                unit=""
+                                icon="grass"
+                                small
                             />
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                    <Widget 
-                        title="Fecha de Siembra" 
-                        value={formatDate(simulationData.fechaSiembra)} 
-                        unit="" 
-                        icon="calendar"
-                        small
-                        />
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                    <Widget 
-                        title="Estado Fenológico" 
-                        value={simulationData.estadoFenologico} 
-                        unit="" 
-                        icon="grass"
-                        small
-                        />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                        <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
-                            <Box display="flex" alignItems="center" mb={2}>
-                                <WaterDrop style={{ color: '#3FA9F5' }} />
-                                <Typography variant="h6" color="primary" style={{ marginLeft: '10px' }}>
-                                    Agua Útil Inicial
-                                </Typography>
-                            </Box>
-                            <Grid container spacing={2}>
-                                <Grid item xs={6}>
-                                    <Typography variant="body1" color="text.secondary">1 Metro</Typography>
-                                    <Typography variant="h5">{formatNumber(simulationData.auInicial1m)} mm</Typography>
-                                </Grid>
-                                <Grid item xs={6}>
-                                    <Typography variant="body1" color="text.secondary">2 Metros</Typography>
-                                    <Typography variant="h5">{formatNumber(simulationData.auInicial2m)} mm</Typography>
-                                </Grid>
-                            </Grid>
-                        </Paper>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                    <Widget 
-                        title=" Lluvias Efectiva Acumuladas" 
-                        value={formatNumber(simulationData.lluviasEfectivasAcumuladas)} 
-                        unit="mm" 
-                        icon="cloud"
-                        />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                    <Widget 
-                        title="Riego Acumulado" 
-                        value={formatNumber(simulationData.riegoAcumulado)} 
-                        unit="mm" 
-                        icon="opacity"
-                        />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                        <Widget 
-                            title="%AU Zona Radicular" 
-                            value={
-                                <Box sx={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center',
-                                    justifyContent: 'center', 
-                                    gap: 2,
-                                    '& .gauge': { flexShrink: 0 },
-                                    '& .value': { 
-                                        fontSize: '1.2rem',
-                                        opacity: 0.7,
-                                        marginLeft: 2
-                                    }
-                                }}>
-                                    <div className="gauge">
-                                        <GaugeIndicator percentage={simulationData.porcentajeAguaUtil} size={80} />
-                                    </div>
-                                    <span className="value">
-                                        {formatNumber(simulationData.aguaUtil[simulationData.aguaUtil.length - 1])}mm
-                                    </span>
+                        </Grid>
+                        <Grid item xs={6} md={3}>
+                            <Widget
+                                title="Variedad"
+                                value={simulationData.variedad}
+                                unit=""
+                                icon="grass"
+                                small
+                            />
+                        </Grid>
+                        <Grid item xs={6} md={3}>
+                            <Widget
+                                title="Fecha de Siembra"
+                                value={formatDate(simulationData.fechaSiembra)}
+                                unit=""
+                                icon="calendar"
+                                small
+                            />
+                        </Grid>
+                        <Grid item xs={6} md={3}>
+                            <Widget
+                                title="Estado Fenológico"
+                                value={simulationData.estadoFenologico}
+                                unit=""
+                                icon="grass"
+                                small
+                            />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                            <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
+                                <Box display="flex" alignItems="center" mb={2}>
+                                    <WaterDrop style={{ color: '#3FA9F5' }} />
+                                    <Typography variant="h6" color="primary" style={{ marginLeft: '10px' }}>
+                                        Agua Útil Inicial
+                                    </Typography>
                                 </Box>
-                            }
-                            icon="waterDrop"
-                            color='#3FA9F5'
-                        />
+                                <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                        <Typography variant="body1" color="text.secondary">1 Metro</Typography>
+                                        <Typography variant="h5">{formatNumber(simulationData.auInicial1m)} mm</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Typography variant="body1" color="text.secondary">2 Metros</Typography>
+                                        <Typography variant="h5">{formatNumber(simulationData.auInicial2m)} mm</Typography>
+                                    </Grid>
+                                </Grid>
+                            </Paper>
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                            <Widget
+                                title=" Lluvias Efectiva Acumuladas"
+                                value={formatNumber(simulationData.lluviasEfectivasAcumuladas)}
+                                unit="mm"
+                                icon="cloud"
+                            />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                            <Widget
+                                title="Riego Acumulado"
+                                value={formatNumber(simulationData.riegoAcumulado)}
+                                unit="mm"
+                                icon="opacity"
+                            />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                            <Widget
+                                title="%AU Zona Radicular"
+                                value={
+                                    <Box sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 2,
+                                        '& .gauge': { flexShrink: 0 },
+                                        '& .value': {
+                                            fontSize: '1.2rem',
+                                            opacity: 0.7,
+                                            marginLeft: 2
+                                        }
+                                    }}>
+                                        <div className="gauge">
+                                            <GaugeIndicator percentage={simulationData.porcentajeAguaUtil} size={80} />
+                                        </div>
+                                        <span className="value">
+                                            {formatNumber(simulationData.aguaUtil[simulationData.aguaUtil.length - 1])}mm
+                                        </span>
+                                    </Box>
+                                }
+                                icon="waterDrop"
+                                color='#3FA9F5'
+                            />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                            <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
+                                <Box display="flex" alignItems="center" mb={2}>
+                                    <WaterDrop style={{ color: '#3FA9F5' }} />
+                                    <Typography variant="h6" color="primary" style={{ marginLeft: '10px' }}>
+                                        % Agua Útil
+                                    </Typography>
+                                </Box>
+                                <Grid container spacing={2} justifyContent="center">
+                                    <Grid item xs={6} sx={{ textAlign: 'center' }}>
+                                        <Typography variant="body1" color="text.secondary">1 Metro</Typography>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
+                                            <GaugeIndicator
+                                                percentage={formatNumber(simulationData.porcentajeAu1m)}
+                                                size={60}
+                                            />
+                                        </Box>
+                                        <Typography variant="body1" fontWeight="medium">
+                                            {formatNumber(simulationData.aguaUtil1m[simulationData.aguaUtil1m.length - 1])} mm
+                                        </Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sx={{ textAlign: 'center' }}>
+                                        <Typography variant="body1" color="text.secondary">2 Metros</Typography>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
+                                            <GaugeIndicator
+                                                percentage={formatNumber(simulationData.porcentajeAu2m)}
+                                                size={60}
+                                            />
+                                        </Box>
+                                        <Typography variant="body1" fontWeight="medium">
+                                            {formatNumber(simulationData.aguaUtil2m[simulationData.aguaUtil2m.length - 1])} mm
+                                        </Typography>
+                                    </Grid>
+                                </Grid>
+                            </Paper>
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                            <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
+                                <Box display="flex" alignItems="center" mb={2}>
+                                    <WaterDrop style={{ color: '#3FA9F5' }} />
+                                    <Typography variant="h6" color="primary" style={{ marginLeft: '10px' }}>
+                                        Proyección AU 7 días
+                                    </Typography>
+                                </Box>
+                                <Grid container spacing={2} justifyContent="center">
+                                    <Grid item xs={6} sx={{ textAlign: 'center' }}>
+                                        <Typography variant="body1" color="text.secondary">1 Metro</Typography>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
+                                            <GaugeIndicator
+                                                percentage={formatNumber(simulationData.porcentajeProyectado || 0)}
+                                                size={60}
+                                            />
+                                        </Box>
+                                        <Typography variant="body1" fontWeight="medium">
+                                            {formatNumber(simulationData.proyeccionAU1mDia8 || simulationData.proyeccionAU10Dias)} mm
+                                        </Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sx={{ textAlign: 'center' }}>
+                                        <Typography variant="body1" color="text.secondary">2 Metros</Typography>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
+                                            <GaugeIndicator
+                                                percentage={formatNumber(simulationData.porcentajeProyectado2m || 0)}
+                                                size={60}
+                                            />
+                                        </Box>
+                                        <Typography variant="body1" fontWeight="medium">
+                                            {formatNumber(simulationData.proyeccionAU2mDia8 || simulationData.proyeccionAU10Dias)} mm
+                                        </Typography>
+                                    </Grid>
+                                </Grid>
+                            </Paper>
+                        </Grid>
                     </Grid>
-                    <Grid item xs={12} md={4}>
-                        <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
-                            <Box display="flex" alignItems="center" mb={2}>
-                                <WaterDrop style={{ color: '#3FA9F5' }} />
-                                <Typography variant="h6" color="primary" style={{ marginLeft: '10px' }}>
-                                    % Agua Útil
-                                </Typography>
-                            </Box>
-                            <Grid container spacing={2} justifyContent="center">
-                                <Grid item xs={6} sx={{ textAlign: 'center' }}>
-                                    <Typography variant="body1" color="text.secondary">1 Metro</Typography>
-                                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
-                                        <GaugeIndicator 
-                                            percentage={formatNumber(simulationData.porcentajeAu1m)} 
-                                            size={60}
-                                        />
-                                    </Box>
-                                    <Typography variant="body1" fontWeight="medium">
-                                    {formatNumber(simulationData.aguaUtil1m[simulationData.aguaUtil1m.length - 1])} mm
-                                    </Typography>
-                                </Grid>
-                                <Grid item xs={6} sx={{ textAlign: 'center' }}>
-                                    <Typography variant="body1" color="text.secondary">2 Metros</Typography>
-                                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
-                                        <GaugeIndicator 
-                                            percentage={formatNumber(simulationData.porcentajeAu2m)} 
-                                            size={60}
-                                        />
-                                    </Box>
-                                    <Typography variant="body1" fontWeight="medium">
-                                    {formatNumber(simulationData.aguaUtil2m[simulationData.aguaUtil2m.length - 1])} mm
-                                    </Typography>
-                                </Grid>
-                            </Grid>
-                        </Paper>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                        <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
-                            <Box display="flex" alignItems="center" mb={2}>
-                                <WaterDrop style={{ color: '#3FA9F5' }} />
-                                <Typography variant="h6" color="primary" style={{ marginLeft: '10px' }}>
-                                    Proyección AU 7 días
-                                </Typography>
-                            </Box>
-                            <Grid container spacing={2} justifyContent="center">
-                                <Grid item xs={6} sx={{ textAlign: 'center' }}>
-                                    <Typography variant="body1" color="text.secondary">1 Metro</Typography>
-                                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
-                                        <GaugeIndicator 
-                                            percentage={formatNumber(simulationData.porcentajeProyectado || 0)}
-                                            size={60}
-                                        />
-                                    </Box>
-                                    <Typography variant="body1" fontWeight="medium">
-                                        {formatNumber(simulationData.proyeccionAU1mDia8 || simulationData.proyeccionAU10Dias)} mm
-                                    </Typography>
-                                </Grid>
-                                <Grid item xs={6} sx={{ textAlign: 'center' }}>
-                                    <Typography variant="body1" color="text.secondary">2 Metros</Typography>
-                                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
-                                        <GaugeIndicator 
-                                            percentage={formatNumber(simulationData.porcentajeProyectado2m || 0)}
-                                            size={60}
-                                        />
-                                    </Box>
-                                    <Typography variant="body1" fontWeight="medium">
-                                        {formatNumber(simulationData.proyeccionAU2mDia8 || simulationData.proyeccionAU10Dias)} mm
-                                    </Typography>
-                                </Grid>
-                            </Grid>
-                        </Paper>
-                    </Grid>
-                </Grid>
 
-                <Typography variant="body2" align="right" sx={{ mb: 2, fontStyle: 'italic' }}>
-                    Profundidad estratos: {simulationData.estratosDisponibles ? 
-                        `${formatNumber(simulationData.estratosDisponibles[simulationData.estratosDisponibles.length - 1] * 20)}cm` : '0cm'} - 
-                    % Agua Util Umbral: {formatNumber(simulationData.porcentajeAguaUtilUmbral)}% - 
-                    Última actualización: {formatDate(simulationData.fechaActualizacion)}
-                </Typography>
-                
-                <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
+                    <Typography variant="body2" align="right" sx={{ mb: 2, fontStyle: 'italic' }}>
+                        Profundidad estratos: {simulationData.estratosDisponibles ?
+                            `${formatNumber(simulationData.estratosDisponibles[simulationData.estratosDisponibles.length - 1] * 20)}cm` : '0cm'} -
+                        % Agua Util Umbral: {formatNumber(simulationData.porcentajeAguaUtilUmbral)}% -
+                        Última actualización: {formatDate(simulationData.fechaActualizacion)}
+                    </Typography>
+
+                    <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
                         {chartData && <Chart type="bar" data={chartData} options={chartOptions} />}
-                </Paper>
-                {simulationData && isAdmin && (
-                <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
-                        <ObservacionesSection 
-                            loteId={selectedLote} 
-                            campaña={selectedCampaña} 
-                        />
-                </Paper>
-                )}
+                    </Paper>
+                    {simulationData && isAdmin && (
+                        <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
+                            <ObservacionesSection
+                                loteId={selectedLote}
+                                campaña={selectedCampaña}
+                            />
+                        </Paper>
+                    )}
                 </>
             )}
-            
-            <CorreccionDiasDialog 
-                    open={openCorreccionDialog} 
-                    onClose={() => setOpenCorreccionDialog(false)}
-                    selectedLote={selectedLote}
-                    selectedCampaña={selectedCampaña}
-                />
-            </Container>
+
+            <CorreccionDiasDialog
+                open={openCorreccionDialog}
+                onClose={() => setOpenCorreccionDialog(false)}
+                selectedLote={selectedLote}
+                selectedCampaña={selectedCampaña}
+            />
+        </Container>
     );
 }
 
