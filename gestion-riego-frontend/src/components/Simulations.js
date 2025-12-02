@@ -836,10 +836,16 @@ function Simulations() {
                             label += ': ';
                         }
                         if (context.parsed.y !== null) {
-                            label += formatNumber(context.parsed.y) + ' mm';
-                            if (label.includes('Umbral')) {
-                                const estratosDisponibles = simulationData.estratosDisponibles[context.dataIndex];
-                                label += ` (${estratosDisponibles} estratos)`;
+                            // Para ETC y Capacidad de Extracción, mostrar el valor original (no multiplicado)
+                            if (context.dataset.originalData) {
+                                const originalValue = context.dataset.originalData[context.dataIndex];
+                                label += formatNumber(originalValue) + ' mm';
+                            } else {
+                                label += formatNumber(context.parsed.y) + ' mm';
+                                if (label.includes('Umbral')) {
+                                    const estratosDisponibles = simulationData.estratosDisponibles[context.dataIndex];
+                                    label += ` (${estratosDisponibles} estratos)`;
+                                }
                             }
                         }
                         return label;
@@ -932,7 +938,10 @@ function Simulations() {
                 {
                     type: 'line',
                     label: 'ETC',
-                    data: simulationData.etc || [],
+                    // Multiplicar por 10 para mejor visualización
+                    data: (simulationData.etc || []).map(val => val !== null && val !== undefined ? val * 10 : null),
+                    // Guardar valores originales para el tooltip
+                    originalData: simulationData.etc || [],
                     borderColor: 'rgb(255, 159, 64)',
                     borderWidth: 2,
                     fill: false,
@@ -943,7 +952,10 @@ function Simulations() {
                 {
                     type: 'line',
                     label: 'Capacidad de Extracción',
-                    data: simulationData.capacidadExtraccion || [],
+                    // Multiplicar por 10 para mejor visualización
+                    data: (simulationData.capacidadExtraccion || []).map(val => val !== null && val !== undefined ? val * 10 : null),
+                    // Guardar valores originales para el tooltip
+                    originalData: simulationData.capacidadExtraccion || [],
                     borderColor: 'rgb(153, 102, 255)',
                     borderWidth: 2,
                     fill: false,
