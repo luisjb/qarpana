@@ -1,4 +1,4 @@
-// src/routes/geozonasPivoteRoutes.js
+﻿// src/routes/geozonasPivoteRoutes.js
 const express = require('express');
 const router = express.Router();
 const { verifyToken, isAdmin } = require('../middleware/auth');
@@ -372,13 +372,30 @@ router.delete('/lote/:loteId/regador/:regadorId', verifyToken, isAdmin, async (r
     }
 });
 
-// Obtener todas las geozonas de un regador
+// Obtener todas las geozonas de un regador (filtradas por lote actual si estÃ¡ en uno)
 router.get('/regador/:regadorId', verifyToken, async (req, res) => {
     const client = await pool.connect();
     try {
         const { regadorId } = req.params;
         
-        const query = `
+        // Primero, obtener la posiciÃ³n actual del regador para saber en quÃ© lote estÃ¡
+        const queryPosicionActual = `
+            SELECT 
+                dog.geozona_id,
+                gp.lote_id
+            FROM datos_operacion_gps dog
+            LEFT JOIN geozonas_pivote gp ON dog.geozona_id = gp.id
+            WHERE dog.regador_id = $1
+              AND dog.dentro_geozona = true
+            ORDER BY dog.timestamp DESC
+            LIMIT 1
+        `;
+        
+        const resultPosicion = await client.query(queryPosicionActual, [regadorId]);
+        const loteActual = resultPosicion.rows[0]?.lote_id || null;
+        
+        // Construir query base
+        let query = `
             SELECT 
                 gp.*,
                 l.nombre_lote,
@@ -389,11 +406,25 @@ router.get('/regador/:regadorId', verifyToken, async (req, res) => {
             LEFT JOIN lotes l ON gp.lote_id = l.id
             LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
             WHERE gp.regador_id = $1
-            ORDER BY l.nombre_lote, gp.numero_sector
         `;
         
-        const { rows } = await client.query(query, [regadorId]);
-        res.json(rows);
+        const params = [regadorId];
+        
+        // Si estÃ¡ en un lote especÃ­fico, filtrar solo por ese lote
+        if (loteActual) {
+            query += ` AND gp.lote_id = $2`;
+            params.push(loteActual);
+        }
+        
+        query += ` ORDER BY gp.numero_sector`;
+        
+        const { rows } = await client.query(query, params);
+        
+        res.json({
+            success: true,
+            lote_actual: loteActual,
+            data: rows
+        });
         
     } catch (err) {
         console.error('Error al obtener geozonas del regador:', err);

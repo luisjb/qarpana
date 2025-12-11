@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+﻿import React, { useRef, useEffect, useState } from 'react';
 import { 
     Box, Typography, Card, CardContent, Grid, Chip, 
     Tabs, Tab, Accordion, AccordionSummary, AccordionDetails,
@@ -249,6 +249,9 @@ function CircularRiegoVisualizationConVuelta({ regador, vueltaActual, sectoresVu
             const data = await response.json();
             if (data.success) {
                 setGeozonas(data.data);
+            } else {
+                // Fallback para respuesta antigua (sin success)
+                setGeozonas(Array.isArray(data) ? data : []);
             }
         } catch (error) {
             console.error('Error cargando geozonas:', error);

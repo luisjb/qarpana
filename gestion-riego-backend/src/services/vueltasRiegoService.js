@@ -6,11 +6,11 @@ class VueltasRiegoService {
         // Almacenar vuelta activa por regador
         this.vueltasActivas = new Map();
         
-        // üîí CONFIGURACI√ìN DE VALIDACIONES
-        this.MARGEN_SEGURIDAD = 10; // % de margen para completar (324¬∞ en lugar de 360¬∞)
-        this.AVANCE_MINIMO_REQUERIDO = 50; // % m√≠nimo que debe avanzar (180¬∞ m√≠nimo)
-        this.DURACION_MINIMA_MINUTOS = 30; // Tiempo m√≠nimo razonable para una vuelta real
-        this.SECTORES_MINIMOS_REQUERIDOS = 1; // M√≠nimo de sectores que debe pasar
+        // ?? CONFIGURACI”N DE VALIDACIONES
+        this.MARGEN_SEGURIDAD = 10; // % de margen para completar (324∞ en lugar de 360∞)
+        this.AVANCE_MINIMO_REQUERIDO = 50; // % mÌnimo que debe avanzar (180∞ mÌnimo)
+        this.DURACION_MINIMA_MINUTOS = 30; // Tiempo mÌnimo razonable para una vuelta real
+        this.SECTORES_MINIMOS_REQUERIDOS = 1; // MÌnimo de sectores que debe pasar
     }
 
     /**
@@ -37,7 +37,7 @@ class VueltasRiegoService {
                 // Recuperar vuelta existente
                 const vuelta = resultVuelta.rows[0];
                 this.vueltasActivas.set(regadorId, vuelta);
-                console.log(`üîÑ Vuelta ${vuelta.numero_vuelta} recuperada para regador ${regadorId}`);
+                console.log(`?? Vuelta ${vuelta.numero_vuelta} recuperada para regador ${regadorId}`);
                 return vuelta;
             }
 
@@ -68,7 +68,7 @@ class VueltasRiegoService {
             const nuevaVuelta = resultInsert.rows[0];
             this.vueltasActivas.set(regadorId, nuevaVuelta);
 
-            console.log(`üÜï Nueva vuelta ${numeroVuelta} iniciada para regador ${regadorId} en √°ngulo ${anguloActual.toFixed(1)}¬∞`);
+            console.log(`?? Nueva vuelta ${numeroVuelta} iniciada para regador ${regadorId} en ·ngulo ${anguloActual.toFixed(1)}∞`);
 
             return nuevaVuelta;
 
@@ -79,8 +79,8 @@ class VueltasRiegoService {
     }
 
     /**
-     * üîí VERSI√ìN MEJORADA con validaciones m√°s estrictas
-     * Verifica si complet√≥ la vuelta y la cierra si es necesario
+     * ?? VERSI”N MEJORADA con validaciones m·s estrictas
+     * Verifica si completÛ la vuelta y la cierra si es necesario
      */
     async verificarCompletarVuelta(regadorId, anguloActual, timestamp) {
         try {
@@ -90,12 +90,12 @@ class VueltasRiegoService {
                 return { completada: false };
             }
 
-            // üîí VALIDACI√ìN 1: Verificar avance angular con requisito m√≠nimo
+            // ?? VALIDACI”N 1: Verificar avance angular con requisito mÌnimo
             const verificacion = gpsCalc.verificarVueltaCompletada(
                 vueltaActiva.angulo_inicio,
                 anguloActual,
                 this.MARGEN_SEGURIDAD,
-                this.AVANCE_MINIMO_REQUERIDO // 50% m√≠nimo
+                this.AVANCE_MINIMO_REQUERIDO // 50% mÌnimo
             );
 
             // Si no ha avanzado lo suficiente, no puede completar
@@ -110,16 +110,16 @@ class VueltasRiegoService {
                 return { 
                     completada: false, 
                     progreso: verificacion.porcentajeCompletado,
-                    razon: `Avance insuficiente: ${verificacion.avanceGrados.toFixed(1)}¬∞ (${verificacion.porcentajeCompletado.toFixed(1)}%)`
+                    razon: `Avance insuficiente: ${verificacion.avanceGrados.toFixed(1)}∞ (${verificacion.porcentajeCompletado.toFixed(1)}%)`
                 };
             }
 
-            // üîí VALIDACI√ìN 2: Verificar tiempo m√≠nimo transcurrido
+            // ?? VALIDACI”N 2: Verificar tiempo mÌnimo transcurrido
             const duracionMs = new Date(timestamp) - new Date(vueltaActiva.fecha_inicio);
             const duracionMinutos = Math.round(duracionMs / 60000);
 
             if (duracionMinutos < this.DURACION_MINIMA_MINUTOS) {
-                console.log(`‚è±Ô∏è Vuelta ${vueltaActiva.numero_vuelta} - Tiempo insuficiente: ${duracionMinutos} min (m√≠nimo: ${this.DURACION_MINIMA_MINUTOS})`);
+                console.log(`?? Vuelta ${vueltaActiva.numero_vuelta} - Tiempo insuficiente: ${duracionMinutos} min (mÌnimo: ${this.DURACION_MINIMA_MINUTOS})`);
                 
                 // Actualizar progreso
                 await this.actualizarProgresoVuelta(
@@ -130,11 +130,11 @@ class VueltasRiegoService {
                 return { 
                     completada: false, 
                     progreso: verificacion.porcentajeCompletado,
-                    razon: `Tiempo insuficiente: ${duracionMinutos} min (m√≠nimo: ${this.DURACION_MINIMA_MINUTOS})`
+                    razon: `Tiempo insuficiente: ${duracionMinutos} min (mÌnimo: ${this.DURACION_MINIMA_MINUTOS})`
                 };
             }
 
-            // üîí VALIDACI√ìN 3: Verificar que pas√≥ por al menos un sector
+            // ?? VALIDACI”N 3: Verificar que pasÛ por al menos un sector
             const querySectores = `
                 SELECT COUNT(*) as sectores_pasados
                 FROM sectores_por_vuelta
@@ -145,7 +145,7 @@ class VueltasRiegoService {
             const sectoresPasados = parseInt(resultSectores.rows[0].sectores_pasados);
 
             if (sectoresPasados < this.SECTORES_MINIMOS_REQUERIDOS) {
-                console.log(`üö´ Vuelta ${vueltaActiva.numero_vuelta} - No pas√≥ por suficientes sectores: ${sectoresPasados} (m√≠nimo: ${this.SECTORES_MINIMOS_REQUERIDOS})`);
+                console.log(`?? Vuelta ${vueltaActiva.numero_vuelta} - No pasÛ por suficientes sectores: ${sectoresPasados} (mÌnimo: ${this.SECTORES_MINIMOS_REQUERIDOS})`);
                 
                 // Actualizar progreso
                 await this.actualizarProgresoVuelta(
@@ -156,18 +156,18 @@ class VueltasRiegoService {
                 return { 
                     completada: false, 
                     progreso: verificacion.porcentajeCompletado,
-                    razon: `Sectores insuficientes: ${sectoresPasados} (m√≠nimo: ${this.SECTORES_MINIMOS_REQUERIDOS})`
+                    razon: `Sectores insuficientes: ${sectoresPasados} (mÌnimo: ${this.SECTORES_MINIMOS_REQUERIDOS})`
                 };
             }
 
-            // ‚úÖ TODAS LAS VALIDACIONES PASADAS - Completar la vuelta
+            // ? TODAS LAS VALIDACIONES PASADAS - Completar la vuelta
             if (verificacion.completada) {
                 await this.completarVuelta(regadorId, anguloActual, timestamp, verificacion);
                 
-                console.log(`‚úÖ Vuelta ${vueltaActiva.numero_vuelta} V√ÅLIDA completada:`);
-                console.log(`   ‚Ä¢ Avance: ${verificacion.avanceGrados.toFixed(1)}¬∞ (${verificacion.porcentajeCompletado.toFixed(1)}%)`);
-                console.log(`   ‚Ä¢ Duraci√≥n: ${duracionMinutos} min`);
-                console.log(`   ‚Ä¢ Sectores: ${sectoresPasados}`);
+                console.log(`? Vuelta ${vueltaActiva.numero_vuelta} V¡LIDA completada:`);
+                console.log(`   ï Avance: ${verificacion.avanceGrados.toFixed(1)}∞ (${verificacion.porcentajeCompletado.toFixed(1)}%)`);
+                console.log(`   ï DuraciÛn: ${duracionMinutos} min`);
+                console.log(`   ï Sectores: ${sectoresPasados}`);
                 
                 return { 
                     completada: true, 
@@ -205,7 +205,7 @@ class VueltasRiegoService {
             
             if (!vueltaActiva) return;
 
-            // Calcular duraci√≥n
+            // Calcular duraciÛn
             const duracionMs = new Date(timestamp) - new Date(vueltaActiva.fecha_inicio);
             const duracionMinutos = Math.round(duracionMs / 60000);
 
@@ -240,7 +240,7 @@ class VueltasRiegoService {
 
             presionPromedio = countPresion > 0 ? presionPromedio / countPresion : null;
 
-            // Calcular l√°mina promedio
+            // Calcular l·mina promedio
             const laminaPromedioMM = areaTotalHa > 0 
                 ? gpsCalc.calcularLaminaPorHectarea(aguaTotalLitros, areaTotalHa)
                 : 0;
@@ -280,7 +280,7 @@ class VueltasRiegoService {
             // Limpiar del cache
             this.vueltasActivas.delete(regadorId);
 
-            console.log(`‚úÖ Vuelta ${vueltaCompletada.numero_vuelta} completada - Duraci√≥n: ${duracionMinutos}min - L√°mina: ${laminaPromedioMM.toFixed(1)}mm - Agua: ${Math.round(aguaTotalLitros)}L - √Årea: ${areaTotalHa.toFixed(2)}ha`);
+            console.log(`? Vuelta ${vueltaCompletada.numero_vuelta} completada - DuraciÛn: ${duracionMinutos}min - L·mina: ${laminaPromedioMM.toFixed(1)}mm - Agua: ${Math.round(aguaTotalLitros)}L - ¡rea: ${areaTotalHa.toFixed(2)}ha`);
 
             return vueltaCompletada;
 
@@ -316,7 +316,7 @@ class VueltasRiegoService {
             const vueltaActiva = this.vueltasActivas.get(regadorId);
             
             if (!vueltaActiva) {
-                console.warn(`‚ö†Ô∏è No hay vuelta activa para registrar entrada a sector`);
+                console.warn(`?? No hay vuelta activa para registrar entrada a sector`);
                 return null;
             }
 
@@ -370,7 +370,7 @@ class VueltasRiegoService {
 
             const registro = result.rows[0];
 
-            console.log(`üìç Entrada a sector ${sector.nombre_sector} - Vuelta ${vueltaActiva.numero_vuelta} - Orden ${orden}`);
+            console.log(`?? Entrada a sector ${sector.nombre_sector} - Vuelta ${vueltaActiva.numero_vuelta} - Orden ${orden}`);
 
             return registro;
 
@@ -400,13 +400,13 @@ class VueltasRiegoService {
             const resultRegistro = await pool.query(queryRegistro, [vueltaActiva.id, geozonaId]);
 
             if (resultRegistro.rows.length === 0) {
-                console.warn(`‚ö†Ô∏è No hay registro activo para salida del sector`);
+                console.warn(`?? No hay registro activo para salida del sector`);
                 return null;
             }
 
             const registro = resultRegistro.rows[0];
 
-            // Calcular duraci√≥n
+            // Calcular duraciÛn
             const duracionMs = new Date(timestamp) - new Date(registro.fecha_entrada);
             const duracionMinutos = Math.round(duracionMs / 60000);
 
@@ -429,12 +429,12 @@ class VueltasRiegoService {
                 ? gpsCalc.calcularAguaAplicada(datos.caudal, duracionMinutos, datos.coeficiente_riego)
                 : 0;
 
-            // Calcular l√°mina
+            // Calcular l·mina
             const laminaMM = registro.area_sector_ha > 0
                 ? gpsCalc.calcularLaminaPorHectarea(aguaLitros, registro.area_sector_ha)
                 : 0;
 
-            // Obtener promedios de presi√≥n y velocidad
+            // Obtener promedios de presiÛn y velocidad
             const queryPromedios = `
                 SELECT 
                     AVG(presion) as presion_promedio,
@@ -455,6 +455,32 @@ class VueltasRiegoService {
 
             const promedios = resultPromedios.rows[0];
 
+            // üîí VERIFICAR SI DEBE MARCARSE COMO COMPLETADO
+            // Contar reportes con presi√≥n para determinar si el sector fue regado correctamente
+            const queryVerificacion = `
+                SELECT 
+                    COUNT(*) as total_reportes,
+                    COUNT(CASE WHEN presion > 10 THEN 1 END) as reportes_con_presion
+                FROM datos_operacion_gps
+                WHERE geozona_id = $1
+                  AND timestamp BETWEEN $2 AND $3
+            `;
+
+            const resultVerificacion = await pool.query(queryVerificacion, [
+                geozonaId,
+                registro.fecha_entrada,
+                timestamp
+            ]);
+
+            const verificacion = resultVerificacion.rows[0];
+            const totalReportes = parseInt(verificacion.total_reportes);
+            const reportesConPresion = parseInt(verificacion.reportes_con_presion);
+            const porcentajeConPresion = totalReportes > 0 ? (reportesConPresion / totalReportes) * 100 : 0;
+
+            // Marcar como completado si al menos el 60% de los reportes tienen presi√≥n
+            const UMBRAL_COMPLETADO = 60;
+            const completado = porcentajeConPresion >= UMBRAL_COMPLETADO;
+
             // Actualizar registro
             const queryUpdate = `
                 UPDATE sectores_por_vuelta
@@ -466,8 +492,8 @@ class VueltasRiegoService {
                     presion_min = $6,
                     presion_max = $7,
                     velocidad_promedio = $8,
-                    completado = true
-                WHERE id = $9
+                    completado = $9
+                WHERE id = $10
                 RETURNING *
             `;
 
@@ -480,12 +506,13 @@ class VueltasRiegoService {
                 promedios.presion_min,
                 promedios.presion_max,
                 promedios.velocidad_promedio,
+                completado,
                 registro.id
             ]);
 
             const registroActualizado = result.rows[0];
 
-            console.log(`üìç Salida de sector ${datos.nombre_sector} - Duraci√≥n: ${duracionMinutos}min - L√°mina: ${laminaMM.toFixed(1)}mm - Agua: ${Math.round(aguaLitros)}L`);
+            console.log(`?? Salida de sector ${datos.nombre_sector} - DuraciÛn: ${duracionMinutos}min - L·mina: ${laminaMM.toFixed(1)}mm - Agua: ${Math.round(aguaLitros)}L`);
 
             return registroActualizado;
 
@@ -518,7 +545,7 @@ class VueltasRiegoService {
     }
 
     /**
-     * Obtiene el detalle de sectores de una vuelta espec√≠fica
+     * Obtiene el detalle de sectores de una vuelta especÌfica
      */
     async obtenerDetalleSectoresVuelta(vueltaId) {
         try {
@@ -539,7 +566,7 @@ class VueltasRiegoService {
     }
 
     /**
-     * Obtiene estad√≠sticas generales de riego de un regador
+     * Obtiene estadÌsticas generales de riego de un regador
      */
     async obtenerEstadisticasGenerales(regadorId) {
         try {
@@ -561,7 +588,7 @@ class VueltasRiegoService {
             return result.rows[0];
 
         } catch (error) {
-            console.error('Error obteniendo estad√≠sticas generales:', error);
+            console.error('Error obteniendo estadÌsticas generales:', error);
             throw error;
         }
     }
