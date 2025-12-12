@@ -362,7 +362,7 @@ class GPSController {
     }
 
     /**
-     * ⭐ FUNCIÓN MEJORADA
+     * ⭐ FUNCIÓN CORREGIDA - Convierte tipos numéricos correctamente
      * Obtiene el estado actual en tiempo real de todos los regadores de un campo
      */
     async obtenerEstadoCampo(req, res) {
@@ -418,7 +418,7 @@ class GPSController {
                      ORDER BY timestamp DESC 
                      LIMIT 1) as presion_actual,
                      
-                    -- 🆕 NUEVOS CAMPOS: Lote y sector actual
+                    -- Lote y sector actual
                     (SELECT l.nombre_lote 
                      FROM datos_operacion_gps dog2
                      LEFT JOIN geozonas_pivote gp2 ON dog2.geozona_id = gp2.id
@@ -459,14 +459,41 @@ class GPSController {
             
             console.log(`📊 Estado campo ${campoId}:`, result.rows.length, 'regadores encontrados');
             
-            // 🐛 DEBUG: Loguear estructura completa del primer regador
-            if (result.rows.length > 0) {
-                console.log('📊 Primer regador completo:', JSON.stringify(result.rows[0], null, 2));
+            // ⭐ CONVERTIR TIPOS NUMÉRICOS de PostgreSQL a JavaScript
+            const regadoresConvertidos = result.rows.map(regador => ({
+                regador_id: parseInt(regador.regador_id),
+                nombre_dispositivo: regador.nombre_dispositivo,
+                tipo_regador: regador.tipo_regador,
+                radio_cobertura: parseFloat(regador.radio_cobertura),
+                caudal: regador.caudal ? parseFloat(regador.caudal) : null,
+                tiempo_vuelta_completa: regador.tiempo_vuelta_completa ? parseInt(regador.tiempo_vuelta_completa) : null,
+                latitud_centro: regador.latitud_centro ? parseFloat(regador.latitud_centro) : null,
+                longitud_centro: regador.longitud_centro ? parseFloat(regador.longitud_centro) : null,
+                regador_activo: regador.regador_activo,
+                
+                total_sectores: parseInt(regador.total_sectores),
+                sectores_completados: parseInt(regador.sectores_completados),
+                sectores_en_progreso: parseInt(regador.sectores_en_progreso),
+                sectores_pendientes: parseInt(regador.sectores_pendientes),
+                
+                progreso_promedio: parseFloat(regador.progreso_promedio),
+                agua_total_aplicada: parseFloat(regador.agua_total_aplicada),
+                
+                ultima_actividad: regador.ultima_actividad,
+                estado_actual: regador.estado_actual,
+                regando_ahora: regador.regando_ahora,
+                presion_actual: regador.presion_actual ? parseFloat(regador.presion_actual) : null,
+                lote_actual: regador.lote_actual,
+                sector_actual: regador.sector_actual ? parseInt(regador.sector_actual) : null
+            }));
+            
+            // 🐛 DEBUG
+            if (regadoresConvertidos.length > 0) {
+                console.log('📊 Primer regador después de conversión:', JSON.stringify(regadoresConvertidos[0], null, 2));
             }
             
-            // ⭐ IMPORTANTE: Devolver array directo (no wrapped)
-            // El frontend espera: response.data = [...]
-            res.json(result.rows);
+            // IMPORTANTE: Devolver array directo
+            res.json(regadoresConvertidos);
             
         } catch (error) {
             console.error('Error obteniendo estado del campo:', error);
