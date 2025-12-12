@@ -479,7 +479,16 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
 
             // Cargar sectores detallados
             const sectoresResponse = await axios.get(`/geozonas-pivote/regador/${regador.regador_id}`);
-            const sectores = Array.isArray(sectoresResponse.data) ? sectoresResponse.data : [];
+            console.log('📊 Respuesta sectores:', sectoresResponse.data);
+
+            let sectores = [];
+            if (sectoresResponse.data && sectoresResponse.data.success && Array.isArray(sectoresResponse.data.data)) {
+                sectores = sectoresResponse.data.data;  // Formato nuevo
+                console.log('📊 Sectores cargados:', sectores.length);
+            } else if (Array.isArray(sectoresResponse.data)) {
+                sectores = sectoresResponse.data;  // Formato antiguo
+            }
+
             setSectoresDetalle(sectores);
 
             // Cargar eventos recientes
