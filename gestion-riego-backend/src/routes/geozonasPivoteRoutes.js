@@ -4,51 +4,81 @@ const router = express.Router();
 const { verifyToken, isAdmin } = require('../middleware/auth');
 const pool = require('../db');
 
-// Obtener configuración de geozonas para un lote y regador específico
-router.get('/lote/:loteId/regador/:regadorId', verifyToken, async (req, res) => {
+// RUTA CORREGIDA: Obtener todas las geozonas de un regador
+// SIN filtrar por lote (para mostrar todos los sectores en visualización)
+
+router.get('/regador/:regadorId', verifyToken, async (req, res) => {
     const client = await pool.connect();
     try {
-        const { loteId, regadorId } = req.params;
+        const { regadorId } = req.params;
+        const { filtrar_lote } = req.query; // Parámetro opcional para filtrar
 
-        // Obtener información del regador
-        const regadorQuery = await client.query(
-            'SELECT * FROM regadores WHERE id = $1',
-            [regadorId]
-        );
+        // Obtener la posición actual del regador para saber en qué lote está
+        const queryPosicionActual = `
+            SELECT 
+                dog.geozona_id,
+                gp.lote_id,
+                dog.regando
+            FROM datos_operacion_gps dog
+            LEFT JOIN geozonas_pivote gp ON dog.geozona_id = gp.id
+            WHERE dog.regador_id = $1
+              AND dog.dentro_geozona = true
+            ORDER BY dog.timestamp DESC
+            LIMIT 1
+        `;
 
-        if (regadorQuery.rows.length === 0) {
-            return res.status(404).json({ error: 'Regador no encontrado' });
+        const resultPosicion = await client.query(queryPosicionActual, [regadorId]);
+        const loteActual = resultPosicion.rows[0]?.lote_id || null;
+        const regandoAhora = resultPosicion.rows[0]?.regando || false;
+
+        // Construir query base
+        let query = `
+            SELECT 
+                gp.*,
+                l.nombre_lote,
+                esr.estado,
+                esr.progreso_porcentaje,
+                esr.agua_aplicada_litros
+            FROM geozonas_pivote gp
+            LEFT JOIN lotes l ON gp.lote_id = l.id
+            LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
+            WHERE gp.regador_id = $1
+              AND gp.activo = true
+        `;
+
+        const params = [regadorId];
+
+        // ⭐ CAMBIO CRÍTICO: Solo filtrar si se solicita explícitamente
+        // Por defecto, mostrar TODOS los sectores del regador
+        if (filtrar_lote === 'true' && loteActual && regandoAhora) {
+            // Solo filtrar si está regando activamente en un lote específico
+            query += ` AND gp.lote_id = $2`;
+            params.push(loteActual);
+            console.log(`📍 Regador ${regadorId} está regando en lote ${loteActual}, filtrando sectores`);
+        } else {
+            console.log(`📍 Regador ${regadorId}: mostrando TODOS los sectores configurados`);
         }
 
-        const regador = regadorQuery.rows[0];
+        query += ` ORDER BY l.nombre_lote, gp.numero_sector`;
 
-        // Obtener geozonas del lote para este regador
-        const geozonas = await client.query(
-            `SELECT * FROM geozonas_pivote 
-             WHERE lote_id = $1 AND regador_id = $2 
-             ORDER BY numero_sector`,
-            [loteId, regadorId]
-        );
+        const { rows } = await client.query(query, params);
 
-        if (geozonas.rows.length === 0) {
-            return res.status(404).json({
-                message: 'No hay configuración existente',
-                exists: false
-            });
-        }
+        console.log(`✅ Devolviendo ${rows.length} sectores para regador ${regadorId}`);
 
-        // Retornar configuración completa
         res.json({
-            id: geozonas.rows[0].id, // ID de la primera geozona para referencia
-            latitud_centro: regador.latitud_centro,
-            longitud_centro: regador.longitud_centro,
-            radio_cobertura: regador.radio_cobertura,
-            sectores: geozonas.rows
+            success: true,
+            lote_actual: loteActual,
+            regando_ahora: regandoAhora,
+            total_sectores: rows.length,
+            data: rows
         });
 
     } catch (err) {
-        console.error('Error al obtener geozonas:', err);
-        res.status(500).json({ error: 'Error del servidor' });
+        console.error('Error al obtener geozonas del regador:', err);
+        res.status(500).json({ 
+            success: false,
+            error: 'Error del servidor' 
+        });
     } finally {
         client.release();
     }
