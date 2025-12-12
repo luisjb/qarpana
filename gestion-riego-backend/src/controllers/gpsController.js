@@ -4,7 +4,7 @@ const gpsProcessingService = require('../services/gpsProcessingService');
 const gpsCalc = require('../services/gpsCalculationsService');
 
 class GPSController {
-
+    
     /**
      * Procesa posiciones de Traccar (Position Forwarding)
      */
@@ -16,15 +16,15 @@ class GPSController {
                 lng: req.body.position?.longitude,
                 io9: req.body.position?.attributes?.io9
             });
-
+            
             const resultado = await gpsProcessingService.procesarPosicion(req.body);
-
+            
             res.status(200).json({
                 success: true,
                 message: 'Posición procesada correctamente',
                 data: resultado
             });
-
+            
         } catch (error) {
             console.error('Error procesando posición:', error);
             res.status(500).json({
@@ -33,7 +33,7 @@ class GPSController {
             });
         }
     }
-
+    
     /**
      * Obtiene datos operacionales históricos de un regador
      */
@@ -41,7 +41,7 @@ class GPSController {
         try {
             const { regadorId } = req.params;
             const { desde, hasta, incluir_presion, incluir_altitud } = req.query;
-
+            
             let query = `
                 SELECT 
                     dog.id,
@@ -65,25 +65,25 @@ class GPSController {
                 LEFT JOIN geozonas_pivote gp ON dog.geozona_id = gp.id
                 WHERE dog.regador_id = $1
             `;
-
+            
             const params = [regadorId];
-
+            
             if (desde) {
                 params.push(desde);
                 query += ` AND dog.timestamp >= $${params.length}`;
             }
-
+            
             if (hasta) {
                 params.push(hasta);
                 query += ` AND dog.timestamp <= $${params.length}`;
             }
-
+            
             query += ' ORDER BY dog.timestamp DESC LIMIT 500';
-
+            
             const result = await pool.query(query, params);
-
+            
             res.json(result.rows);
-
+            
         } catch (error) {
             console.error('Error obteniendo datos operación:', error);
             res.status(500).json({
@@ -92,14 +92,14 @@ class GPSController {
             });
         }
     }
-
+    
     /**
      * Obtiene el resumen de riego actual de un regador
      */
     async obtenerResumenRiego(req, res) {
         try {
             const { regadorId } = req.params;
-
+            
             const query = `
                 SELECT 
                     r.id as regador_id,
@@ -131,21 +131,21 @@ class GPSController {
                 WHERE r.id = $1
                 GROUP BY r.id, r.nombre_dispositivo, r.tipo_regador, r.radio_cobertura, r.activo
             `;
-
+            
             const result = await pool.query(query, [regadorId]);
-
+            
             if (result.rows.length === 0) {
                 return res.status(404).json({
                     success: false,
                     error: 'Regador no encontrado'
                 });
             }
-
+            
             res.json({
                 success: true,
                 data: result.rows[0]
             });
-
+            
         } catch (error) {
             console.error('Error obteniendo resumen de riego:', error);
             res.status(500).json({
@@ -154,7 +154,7 @@ class GPSController {
             });
         }
     }
-
+    
     /**
      * Obtiene historial de ciclos de riego completados
      */
@@ -162,7 +162,7 @@ class GPSController {
         try {
             const { regadorId } = req.params;
             const { limite = 50, desde, hasta } = req.query;
-
+            
             let query = `
                 SELECT 
                     cr.id,
@@ -182,29 +182,29 @@ class GPSController {
                 LEFT JOIN lotes l ON gp.lote_id = l.id
                 WHERE cr.regador_id = $1
             `;
-
+            
             const params = [regadorId];
-
+            
             if (desde) {
                 params.push(desde);
                 query += ` AND cr.fecha_inicio >= $${params.length}`;
             }
-
+            
             if (hasta) {
                 params.push(hasta);
                 query += ` AND cr.fecha_fin <= $${params.length}`;
             }
-
+            
             query += ` ORDER BY cr.fecha_inicio DESC LIMIT ${parseInt(limite)}`;
-
+            
             const result = await pool.query(query, params);
-
+            
             res.json({
                 success: true,
                 count: result.rows.length,
                 data: result.rows
             });
-
+            
         } catch (error) {
             console.error('Error obteniendo historial de riego:', error);
             res.status(500).json({
@@ -213,7 +213,7 @@ class GPSController {
             });
         }
     }
-
+    
     /**
      * Obtiene eventos de riego recientes
      */
@@ -221,7 +221,7 @@ class GPSController {
         try {
             const { regadorId } = req.params;
             const { limit = 20 } = req.query;
-
+            
             const query = `
                 SELECT 
                     er.id,
@@ -240,11 +240,11 @@ class GPSController {
                 ORDER BY er.fecha_evento DESC
                 LIMIT $2
             `;
-
+            
             const result = await pool.query(query, [regadorId, limit]);
-
+            
             res.json(result.rows);
-
+            
         } catch (error) {
             console.error('Error obteniendo eventos de riego:', error);
             res.status(500).json({
@@ -253,14 +253,14 @@ class GPSController {
             });
         }
     }
-
+    
     /**
      * Obtiene la posición actual más reciente de un regador
      */
     async obtenerPosicionActual(req, res) {
         try {
             const { regadorId } = req.params;
-
+            
             const query = `
                 SELECT 
                     dog.timestamp,
@@ -286,21 +286,21 @@ class GPSController {
                 ORDER BY dog.timestamp DESC
                 LIMIT 1
             `;
-
+            
             const result = await pool.query(query, [regadorId]);
-
+            
             if (result.rows.length === 0) {
                 return res.status(404).json({
                     success: false,
                     error: 'No hay datos de posición para este regador'
                 });
             }
-
+            
             res.json({
                 success: true,
                 data: result.rows[0]
             });
-
+            
         } catch (error) {
             console.error('Error obteniendo posición actual:', error);
             res.status(500).json({
@@ -309,7 +309,7 @@ class GPSController {
             });
         }
     }
-
+    
     /**
      * Obtiene estadísticas de presión y altitud
      */
@@ -317,7 +317,7 @@ class GPSController {
         try {
             const { regadorId } = req.params;
             const { desde, hasta } = req.query;
-
+            
             let query = `
                 SELECT 
                     COUNT(*) as total_registros,
@@ -332,26 +332,26 @@ class GPSController {
                 WHERE regador_id = $1
                   AND presion IS NOT NULL
             `;
-
+            
             const params = [regadorId];
-
+            
             if (desde) {
                 params.push(desde);
                 query += ` AND timestamp >= $${params.length}`;
             }
-
+            
             if (hasta) {
                 params.push(hasta);
                 query += ` AND timestamp <= $${params.length}`;
             }
-
+            
             const result = await pool.query(query, params);
-
+            
             res.json({
                 success: true,
                 data: result.rows[0]
             });
-
+            
         } catch (error) {
             console.error('Error obteniendo estadísticas:', error);
             res.status(500).json({
@@ -362,13 +362,13 @@ class GPSController {
     }
 
     /**
-     * ⭐ FUNCIÓN CORREGIDA
+     * ⭐ FUNCIÓN MEJORADA
      * Obtiene el estado actual en tiempo real de todos los regadores de un campo
      */
     async obtenerEstadoCampo(req, res) {
         try {
             const { campoId } = req.params;
-
+            
             const query = `
                 SELECT 
                     r.id as regador_id,
@@ -381,7 +381,7 @@ class GPSController {
                     r.longitud_centro,
                     r.activo as regador_activo,
                     
-                    -- EstadÃ­sticas de sectores
+                    -- Estadísticas de sectores
                     COUNT(DISTINCT gp.id) as total_sectores,
                     COUNT(DISTINCT CASE WHEN esr.estado = 'completado' THEN gp.id END) as sectores_completados,
                     COUNT(DISTINCT CASE WHEN esr.estado = 'en_progreso' THEN gp.id END) as sectores_en_progreso,
@@ -396,7 +396,7 @@ class GPSController {
                     -- Agua total aplicada
                     COALESCE(SUM(esr.agua_aplicada_litros), 0) as agua_total_aplicada,
                     
-                    -- Ãšltima actividad
+                    -- Última actividad
                     MAX(dog.timestamp) as ultima_actividad,
                     
                     -- Estado actual del dispositivo
@@ -417,25 +417,22 @@ class GPSController {
                      WHERE regador_id = r.id 
                      ORDER BY timestamp DESC 
                      LIMIT 1) as presion_actual,
-                    
-                    -- â­ NUEVO: Lote actual donde está regando
-                    (SELECT l.nombre_lote
+                     
+                    -- 🆕 NUEVOS CAMPOS: Lote y sector actual
+                    (SELECT l.nombre_lote 
                      FROM datos_operacion_gps dog2
                      LEFT JOIN geozonas_pivote gp2 ON dog2.geozona_id = gp2.id
                      LEFT JOIN lotes l ON gp2.lote_id = l.id
                      WHERE dog2.regador_id = r.id 
-                       AND dog2.dentro_geozona = true
-                       AND dog2.regando = true
+                     AND dog2.dentro_geozona = true
                      ORDER BY dog2.timestamp DESC 
                      LIMIT 1) as lote_actual,
-                    
-                    -- â­ NUEVO: Sector actual donde está regando
-                    (SELECT gp2.nombre_sector
+                     
+                    (SELECT gp2.numero_sector 
                      FROM datos_operacion_gps dog2
                      LEFT JOIN geozonas_pivote gp2 ON dog2.geozona_id = gp2.id
                      WHERE dog2.regador_id = r.id 
-                       AND dog2.dentro_geozona = true
-                       AND dog2.regando = true
+                     AND dog2.dentro_geozona = true
                      ORDER BY dog2.timestamp DESC 
                      LIMIT 1) as sector_actual
                     
@@ -457,15 +454,20 @@ class GPSController {
                     r.activo
                 ORDER BY r.id
             `;
-
+            
             const result = await pool.query(query, [campoId]);
-
-            console.log(`ðŸ"Š Estado campo ${campoId}:`, result.rows.length, 'regadores encontrados');
-
-            // Devolver array directo (no wrapped)
+            
+            console.log(`📊 Estado campo ${campoId}:`, result.rows.length, 'regadores encontrados');
+            
+            // 🐛 DEBUG: Loguear estructura completa del primer regador
+            if (result.rows.length > 0) {
+                console.log('📊 Primer regador completo:', JSON.stringify(result.rows[0], null, 2));
+            }
+            
+            // ⭐ IMPORTANTE: Devolver array directo (no wrapped)
             // El frontend espera: response.data = [...]
             res.json(result.rows);
-
+            
         } catch (error) {
             console.error('Error obteniendo estado del campo:', error);
             res.status(500).json({
