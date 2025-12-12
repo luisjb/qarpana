@@ -158,17 +158,17 @@ function PresionAltitudChart({ datosOperacion, regador }) {
                 <ResponsiveContainer width="100%" height={400}>
                     <LineChart data={datosFormateados}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                            dataKey="tiempo" 
+                        <XAxis
+                            dataKey="tiempo"
                             tick={{ fontSize: 11 }}
                             interval="preserveStartEnd"
                         />
-                        <YAxis 
+                        <YAxis
                             yAxisId="presion"
                             label={{ value: 'Presión (PSI)', angle: -90, position: 'insideLeft' }}
                             stroke="#1976d2"
                         />
-                        <YAxis 
+                        <YAxis
                             yAxisId="altitud"
                             orientation="right"
                             label={{ value: 'Altitud (m)', angle: 90, position: 'insideRight' }}
@@ -176,28 +176,28 @@ function PresionAltitudChart({ datosOperacion, regador }) {
                         />
                         <RechartsTooltip content={<CustomTooltip />} />
                         <Legend />
-                        <ReferenceLine 
+                        <ReferenceLine
                             yAxisId="presion"
-                            y={presionPromedio} 
-                            stroke="#1976d2" 
-                            strokeDasharray="5 5" 
+                            y={presionPromedio}
+                            stroke="#1976d2"
+                            strokeDasharray="5 5"
                             label={{ value: 'Promedio', position: 'insideTopRight' }}
                         />
-                        
-                        <Line 
+
+                        <Line
                             yAxisId="presion"
-                            type="monotone" 
-                            dataKey="presion" 
-                            stroke="#1976d2" 
+                            type="monotone"
+                            dataKey="presion"
+                            stroke="#1976d2"
                             strokeWidth={2}
                             dot={false}
                             name="Presión (PSI)"
                         />
-                        <Line 
+                        <Line
                             yAxisId="altitud"
-                            type="monotone" 
-                            dataKey="altitud" 
-                            stroke="#d32f2f" 
+                            type="monotone"
+                            dataKey="altitud"
+                            stroke="#d32f2f"
                             strokeWidth={2}
                             dot={false}
                             name="Altitud (m)"
@@ -227,9 +227,9 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
     const formatUltimaActividad = (fecha) => {
         if (!fecha) return 'Sin actividad';
         try {
-            return formatDistance(new Date(fecha), new Date(), { 
+            return formatDistance(new Date(fecha), new Date(), {
                 addSuffix: true,
-                locale: es 
+                locale: es
             });
         } catch (error) {
             return 'Fecha invÃ¡lida';
@@ -239,13 +239,13 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
     // â­ NUEVO: Calcular lámina aplicada en mm
     const calcularLaminaAplicada = () => {
         if (!regador.agua_total_aplicada || !regador.radio_cobertura) return 0;
-        
+
         // Área del círculo en m²
         const areaM2 = Math.PI * Math.pow(regador.radio_cobertura, 2);
-        
+
         // Lámina (mm) = (agua en litros * 0.001 / área m²) * 1000
         const laminaMM = (regador.agua_total_aplicada * 0.001 / areaM2) * 1000;
-        
+
         return laminaMM.toFixed(2);
     };
 
@@ -256,8 +256,8 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
                     <Box display="flex" flexDirection="column" gap={0.5}>
                         <Box display="flex" alignItems="center" gap={1}>
                             {getStatusIcon(
-                                regador.sectores_en_progreso, 
-                                regador.sectores_completados, 
+                                regador.sectores_en_progreso,
+                                regador.sectores_completados,
                                 regador.total_sectores
                             )}
                             <Typography variant="h6" component="div">
@@ -288,7 +288,7 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
                     </Box>
                 }
                 subheader={
-                    <Chip 
+                    <Chip
                         label={regador.regador_activo ? 'Activo' : 'Inactivo'}
                         color={regador.regador_activo ? 'success' : 'default'}
                         size="small"
@@ -304,8 +304,8 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
                                 Progreso:
                             </Typography>
                             <Box sx={{ flexGrow: 1 }}>
-                                <LinearProgress 
-                                    variant="determinate" 
+                                <LinearProgress
+                                    variant="determinate"
                                     value={regador.progreso_promedio || 0}
                                     color={getStatusColor(regador.progreso_promedio || 0)}
                                     sx={{ height: 8, borderRadius: 4 }}
@@ -320,21 +320,21 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
                     {/* EstadÃ­sticas de sectores */}
                     <Grid item xs={12}>
                         <Box display="flex" gap={1} flexWrap="wrap">
-                            <Chip 
+                            <Chip
                                 icon={<CheckCircle />}
                                 label={`${regador.sectores_completados} Completados`}
                                 size="small"
                                 color="success"
                                 variant="outlined"
                             />
-                            <Chip 
+                            <Chip
                                 icon={<PlayArrow />}
                                 label={`${regador.sectores_en_progreso} En Progreso`}
                                 size="small"
                                 color="primary"
                                 variant="outlined"
                             />
-                            <Chip 
+                            <Chip
                                 icon={<Schedule />}
                                 label={`${regador.sectores_pendientes} Pendientes`}
                                 size="small"
@@ -353,7 +353,7 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
                             <strong>Lámina Aplicada:</strong> {calcularLaminaAplicada()} mm
                         </Typography>
                         <Typography variant="body2" color="textSecondary">
-                            <strong>Ãšltima Actividad:</strong> {formatUltimaActividad(regador.ultima_actividad)}
+                            <strong>Última Actividad:</strong> {formatUltimaActividad(regador.ultima_actividad)}
                         </Typography>
                     </Grid>
                 </Grid>
@@ -373,13 +373,13 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const [datosOperacion, setDatosOperacion] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
     const [tabValue, setTabValue] = useState(0);
-    
+
     // ⭐ NUEVOS ESTADOS PARA VUELTAS
     const [vueltas, setVueltas] = useState([]);
     const [vueltaActual, setVueltaActual] = useState(null);
     const [estadisticasGenerales, setEstadisticasGenerales] = useState(null);
     const [loadingVueltas, setLoadingVueltas] = useState(false);
-    
+
     // ⭐ NUEVO - Estados para mostrar en el título del Dialog
     const [sectorActual, setSectorActual] = useState(null);
     const [estadoActual, setEstadoActual] = useState(null);
@@ -396,7 +396,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
             if (selectedRegador && detalleDialog) {
                 // Actualizar datos cuando está viendo detalles
                 fetchDatosOperacion(selectedRegador.regador_id);
-                
+
                 // Si está en el tab de vueltas, actualizar vueltas
                 if (tabValue === 3) {
                     cargarVueltasYEstadisticas(selectedRegador.regador_id);
@@ -411,11 +411,11 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
         try {
             setLoading(true);
             const response = await axios.get(`/gps/campos/${campoId}/estado-riego`);
-            
+
             // Asegurar que siempre sea un array
             const data = Array.isArray(response.data) ? response.data : [];
             setRegadores(data);
-            
+
             if (data.length > 1) {
                 console.log(`📡 Campo ${nombreCampo} tiene ${data.length} regadores configurados`);
             }
@@ -447,11 +447,11 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const cargarVueltasYEstadisticas = async (regadorId) => {
         try {
             setLoadingVueltas(true);
-            
+
             const response = await axios.get(`/regadores/${regadorId}/resumen-completo`);
-            
+
             console.log('📊 Respuesta vueltas:', response.data);
-            
+
             if (response.data.success) {
                 const vueltas = Array.isArray(response.data.data.vueltas) ? response.data.data.vueltas : [];
                 setVueltas(vueltas);
@@ -476,17 +476,17 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const handleViewDetails = async (regador) => {
         try {
             setSelectedRegador(regador);
-            
+
             // Cargar sectores detallados
             const sectoresResponse = await axios.get(`/geozonas-pivote/regador/${regador.regador_id}`);
             const sectores = Array.isArray(sectoresResponse.data) ? sectoresResponse.data : [];
             setSectoresDetalle(sectores);
-            
+
             // Cargar eventos recientes
             const eventosResponse = await axios.get(`/gps/regadores/${regador.regador_id}/eventos?limit=20`);
             const eventos = Array.isArray(eventosResponse.data) ? eventosResponse.data : [];
             setEventosRecientes(eventos);
-            
+
             // ⭐ NUEVO - Cargar posición actual para el título
             try {
                 const posicionResponse = await axios.get(`/gps/regadores/${regador.regador_id}/posicion-actual`);
@@ -499,13 +499,13 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                 setSectorActual(null);
                 setEstadoActual(null);
             }
-            
+
             // Cargar datos de operación
             await fetchDatosOperacion(regador.regador_id);
-            
+
             // ⭐ NUEVO - Cargar vueltas y estadísticas
             await cargarVueltasYEstadisticas(regador.regador_id);
-            
+
             setDetalleDialog(true);
         } catch (error) {
             console.error('Error al obtener detalles del regador:', error);
@@ -520,7 +520,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
         setRefreshing(true);
         try {
             await fetchEstadoRiego();
-            
+
             // Si hay un regador seleccionado, actualizar sus detalles también
             if (selectedRegador && detalleDialog) {
                 await fetchDatosOperacion(selectedRegador.regador_id);
@@ -639,19 +639,19 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                             </Box>
                         </Box>
                         <Box display="flex" gap={1}>
-                            <Chip 
+                            <Chip
                                 label={`${sectoresDetalle.length} Sectores`}
                                 color="primary"
                                 size="small"
                             />
-                            <Chip 
+                            <Chip
                                 label={selectedRegador?.regador_activo ? 'Activo' : 'Inactivo'}
                                 color={selectedRegador?.regador_activo ? 'success' : 'default'}
                                 size="small"
                             />
                             {/* ⭐ NUEVO - Chip de estado actual */}
                             {estadoActual && (
-                                <Chip 
+                                <Chip
                                     icon={estadoActual.regando ? <WaterDrop /> : <Pause />}
                                     label={estadoActual.regando ? 'Regando' : 'Detenido'}
                                     color={estadoActual.regando ? 'success' : 'warning'}
@@ -663,8 +663,8 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                 </DialogTitle>
 
                 <DialogContent>
-                    <Tabs 
-                        value={tabValue} 
+                    <Tabs
+                        value={tabValue}
                         onChange={(e, newValue) => setTabValue(newValue)}
                         variant="scrollable"
                         scrollButtons="auto"
@@ -731,14 +731,14 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                                     size="small"
                                                     color={
                                                         sector.estado === 'completado' ? 'success' :
-                                                        sector.estado === 'en_progreso' ? 'primary' :
-                                                        'default'
+                                                            sector.estado === 'en_progreso' ? 'primary' :
+                                                                'default'
                                                     }
                                                 />
                                             </TableCell>
                                             <TableCell align="right">
-                                                {sector.progreso_porcentaje ? 
-                                                    `${Math.round(sector.progreso_porcentaje)}%` : 
+                                                {sector.progreso_porcentaje ?
+                                                    `${Math.round(sector.progreso_porcentaje)}%` :
                                                     '-'
                                                 }
                                             </TableCell>
@@ -835,13 +835,13 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                                         🔄 Vuelta {vueltaActual.numero_vuelta} - En Progreso
                                                     </Typography>
                                                 </Box>
-                                                
-                                                <LinearProgress 
-                                                    variant="determinate" 
-                                                    value={parseFloat(vueltaActual.porcentaje_completado || 0)} 
+
+                                                <LinearProgress
+                                                    variant="determinate"
+                                                    value={parseFloat(vueltaActual.porcentaje_completado || 0)}
                                                     sx={{ mb: 2, height: 10, borderRadius: 5 }}
                                                 />
-                                                
+
                                                 <Grid container spacing={2}>
                                                     <Grid item xs={6} md={3}>
                                                         <Typography variant="caption" color="textSecondary">
@@ -882,7 +882,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
 
                                     {/* Historial de vueltas */}
                                     <Card>
-                                        <CardHeader 
+                                        <CardHeader
                                             title="📜 Historial de Vueltas"
                                             subheader={`${vueltas.length} vueltas registradas`}
                                         />
@@ -900,42 +900,42 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                             ) : (
                                                 vueltas.map((vuelta) => (
                                                     <Accordion key={vuelta.vuelta_id} sx={{ mb: 1 }}>
-                                                        <AccordionSummary 
+                                                        <AccordionSummary
                                                             expandIcon={<ExpandMore />}
-                                                            sx={{ 
+                                                            sx={{
                                                                 '&:hover': { bgcolor: 'action.hover' },
                                                                 transition: 'all 0.2s'
                                                             }}
                                                         >
                                                             <Box display="flex" alignItems="center" gap={2} width="100%">
-                                                                <Chip 
+                                                                <Chip
                                                                     label={`Vuelta ${vuelta.numero_vuelta}`}
                                                                     color="primary"
                                                                     size="small"
                                                                 />
-                                                                
+
                                                                 {vuelta.completada ? (
-                                                                    <Chip 
+                                                                    <Chip
                                                                         icon={<CheckCircle />}
                                                                         label="Completada"
                                                                         color="success"
                                                                         size="small"
                                                                     />
                                                                 ) : (
-                                                                    <Chip 
+                                                                    <Chip
                                                                         icon={<PlayArrow />}
                                                                         label="En curso"
                                                                         color="warning"
                                                                         size="small"
                                                                     />
                                                                 )}
-                                                                
+
                                                                 <Typography variant="body2" color="textSecondary">
                                                                     {format(new Date(vuelta.fecha_inicio), 'dd/MM/yyyy HH:mm', { locale: es })}
                                                                 </Typography>
-                                                                
+
                                                                 <Box flexGrow={1} />
-                                                                
+
                                                                 <Box textAlign="right">
                                                                     <Typography variant="body2" fontWeight="bold">
                                                                         {parseFloat(vuelta.lamina_promedio_mm || 0).toFixed(1)} mm
@@ -946,7 +946,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                                                 </Box>
                                                             </Box>
                                                         </AccordionSummary>
-                                                        
+
                                                         <AccordionDetails sx={{ bgcolor: 'background.default' }}>
                                                             <Grid container spacing={2}>
                                                                 <Grid item xs={6} md={3}>
@@ -957,7 +957,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                                                         {vuelta.duracion_total_minutos} min
                                                                     </Typography>
                                                                 </Grid>
-                                                                
+
                                                                 <Grid item xs={6} md={3}>
                                                                     <Typography variant="caption" color="textSecondary">
                                                                         💧 Agua Aplicada
@@ -966,7 +966,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                                                         {parseFloat(vuelta.agua_total_litros || 0).toFixed(0)} L
                                                                     </Typography>
                                                                 </Grid>
-                                                                
+
                                                                 <Grid item xs={6} md={3}>
                                                                     <Typography variant="caption" color="textSecondary">
                                                                         📏 Área Regada
@@ -975,7 +975,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                                                         {parseFloat(vuelta.area_total_ha || 0).toFixed(2)} ha
                                                                     </Typography>
                                                                 </Grid>
-                                                                
+
                                                                 <Grid item xs={6} md={3}>
                                                                     <Typography variant="caption" color="textSecondary">
                                                                         🔧 Presión Promedio
@@ -984,7 +984,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                                                         {parseFloat(vuelta.presion_promedio_vuelta || 0).toFixed(1)} PSI
                                                                     </Typography>
                                                                 </Grid>
-                                                                
+
                                                                 <Grid item xs={12}>
                                                                     <Box display="flex" alignItems="center" gap={1} mt={1}>
                                                                         <CheckCircle sx={{ fontSize: 16, color: 'success.main' }} />
@@ -1010,7 +1010,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                     <Button onClick={handleCloseDialog}>
                         Cerrar
                     </Button>
-                    <Button 
+                    <Button
                         onClick={() => handleRefresh(selectedRegador?.regador_id)}
                         startIcon={<Refresh />}
                         disabled={refreshing}

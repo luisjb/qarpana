@@ -9,19 +9,19 @@ router.get('/lote/:loteId/regador/:regadorId', verifyToken, async (req, res) => 
     const client = await pool.connect();
     try {
         const { loteId, regadorId } = req.params;
-        
+
         // Obtener información del regador
         const regadorQuery = await client.query(
             'SELECT * FROM regadores WHERE id = $1',
             [regadorId]
         );
-        
+
         if (regadorQuery.rows.length === 0) {
             return res.status(404).json({ error: 'Regador no encontrado' });
         }
-        
+
         const regador = regadorQuery.rows[0];
-        
+
         // Obtener geozonas del lote para este regador
         const geozonas = await client.query(
             `SELECT * FROM geozonas_pivote 
@@ -29,14 +29,14 @@ router.get('/lote/:loteId/regador/:regadorId', verifyToken, async (req, res) => 
              ORDER BY numero_sector`,
             [loteId, regadorId]
         );
-        
+
         if (geozonas.rows.length === 0) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 message: 'No hay configuración existente',
-                exists: false 
+                exists: false
             });
         }
-        
+
         // Retornar configuración completa
         res.json({
             id: geozonas.rows[0].id, // ID de la primera geozona para referencia
@@ -45,7 +45,7 @@ router.get('/lote/:loteId/regador/:regadorId', verifyToken, async (req, res) => 
             radio_cobertura: regador.radio_cobertura,
             sectores: geozonas.rows
         });
-        
+
     } catch (err) {
         console.error('Error al obtener geozonas:', err);
         res.status(500).json({ error: 'Error del servidor' });
@@ -59,7 +59,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        
+
         const {
             regador_id,
             lote_id,
@@ -68,15 +68,15 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
             radio_cobertura,
             sectores
         } = req.body;
-        
+
         // Validar datos requeridos
         if (!regador_id || !lote_id || !sectores || sectores.length === 0) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 error: 'Faltan datos requeridos',
                 required: ['regador_id', 'lote_id', 'sectores']
             });
         }
-        
+
         // Actualizar coordenadas y radio del regador
         await client.query(
             `UPDATE regadores 
@@ -85,14 +85,14 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
              WHERE id = $4`,
             [latitud_centro, longitud_centro, radio_cobertura, regador_id]
         );
-        
+
         // Verificar si ya existen geozonas para este lote y regador
         const existingQuery = await client.query(
             `SELECT id, numero_sector FROM geozonas_pivote 
              WHERE regador_id = $1 AND lote_id = $2`,
             [regador_id, lote_id]
         );
-        
+
         if (existingQuery.rows.length > 0) {
             // Si ya existen, usar la lógica de actualización
             await client.query('ROLLBACK');
@@ -102,7 +102,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
                 existing_sectors: existingQuery.rows.length
             });
         }
-        
+
         // Insertar nuevos sectores
         const insertedSectores = [];
         for (const sector of sectores) {
@@ -129,7 +129,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
                 ]
             );
             insertedSectores.push(result.rows[0]);
-            
+
             // Crear estado inicial
             await client.query(
                 `INSERT INTO estado_sectores_riego (geozona_id, estado) 
@@ -138,21 +138,21 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
                 [result.rows[0].id, 'pendiente']
             );
         }
-        
+
         await client.query('COMMIT');
-        
+
         console.log(`✅ Geozonas creadas - Regador: ${regador_id}, Lote: ${lote_id}, Sectores: ${insertedSectores.length}`);
-        
-        res.status(201).json({ 
+
+        res.status(201).json({
             message: 'Geozonas creadas con éxito',
             sectores: insertedSectores
         });
-        
+
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error al crear geozonas:', err);
-        res.status(500).json({ 
-            error: 'Error del servidor', 
+        res.status(500).json({
+            error: 'Error del servidor',
             details: err.message
         });
     } finally {
@@ -165,7 +165,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        
+
         const {
             regador_id,
             lote_id,
@@ -174,15 +174,15 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
             radio_cobertura,
             sectores
         } = req.body;
-        
+
         // Validar datos requeridos
         if (!regador_id || !lote_id || !sectores || sectores.length === 0) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 error: 'Faltan datos requeridos',
                 required: ['regador_id', 'lote_id', 'sectores']
             });
         }
-        
+
         // Actualizar coordenadas y radio del regador
         await client.query(
             `UPDATE regadores 
@@ -191,27 +191,27 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
              WHERE id = $4`,
             [latitud_centro, longitud_centro, radio_cobertura, regador_id]
         );
-        
+
         // Obtener geozonas existentes para este lote y regador
         const existingQuery = await client.query(
             `SELECT id, numero_sector FROM geozonas_pivote 
              WHERE regador_id = $1 AND lote_id = $2`,
             [regador_id, lote_id]
         );
-        
+
         const existingGeozonas = new Map(
             existingQuery.rows.map(row => [row.numero_sector, row.id])
         );
-        
+
         const updatedSectores = [];
         const sectoresEnviados = new Set();
-        
+
         // UPSERT: Actualizar o insertar cada sector
         for (const sector of sectores) {
             sectoresEnviados.add(sector.numero_sector);
-            
+
             const existingId = existingGeozonas.get(sector.numero_sector);
-            
+
             if (existingId) {
                 // ACTUALIZAR sector existente (conserva ID y datos históricos)
                 const result = await client.query(
@@ -269,7 +269,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                 );
                 updatedSectores.push(result.rows[0]);
                 console.log(`➕ Sector creado: ${sector.nombre_sector} (ID: ${result.rows[0].id})`);
-                
+
                 // Crear estado inicial para el nuevo sector
                 await client.query(
                     `INSERT INTO estado_sectores_riego (geozona_id, estado) 
@@ -279,7 +279,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                 );
             }
         }
-        
+
         // ELIMINAR sectores que ya no están en la configuración
         // (solo si el usuario eliminó sectores explícitamente)
         const sectoresAEliminar = [];
@@ -288,7 +288,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                 sectoresAEliminar.push(geozonaId);
             }
         }
-        
+
         if (sectoresAEliminar.length > 0) {
             // IMPORTANTE: Marcar como inactivo en lugar de eliminar
             // Esto preserva el historial
@@ -301,15 +301,15 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
             );
             console.log(`🚫 Sectores desactivados: ${sectoresAEliminar.length}`);
         }
-        
+
         await client.query('COMMIT');
-        
+
         console.log(`✅ Configuración actualizada - Regador: ${regador_id}, Lote: ${lote_id}`);
         console.log(`   📊 Actualizados: ${updatedSectores.filter(s => existingGeozonas.has(s.numero_sector)).length}`);
         console.log(`   ➕ Nuevos: ${updatedSectores.filter(s => !existingGeozonas.has(s.numero_sector)).length}`);
         console.log(`   🚫 Desactivados: ${sectoresAEliminar.length}`);
-        
-        res.json({ 
+
+        res.json({
             message: 'Geozonas actualizadas con éxito',
             sectores: updatedSectores,
             stats: {
@@ -318,13 +318,13 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                 desactivados: sectoresAEliminar.length
             }
         });
-        
+
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error al actualizar geozonas:', err);
-        res.status(500).json({ 
-            error: 'Error del servidor', 
-            details: err.message 
+        res.status(500).json({
+            error: 'Error del servidor',
+            details: err.message
         });
     } finally {
         client.release();
@@ -336,9 +336,9 @@ router.delete('/lote/:loteId/regador/:regadorId', verifyToken, isAdmin, async (r
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        
+
         const { loteId, regadorId } = req.params;
-        
+
         // Eliminar estados de sectores primero
         await client.query(
             `DELETE FROM estado_sectores_riego 
@@ -348,21 +348,21 @@ router.delete('/lote/:loteId/regador/:regadorId', verifyToken, isAdmin, async (r
              )`,
             [loteId, regadorId]
         );
-        
+
         // Eliminar geozonas
         const result = await client.query(
             'DELETE FROM geozonas_pivote WHERE lote_id = $1 AND regador_id = $2 RETURNING *',
             [loteId, regadorId]
         );
-        
+
         if (result.rows.length === 0) {
             await client.query('ROLLBACK');
             return res.status(404).json({ error: 'No se encontraron geozonas para eliminar' });
         }
-        
+
         await client.query('COMMIT');
         res.json({ message: 'Geozonas eliminadas con éxito' });
-        
+
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error al eliminar geozonas:', err);
@@ -372,13 +372,13 @@ router.delete('/lote/:loteId/regador/:regadorId', verifyToken, isAdmin, async (r
     }
 });
 
-// Obtener todas las geozonas de un regador (filtradas por lote actual si estÃ¡ en uno)
+// Obtener todas las geozonas de un regador (filtradas por lote actual si está en uno)
 router.get('/regador/:regadorId', verifyToken, async (req, res) => {
     const client = await pool.connect();
     try {
         const { regadorId } = req.params;
-        
-        // Primero, obtener la posiciÃ³n actual del regador para saber en quÃ© lote estÃ¡
+
+        // Primero, obtener la posición actual del regador para saber en qué lote está
         const queryPosicionActual = `
             SELECT 
                 dog.geozona_id,
@@ -390,10 +390,10 @@ router.get('/regador/:regadorId', verifyToken, async (req, res) => {
             ORDER BY dog.timestamp DESC
             LIMIT 1
         `;
-        
+
         const resultPosicion = await client.query(queryPosicionActual, [regadorId]);
         const loteActual = resultPosicion.rows[0]?.lote_id || null;
-        
+
         // Construir query base
         let query = `
             SELECT 
@@ -407,25 +407,31 @@ router.get('/regador/:regadorId', verifyToken, async (req, res) => {
             LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
             WHERE gp.regador_id = $1
         `;
-        
+
         const params = [regadorId];
-        
-        // Si estÃ¡ en un lote especÃ­fico, filtrar solo por ese lote
+
+        // ⚠️ CAMBIO: Solo filtrar por lote si está en uno Y tiene datos GPS recientes
+        // Si no está en ninguna geozona, mostrar TODOS los sectores
         if (loteActual) {
             query += ` AND gp.lote_id = $2`;
             params.push(loteActual);
+            console.log(`📍 Regador ${regadorId} está en lote ${loteActual}, filtrando sectores...`);
+        } else {
+            console.log(`📍 Regador ${regadorId} no está en ninguna geozona, mostrando todos los sectores`);
         }
-        
+
         query += ` ORDER BY gp.numero_sector`;
-        
+
         const { rows } = await client.query(query, params);
-        
+
+        console.log(`✅ Devolviendo ${rows.length} sectores para regador ${regadorId}`);
+
         res.json({
             success: true,
             lote_actual: loteActual,
             data: rows
         });
-        
+
     } catch (err) {
         console.error('Error al obtener geozonas del regador:', err);
         res.status(500).json({ error: 'Error del servidor' });
