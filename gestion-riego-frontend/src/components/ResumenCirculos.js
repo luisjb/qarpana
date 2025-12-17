@@ -9,14 +9,16 @@ import axios from '../axiosConfig';
 import { WaterDrop, PictureAsPdf } from '@mui/icons-material';
 import RecomendacionesSection from './RecomendacionesSection';
 
-// Reutilizamos el componente GaugeIndicator 
-const GaugeIndicator = ({ percentage, size = 60 }) => {
+// Reutilizamos el componente GaugeIndicator
+// El parámetro 'umbral' debe venir del backend (porcentajeAguaUtilUmbral)
+// Este valor es dinámico y se configura por lote
+const GaugeIndicator = ({ percentage, size = 60, umbral = 50 }) => {
     const safePercentage = percentage === null || percentage === undefined || isNaN(percentage) ? 0 : Math.round(Number(percentage));
     
     const getColor = (value) => {
         value = Number(value) || 0;
-        if (value <= 25) return '#ef4444';
-        if (value <= 50) return '#f97316';
+        if (value <= umbral / 2) return '#ef4444';
+        if (value <= umbral) return '#f97316';
         return '#22c55e';
     };
     
@@ -120,9 +122,13 @@ function ResumenCirculos() {
                 : [];
             
             if (lotesActivos.length > 0) {
+                // IMPORTANTE: El endpoint /simulations/summary/${lote.id} debe devolver
+                // el campo 'porcentajeAguaUtilUmbral' para que los colores de los indicadores
+                // se ajusten correctamente según la configuración de cada lote
                 const lotesPromises = lotesActivos.map(async (lote) => {
                     try {
                         const dataResponse = await axios.get(`/simulations/summary/${lote.id}`);
+                        console.log(`Datos del lote ${lote.id}:`, dataResponse.data);
                         return {
                             ...lote,
                             waterData: dataResponse.data
@@ -138,6 +144,7 @@ function ResumenCirculos() {
                                 aguaUtil2m: 0,
                                 auInicial1m: 0,
                                 auInicial2m: 0,
+                                porcentajeAguaUtilUmbral: 50,
                                 error: true
                             }
                         };
@@ -369,7 +376,8 @@ function ResumenCirculos() {
                                                     </Box>
                                                     <GaugeIndicator 
                                                         percentage={formatNumber(lote.waterData?.porcentajeAu1m || 0)} 
-                                                        size={80} 
+                                                        size={80}
+                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
                                                     />
                                                     <Typography variant="body2" sx={{ mt: 1 }}>
                                                         {formatNumber(lote.waterData?.aguaUtil1m || 0)} mm
@@ -384,7 +392,8 @@ function ResumenCirculos() {
                                                     </Box>
                                                     <GaugeIndicator 
                                                         percentage={formatNumber(lote.waterData?.porcentajeAu2m || 0)} 
-                                                        size={80} 
+                                                        size={80}
+                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
                                                     />
                                                     <Typography variant="body2" sx={{ mt: 1 }}>
                                                         {formatNumber(lote.waterData?.aguaUtil2m || 0)} mm

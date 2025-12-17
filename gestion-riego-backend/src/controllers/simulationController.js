@@ -1209,6 +1209,7 @@ exports.getSummaryData = async (req, res) => {
             porcentajeAguaUtil: simulationData.porcentajeAguaUtil,
             porcentajeAu1m: simulationData.porcentajeAu1m,
             porcentajeAu2m: simulationData.porcentajeAu2m,
+            porcentajeAguaUtilUmbral: simulationData.porcentajeAguaUtilUmbral, // Campo necesario para los indicadores de color
             ultimaFecha: simulationData.fechas[lastIndex]
         };
 
@@ -1375,4 +1376,3 @@ exports.corregirDiasLote = async (req, res) => {
         client.release();
     }
 };
-
