@@ -206,7 +206,7 @@ class GPSProcessingService {
 
                     // Actualizar estado del sector si está regando
                     if (geozona && estado.regando) {
-                        await this.actualizarEstadoSector(geozona.id, datosOperacion);
+                        await this.actualizarEstadoSectorMejorado(geozona.id, datosOperacion, regador);
                     }
                 }
 
@@ -378,10 +378,12 @@ class GPSProcessingService {
                         datosOperacion.timestamp
                     );
 
+                    // ✅ AGREGAR ESTA LÍNEA: Completar el sector al salir
+                    await this.completarSector(geozonaAnterior, datosOperacion.timestamp);
+
                     // Si la salida es porque está completando riego, cerrar el ciclo
                     await this.completarCicloRiego(geozonaAnterior, datosOperacion.timestamp);
                 }
-
                 // Entrada a nueva geozona
                 if (geozonaActual && datosOperacion.regando) {
                     await this.registrarEventoRiego(regadorId, geozonaActual.id, 'entrada', datosOperacion);
@@ -435,6 +437,127 @@ class GPSProcessingService {
             throw error;
         }
     }
+
+    async actualizarEstadoSectorMejorado(geozonaId, datosOperacion, regador) {
+    try {
+        // 1. Obtener información del sector
+        const querySector = `
+            SELECT 
+                gp.*,
+                esr.estado,
+                esr.fecha_inicio_real,
+                esr.progreso_porcentaje,
+                r.caudal,
+                r.tiempo_vuelta_completa
+            FROM geozonas_pivote gp
+            LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
+            LEFT JOIN regadores r ON gp.regador_id = r.id
+            WHERE gp.id = $1
+        `;
+        
+        const resultSector = await pool.query(querySector, [geozonaId]);
+        
+        if (resultSector.rows.length === 0) {
+            console.warn(`⚠️ Sector ${geozonaId} no encontrado`);
+            return;
+        }
+        
+        const sector = resultSector.rows[0];
+        const estadoActual = sector.estado || 'pendiente';
+        const fechaInicio = sector.fecha_inicio_real || datosOperacion.timestamp;
+        
+        // 2. Si es la primera vez que entra al sector, marcarlo como "en_progreso"
+        if (estadoActual === 'pendiente') {
+            await pool.query(
+                `UPDATE estado_sectores_riego 
+                 SET estado = 'en_progreso',
+                     fecha_inicio_real = $1,
+                     progreso_porcentaje = 0
+                 WHERE geozona_id = $2`,
+                [datosOperacion.timestamp, geozonaId]
+            );
+            
+            console.log(`✅ Sector ${sector.numero_sector} iniciado`);
+            return;
+        }
+        
+        // 3. Calcular el progreso del sector
+        if (estadoActual === 'en_progreso') {
+            // Calcular tiempo transcurrido en el sector
+            const tiempoTranscurrido = new Date(datosOperacion.timestamp) - new Date(fechaInicio);
+            const minutosTranscurridos = tiempoTranscurrido / 60000;
+            
+            // Calcular ángulo del sector
+            let anguloSector;
+            if (sector.angulo_fin < sector.angulo_inicio) {
+                anguloSector = (360 - sector.angulo_inicio) + sector.angulo_fin;
+            } else {
+                anguloSector = sector.angulo_fin - sector.angulo_inicio;
+            }
+            
+            // Calcular tiempo estimado para el sector
+            // Basado en el tiempo de vuelta completa del regador
+            let tiempoEstimadoMinutos = 60; // Default: 1 hora por sector
+            
+            if (sector.tiempo_vuelta_completa) {
+                // Proporción del sector respecto a la vuelta completa
+                const proporcionSector = anguloSector / 360;
+                tiempoEstimadoMinutos = sector.tiempo_vuelta_completa * proporcionSector;
+            }
+            
+            // Calcular progreso basado en tiempo
+            let progresoTiempo = (minutosTranscurridos / tiempoEstimadoMinutos) * 100;
+            progresoTiempo = Math.min(progresoTiempo, 99); // No completar automáticamente por tiempo
+            
+            // Calcular progreso basado en ángulo recorrido
+            const anguloActual = datosOperacion.angulo_actual;
+            let progresoAngulo = 0;
+            
+            if (anguloActual !== null && anguloActual !== undefined) {
+                // Calcular cuánto avanzó dentro del sector
+                let avanceEnSector = 0;
+                
+                if (sector.angulo_fin > sector.angulo_inicio) {
+                    // Sector normal
+                    if (anguloActual >= sector.angulo_inicio && anguloActual <= sector.angulo_fin) {
+                        avanceEnSector = anguloActual - sector.angulo_inicio;
+                    }
+                } else {
+                    // Sector que cruza 0°
+                    if (anguloActual >= sector.angulo_inicio) {
+                        avanceEnSector = anguloActual - sector.angulo_inicio;
+                    } else if (anguloActual <= sector.angulo_fin) {
+                        avanceEnSector = (360 - sector.angulo_inicio) + anguloActual;
+                    }
+                }
+                
+                progresoAngulo = (avanceEnSector / anguloSector) * 100;
+            }
+            
+            // Usar el mayor de los dos progresos (más conservador)
+            const progresoFinal = Math.max(progresoTiempo, progresoAngulo);
+            const progresoFinalRedondeado = Math.min(Math.round(progresoFinal), 99);
+            
+            // Actualizar progreso
+            await pool.query(
+                `UPDATE estado_sectores_riego 
+                 SET progreso_porcentaje = $1
+                 WHERE geozona_id = $2`,
+                [progresoFinalRedondeado, geozonaId]
+            );
+            
+            console.log(
+                `📊 Sector ${sector.numero_sector}: ${progresoFinalRedondeado}% ` +
+                `(tiempo: ${progresoTiempo.toFixed(0)}%, ángulo: ${progresoAngulo.toFixed(0)}%)`
+            );
+        }
+        
+    } catch (error) {
+        console.error('Error actualizando estado de sector mejorado:', error);
+        throw error;
+    }
+}
+
 
     /**
      * Actualiza el estado de un sector durante el riego
@@ -528,6 +651,46 @@ class GPSProcessingService {
 
         } catch (error) {
             console.error('Error actualizando estado del sector:', error);
+            throw error;
+        }
+    }
+
+    /**
+ * Completa un sector cuando el regador sale de él
+ */
+    async completarSector(geozonaId, timestamp) {
+        try {
+            const querySector = `
+                SELECT 
+                    esr.*,
+                    gp.nombre_sector,
+                    gp.numero_sector
+                FROM estado_sectores_riego esr
+                JOIN geozonas_pivote gp ON esr.geozona_id = gp.id
+                WHERE esr.geozona_id = $1
+            `;
+            
+            const result = await pool.query(querySector, [geozonaId]);
+            
+            if (result.rows.length === 0 || result.rows[0].estado === 'completado') {
+                return;
+            }
+            
+            const sector = result.rows[0];
+            
+            await pool.query(
+                `UPDATE estado_sectores_riego 
+                SET estado = 'completado',
+                    fecha_fin_real = $1,
+                    progreso_porcentaje = 100
+                WHERE geozona_id = $2`,
+                [timestamp, geozonaId]
+            );
+            
+            console.log(`✅ Sector ${sector.numero_sector} completado`);
+            
+        } catch (error) {
+            console.error('Error completando sector:', error);
             throw error;
         }
     }

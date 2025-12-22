@@ -1,447 +1,437 @@
-import React, { useEffect, useState } from 'react';
-import { Box, Typography, Card, CardContent, Grid, Chip, Alert } from '@mui/material';
-import { CheckCircle, Schedule, PlayArrow, Pause, MyLocation, WaterDrop } from '@mui/icons-material';
-import axios from '../axiosConfig';
+import React, { useRef, useEffect, useState } from 'react';
+import { Box, Typography, Chip, LinearProgress, Grid, Card } from '@mui/material';
+import { CheckCircle, Schedule, PlayArrow, Pause, Stop } from '@mui/icons-material';
 
-// Función auxiliar para convertir valores a número de forma segura
-const toNumber = (value) => {
-    if (value === null || value === undefined) return null;
-    const num = parseFloat(value);
-    return isNaN(num) ? null : num;
-};
-
-// Componente de visualización circular SVG
-function CircularRiegoVisualization({ sectores, regador, size = 500 }) {
-    const [hoveredSector, setHoveredSector] = useState(null);
-    const [sectorActual, setSectorActual] = useState(null);
-    const [vueltaActual, setVueltaActual] = useState(null);
+/**
+ * Componente de visualización circular del riego con sectores
+ * CORREGIDO: 
+ * - Muestra el estado real del regador (Para/Regando/etc.)
+ * - Filtra correctamente los sectores por lote actual
+ */
+function CircularRiegoVisualization({ regadorId }) {
+    const canvasRef = useRef(null);
+    const [sectores, setSectores] = useState([]);
     const [estadoActual, setEstadoActual] = useState(null);
+    const [anguloActual, setAnguloActual] = useState(null);
+    const [vueltaActual, setVueltaActual] = useState(null);
     const [loading, setLoading] = useState(true);
-    
-    const centerX = size / 2;
-    const centerY = size / 2;
-    const radius = (size / 2) - 60;
 
     useEffect(() => {
-        const cargarEstadoActual = async () => {
-            try {
-                // Posición actual
-                const responsePosicion = await axios.get(`/gps/regadores/${regador.regador_id}/posicion-actual`);
-                if (responsePosicion.data.success) {
-                    setSectorActual(responsePosicion.data.data.nombre_sector);
-                    setEstadoActual(responsePosicion.data.data);
-                }
-                
-                // Vuelta actual
-                const responseVuelta = await axios.get(`/regadores/${regador.regador_id}/vuelta-actual`);
-                if (responseVuelta.data.success && responseVuelta.data.data) {
-                    setVueltaActual(responseVuelta.data.data.vuelta);
-                }
-            } catch (error) {
-                console.error('Error cargando estado actual:', error);
-            } finally {
-                setLoading(false);
+        cargarDatos();
+        const interval = setInterval(cargarDatos, 10000); // Actualizar cada 10 segundos
+        return () => clearInterval(interval);
+    }, [regadorId]);
+
+    useEffect(() => {
+        if (sectores.length > 0 && canvasRef.current) {
+            dibujarVisualizacion();
+        }
+    }, [sectores, anguloActual]);
+
+    const cargarDatos = async () => {
+        try {
+            // 1. Obtener el último estado del regador
+            const estadoResponse = await fetch(`/api/regadores/${regadorId}/ultimo-estado`);
+            const estadoData = await estadoResponse.json();
+            
+            if (estadoData && !estadoData.error) {
+                setEstadoActual(estadoData);
+                setAnguloActual(estadoData.angulo_actual);
             }
-        };
 
-        if (regador && regador.regador_id) {
-            cargarEstadoActual();
-            const interval = setInterval(cargarEstadoActual, 10000);
-            return () => clearInterval(interval);
-        }
-    }, [regador?.regador_id]);
+            // 2. Obtener las geozonas/sectores (ya filtradas por lote en el backend)
+            const geozonas = await fetch(`/api/regadores/${regadorId}/geozonas`);
+            const geozonasData = await geozonas.json();
+            
+            if (geozonasData.sectores) {
+                setSectores(geozonasData.sectores);
+            }
 
-    const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
-        const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
-        return {
-            x: centerX + (radius * Math.cos(angleInRadians)),
-            y: centerY + (radius * Math.sin(angleInRadians))
-        };
-    };
+            // 3. Obtener la vuelta actual si existe
+            const vueltaResponse = await fetch(`/api/regadores/${regadorId}/vuelta-actual`);
+            const vueltaData = await vueltaResponse.json();
+            
+            if (vueltaData.success && vueltaData.data) {
+                setVueltaActual(vueltaData.data.vuelta);
+            } else {
+                setVueltaActual(null);
+            }
 
-    const createSectorPath = (centerX, centerY, radius, startAngle, endAngle) => {
-        const start = polarToCartesian(centerX, centerY, radius, endAngle);
-        const end = polarToCartesian(centerX, centerY, radius, startAngle);
-        const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
-
-        return [
-            "M", centerX, centerY,
-            "L", start.x, start.y,
-            "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y,
-            "Z"
-        ].join(" ");
-    };
-
-    const getSectorColor = (sector) => {
-        if (sectorActual === sector.nombre_sector && estadoActual?.regando) {
-            return '#4CAF50';
-        }
-        
-        if (sectorActual === sector.nombre_sector && !estadoActual?.regando) {
-            return '#FFC107';
-        }
-        
-        const baseColor = sector.color_display || '#e0e0e0';
-        const estado = sector.estado || 'pendiente';
-
-        switch (estado) {
-            case 'completado':
-                return baseColor;
-            case 'en_progreso':
-                return `${baseColor}BB`;
-            case 'pausado':
-                return '#FF9800';
-            default:
-                return '#f5f5f5';
+            setLoading(false);
+        } catch (error) {
+            console.error('Error cargando datos:', error);
+            setLoading(false);
         }
     };
 
-    const getEstadoTexto = (sector) => {
-        if (sectorActual === sector.nombre_sector && estadoActual?.regando) {
-            return '🚿 REGANDO AHORA';
-        }
-        if (sectorActual === sector.nombre_sector) {
-            return '📍 POSICIÓN ACTUAL';
-        }
+    const dibujarVisualizacion = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const maxRadius = Math.min(centerX, centerY) - 20;
+
+        // Limpiar canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Dibujar sectores
+        sectores.forEach((sector) => {
+            const radioInterno = (sector.radio_interno / getMaxRadioExterno()) * maxRadius;
+            const radioExterno = (sector.radio_externo / getMaxRadioExterno()) * maxRadius;
+            
+            // Convertir ángulos a radianes (Canvas usa radianes, con 0° a la derecha)
+            // Ajustar para que 0° esté arriba (Norte)
+            const startAngle = ((sector.angulo_inicio - 90) * Math.PI) / 180;
+            const endAngle = ((sector.angulo_fin - 90) * Math.PI) / 180;
+
+            // Determinar color según estado
+            let color = sector.color_display || '#cccccc';
+            
+            if (sector.estado === 'completado') {
+                color = '#4CAF50'; // Verde
+            } else if (sector.estado === 'en_progreso') {
+                color = '#FFC107'; // Amarillo/Naranja
+            } else if (sector.estado === 'pendiente') {
+                color = '#E0E0E0'; // Gris claro
+            }
+
+            // Dibujar sector externo
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radioExterno, startAngle, endAngle);
+            ctx.lineTo(
+                centerX + radioInterno * Math.cos(endAngle),
+                centerY + radioInterno * Math.sin(endAngle)
+            );
+            ctx.arc(centerX, centerY, radioInterno, endAngle, startAngle, true);
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Dibujar número del sector en el centro del arco
+            const midAngle = (startAngle + endAngle) / 2;
+            const midRadius = (radioInterno + radioExterno) / 2;
+            const textX = centerX + midRadius * Math.cos(midAngle);
+            const textY = centerY + midRadius * Math.sin(midAngle);
+
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(sector.numero_sector, textX, textY);
+        });
+
+        // Dibujar círculo central
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 40, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = '#2196F3';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Texto en el centro
+        ctx.fillStyle = '#2196F3';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Vuelta', centerX, centerY - 8);
         
-        switch (sector.estado) {
-            case 'completado': return '✅ Completado';
-            case 'en_progreso': return '⏳ En Progreso';
-            case 'pausado': return '⏸️ Pausado';
-            default: return '⏱️ Pendiente';
+        if (vueltaActual) {
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText(vueltaActual.numero_vuelta, centerX, centerY + 8);
+        } else {
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText('0', centerX, centerY + 8);
         }
+
+        // Dibujar indicador de posición actual (flecha/línea)
+        if (anguloActual !== null) {
+            const angle = ((anguloActual - 90) * Math.PI) / 180;
+            const indicatorLength = maxRadius + 10;
+
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(
+                centerX + indicatorLength * Math.cos(angle),
+                centerY + indicatorLength * Math.sin(angle)
+            );
+            ctx.strokeStyle = '#FF5722'; // Rojo/Naranja
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Dibujar punto al final
+            ctx.beginPath();
+            ctx.arc(
+                centerX + indicatorLength * Math.cos(angle),
+                centerY + indicatorLength * Math.sin(angle),
+                8,
+                0,
+                2 * Math.PI
+            );
+            ctx.fillStyle = '#FF5722';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // Dibujar leyenda en la esquina
+        dibujarLeyenda(ctx);
     };
 
-    const getTextPosition = (startAngle, endAngle) => {
-        let midAngle = (startAngle + endAngle) / 2;
-        
-        if (endAngle < startAngle) {
-            midAngle = ((startAngle + endAngle + 360) / 2) % 360;
-        }
-        
-        const textRadius = radius * 0.7;
-        const angleInRadians = (midAngle - 90) * Math.PI / 180.0;
-        
-        return {
-            x: centerX + (textRadius * Math.cos(angleInRadians)),
-            y: centerY + (textRadius * Math.sin(angleInRadians))
-        };
+    const dibujarLeyenda = (ctx) => {
+        const leyendaX = 10;
+        const leyendaY = 10;
+        const cuadroSize = 15;
+        const spacing = 20;
+
+        const estados = [
+            { texto: 'Completado', color: '#4CAF50' },
+            { texto: 'En Progreso', color: '#FFC107' },
+            { texto: 'Pendiente', color: '#E0E0E0' }
+        ];
+
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+
+        estados.forEach((estado, index) => {
+            const y = leyendaY + index * spacing;
+
+            // Cuadro de color
+            ctx.fillStyle = estado.color;
+            ctx.fillRect(leyendaX, y, cuadroSize, cuadroSize);
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(leyendaX, y, cuadroSize, cuadroSize);
+
+            // Texto
+            ctx.fillStyle = '#000000';
+            ctx.fillText(estado.texto, leyendaX + cuadroSize + 5, y + cuadroSize / 2);
+        });
     };
 
-    const sectorActualObj = sectores.find(s => s.nombre_sector === sectorActual);
-    
-    // Convertir valores de forma segura
-    const presion = toNumber(estadoActual?.presion);
-    const velocidad = toNumber(estadoActual?.velocidad);
-    const angulo = toNumber(estadoActual?.angulo_actual);
+    const getMaxRadioExterno = () => {
+        if (sectores.length === 0) return 1;
+        return Math.max(...sectores.map(s => s.radio_externo));
+    };
+
+    /**
+     * ✅ FUNCIÓN CORREGIDA: Determina el estado visual correcto
+     */
+    const getEstadoRegador = () => {
+        if (!estadoActual) return { texto: 'Desconocido', color: 'default', icon: <Stop /> };
+
+        const { estado_texto, regando, moviendose, encendido } = estadoActual;
+
+        // Mapeo correcto según el estado de la base de datos
+        if (estado_texto === 'regando_activo') {
+            return { texto: 'Regando', color: 'success', icon: <PlayArrow /> };
+        }
+        
+        if (estado_texto === 'regando_detenido') {
+            return { texto: 'Regando (Detenido)', color: 'warning', icon: <Pause /> };
+        }
+        
+        if (estado_texto === 'movimiento_sin_riego') {
+            return { texto: 'En Movimiento', color: 'info', icon: <PlayArrow /> };
+        }
+        
+        if (estado_texto === 'encendido_detenido') {
+            return { texto: 'Para', color: 'default', icon: <Pause /> };
+        }
+        
+        if (estado_texto === 'apagado' || !encendido) {
+            return { texto: 'Apagado', color: 'error', icon: <Stop /> };
+        }
+
+        return { texto: 'Para', color: 'default', icon: <Pause /> };
+    };
+
+    if (loading) {
+        return (
+            <Box display="flex" justifyContent="center" alignItems="center" height="400px">
+                <Typography>Cargando visualización...</Typography>
+            </Box>
+        );
+    }
+
+    const estadoRegador = getEstadoRegador();
 
     return (
-        <Card>
-            <CardContent>
-                <Box mb={3}>
-                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                        <Typography variant="h6" fontWeight="bold">
-                            {regador.nombre_dispositivo}
-                        </Typography>
-                        <Chip 
-                            label={regador.regador_activo ? 'Activo' : 'Inactivo'}
-                            color={regador.regador_activo ? 'success' : 'default'}
-                            size="small"
+        <Box>
+            {/* Header con información del estado */}
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Box display="flex" alignItems="center" gap={2}>
+                    <Typography variant="h6">Estado Actual</Typography>
+                    
+                    {/* ✅ CHIP CORREGIDO: Muestra el estado real */}
+                    <Chip
+                        icon={estadoRegador.icon}
+                        label={estadoRegador.texto}
+                        color={estadoRegador.color}
+                        size="medium"
+                    />
+                </Box>
+
+                <Box display="flex" gap={2}>
+                    {estadoActual?.nombre_sector && (
+                        <Chip
+                            label={`Sector ${estadoActual.numero_sector} - ${estadoActual.nombre_sector}`}
+                            color="primary"
+                            variant="outlined"
                         />
-                    </Box>
-
-                    {sectorActual && estadoActual ? (
-                        <Alert 
-                            severity={estadoActual.regando ? "success" : "info"}
-                            icon={estadoActual.regando ? <WaterDrop /> : <MyLocation />}
-                            sx={{ mb: 2 }}
-                        >
-                            <Box>
-                                <Typography variant="subtitle1" fontWeight="bold">
-                                    {estadoActual.regando ? '💧 REGANDO EN:' : '📍 UBICADO EN:'}
-                                </Typography>
-                                <Typography variant="h5" component="div" sx={{ my: 1 }}>
-                                    {sectorActual} {sectorActualObj?.nombre_lote && `- ${sectorActualObj.nombre_lote}`}
-                                </Typography>
-                                <Grid container spacing={1}>
-                                    <Grid item xs={4}>
-                                        <Typography variant="caption" color="textSecondary">
-                                            Presión
-                                        </Typography>
-                                        <Typography variant="body2" fontWeight="bold">
-                                            {presion !== null ? `${presion.toFixed(1)} PSI` : 'N/A'}
-                                        </Typography>
-                                    </Grid>
-                                    <Grid item xs={4}>
-                                        <Typography variant="caption" color="textSecondary">
-                                            Velocidad
-                                        </Typography>
-                                        <Typography variant="body2" fontWeight="bold">
-                                            {velocidad !== null ? `${velocidad.toFixed(1)} km/h` : 'N/A'}
-                                        </Typography>
-                                    </Grid>
-                                    <Grid item xs={4}>
-                                        <Typography variant="caption" color="textSecondary">
-                                            Ángulo
-                                        </Typography>
-                                        <Typography variant="body2" fontWeight="bold">
-                                            {angulo !== null ? `${angulo.toFixed(0)}°` : 'N/A'}
-                                        </Typography>
-                                    </Grid>
-                                </Grid>
-                            </Box>
-                        </Alert>
-                    ) : (
-                        !loading && (
-                            <Alert severity="warning" icon={<Schedule />}>
-                                <Typography variant="body2">
-                                    Sin datos GPS recientes. El dispositivo puede estar apagado o sin señal.
-                                </Typography>
-                            </Alert>
-                        )
                     )}
+                    
+                    {estadoActual?.nombre_lote && (
+                        <Chip
+                            label={estadoActual.nombre_lote}
+                            color="secondary"
+                            variant="outlined"
+                        />
+                    )}
+                </Box>
+            </Box>
 
-                    {vueltaActual && (
-                        <Box display="flex" alignItems="center" gap={1} p={1.5} bgcolor="primary.light" borderRadius={1}>
-                            <PlayArrow sx={{ color: 'white' }} />
-                            <Box flexGrow={1}>
-                                <Typography variant="body2" color="white" fontWeight="bold">
-                                    Vuelta {vueltaActual.numero_vuelta} en progreso
-                                </Typography>
-                                <Typography variant="caption" color="white">
-                                    {vueltaActual.porcentaje_completado ? 
-                                        `${parseFloat(vueltaActual.porcentaje_completado).toFixed(1)}% completado` : 
-                                        'Iniciando...'}
-                                </Typography>
-                            </Box>
+            {/* Información de la vuelta actual */}
+            {vueltaActual && (
+                <Card sx={{ mb: 2, p: 2, bgcolor: 'primary.light', color: 'white' }}>
+                    <Box display="flex" alignItems="center" justifyContent="space-between">
+                        <Box>
+                            <Typography variant="subtitle1" fontWeight="bold">
+                                Vuelta {vueltaActual.numero_vuelta} en Progreso
+                            </Typography>
+                            <Typography variant="caption">
+                                Ángulo inicial: {parseFloat(vueltaActual.angulo_inicio).toFixed(1)}°
+                            </Typography>
                         </Box>
-                    )}
-                </Box>
+                        <Box textAlign="right">
+                            <Typography variant="h5" fontWeight="bold">
+                                {parseFloat(vueltaActual.porcentaje_completado || 0).toFixed(1)}%
+                            </Typography>
+                            <Typography variant="caption">Completado</Typography>
+                        </Box>
+                    </Box>
+                    <LinearProgress
+                        variant="determinate"
+                        value={parseFloat(vueltaActual.porcentaje_completado || 0)}
+                        sx={{ mt: 1, height: 8, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.3)' }}
+                    />
+                </Card>
+            )}
 
-                <Box display="flex" justifyContent="center" mb={2}>
-                    <svg width={size} height={size} style={{ overflow: 'visible' }}>
-                        <circle
-                            cx={centerX}
-                            cy={centerY}
-                            r={radius}
-                            fill="none"
-                            stroke="#e0e0e0"
-                            strokeWidth="2"
-                        />
+            {/* Canvas de visualización */}
+            <Box display="flex" justifyContent="center">
+                <canvas
+                    ref={canvasRef}
+                    width={600}
+                    height={600}
+                    style={{ border: '1px solid #e0e0e0', borderRadius: '8px' }}
+                />
+            </Box>
 
-                        {sectores.map((sector, index) => {
-                            const startAngle = parseFloat(sector.angulo_inicio) || 0;
-                            const endAngle = parseFloat(sector.angulo_fin) || 0;
-                            
-                            if (startAngle === endAngle || startAngle < 0 || endAngle < 0 || startAngle >= 360 || endAngle > 360) {
-                                return null;
+            {/* Información adicional */}
+            <Grid container spacing={2} sx={{ mt: 2 }}>
+                <Grid item xs={12} sm={4}>
+                    <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                        <Typography variant="caption" color="textSecondary">
+                            Sectores Activos
+                        </Typography>
+                        <Typography variant="h5" color="primary">
+                            {sectores.filter(s => s.activo).length}
+                        </Typography>
+                    </Card>
+                </Grid>
+                
+                <Grid item xs={12} sm={4}>
+                    <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                        <Typography variant="caption" color="textSecondary">
+                            Ángulo Actual
+                        </Typography>
+                        <Typography variant="h5" color="secondary">
+                            {anguloActual !== null ? `${anguloActual.toFixed(1)}°` : 'N/A'}
+                        </Typography>
+                    </Card>
+                </Grid>
+                
+                <Grid item xs={12} sm={4}>
+                    <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                        <Typography variant="caption" color="textSecondary">
+                            {estadoActual?.presion ? 'Presión' : 'Velocidad'}
+                        </Typography>
+                        <Typography variant="h5" color="info.main">
+                            {estadoActual?.presion 
+                                ? `${estadoActual.presion.toFixed(1)} PSI` 
+                                : estadoActual?.velocidad 
+                                    ? `${estadoActual.velocidad.toFixed(1)} km/h`
+                                    : 'N/A'
                             }
-                            
-                            const sectorPath = createSectorPath(centerX, centerY, radius, startAngle, endAngle);
-                            const textPos = getTextPosition(startAngle, endAngle);
-                            const isHovered = hoveredSector === index;
-                            const isActive = sectorActual === sector.nombre_sector;
+                        </Typography>
+                    </Card>
+                </Grid>
+            </Grid>
 
-                            return (
-                                <g key={sector.id || index}>
-                                    <path
-                                        d={sectorPath}
-                                        fill={getSectorColor(sector)}
-                                        stroke={isActive ? "#FF5722" : "#ffffff"}
-                                        strokeWidth={isActive ? "4" : "2"}
-                                        style={{
-                                            cursor: 'pointer',
-                                            transition: 'all 0.3s ease',
-                                            transform: isHovered || isActive ? 'scale(1.05)' : 'scale(1)',
-                                            transformOrigin: `${centerX}px ${centerY}px`,
-                                            filter: isActive ? 'brightness(1.2) drop-shadow(0 0 10px rgba(255,87,34,0.5))' : 
-                                                    isHovered ? 'brightness(1.1)' : 'none'
-                                        }}
-                                        onMouseEnter={() => setHoveredSector(index)}
-                                        onMouseLeave={() => setHoveredSector(null)}
-                                    />
-
-                                    {sector.estado === 'en_progreso' && sector.progreso_porcentaje > 0 && (
-                                        <path
-                                            d={createSectorPath(
-                                                centerX, 
-                                                centerY, 
-                                                radius, 
-                                                startAngle, 
-                                                startAngle + ((endAngle - startAngle) * (sector.progreso_porcentaje / 100))
-                                            )}
-                                            fill={sector.color_display}
-                                            stroke="#ffffff"
-                                            strokeWidth="2"
-                                        />
-                                    )}
-
-                                    <text
-                                        x={textPos.x}
-                                        y={textPos.y}
-                                        textAnchor="middle"
-                                        dominantBaseline="middle"
-                                        fontSize={isActive ? "16" : "12"}
-                                        fill={isActive ? "#FF5722" : "#333"}
-                                        fontWeight={isActive ? "bold" : "normal"}
-                                        style={{ pointerEvents: 'none' }}
-                                    >
-                                        {sector.numero_sector}
-                                    </text>
-
-                                    {isActive && estadoActual?.regando && (
-                                        <g>
-                                            <circle
-                                                cx={textPos.x}
-                                                cy={textPos.y - 20}
-                                                r="12"
-                                                fill="#4CAF50"
-                                                stroke="white"
-                                                strokeWidth="2"
-                                            />
-                                            <text
-                                                x={textPos.x}
-                                                y={textPos.y - 17}
-                                                textAnchor="middle"
-                                                fontSize="14"
-                                                fill="white"
-                                            >
-                                                💧
-                                            </text>
-                                        </g>
-                                    )}
-                                </g>
-                            );
-                        })}
-
-                        <circle
-                            cx={centerX}
-                            cy={centerY}
-                            r="50"
-                            fill="#ffffff"
-                            stroke="#2196F3"
-                            strokeWidth="3"
-                        />
-                        <text
-                            x={centerX}
-                            y={centerY - 15}
-                            textAnchor="middle"
-                            fontSize="14"
-                            fill="#666"
-                            fontWeight="bold"
-                        >
-                            Vuelta
-                        </text>
-                        <text
-                            x={centerX}
-                            y={centerY + 10}
-                            textAnchor="middle"
-                            fontSize="28"
-                            fill="#2196F3"
-                            fontWeight="bold"
-                        >
-                            {vueltaActual ? vueltaActual.numero_vuelta : '-'}
-                        </text>
-                        <text
-                            x={centerX}
-                            y={centerY + 30}
-                            textAnchor="middle"
-                            fontSize="10"
-                            fill="#999"
-                        >
-                            {vueltaActual && vueltaActual.porcentaje_completado ? 
-                                `${parseFloat(vueltaActual.porcentaje_completado).toFixed(0)}%` : 
-                                ''}
-                        </text>
-                    </svg>
-                </Box>
-
-                <Box sx={{ maxHeight: 250, overflow: 'auto' }}>
-                    <Typography variant="subtitle2" gutterBottom fontWeight="bold">
-                        Sectores ({sectores.length})
-                    </Typography>
-                    <Grid container spacing={1}>
-                        {sectores.map((sector, index) => {
-                            const isActive = sectorActual === sector.nombre_sector;
-                            return (
-                                <Grid item xs={12} sm={6} key={sector.id || index}>
-                                    <Box
-                                        display="flex"
-                                        alignItems="center"
-                                        gap={1}
-                                        p={1}
-                                        sx={{
-                                            backgroundColor: isActive ? 'rgba(255, 87, 34, 0.1)' : 
-                                                           hoveredSector === index ? 'rgba(0,0,0,0.05)' : 
-                                                           'transparent',
-                                            borderRadius: 1,
-                                            border: isActive ? '2px solid #FF5722' : 'none',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s'
-                                        }}
-                                        onMouseEnter={() => setHoveredSector(index)}
-                                        onMouseLeave={() => setHoveredSector(null)}
-                                    >
-                                        <Box
-                                            sx={{
-                                                width: 20,
-                                                height: 20,
-                                                backgroundColor: getSectorColor(sector),
-                                                borderRadius: '50%',
-                                                border: '2px solid #ddd',
-                                                flexShrink: 0
-                                            }}
-                                        />
-                                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                                            <Box display="flex" alignItems="center" gap={0.5}>
-                                                <Typography variant="body2" noWrap fontWeight={isActive ? 'bold' : 'normal'}>
-                                                    {sector.nombre_sector}
-                                                </Typography>
-                                                {isActive && estadoActual?.regando && (
-                                                    <WaterDrop sx={{ fontSize: 14, color: '#4CAF50' }} />
-                                                )}
-                                            </Box>
-                                            <Typography variant="caption" color="textSecondary" noWrap>
-                                                {getEstadoTexto(sector)}
-                                            </Typography>
-                                        </Box>
-                                        {sector.progreso_porcentaje > 0 && (
-                                            <Typography variant="caption" fontWeight="bold">
-                                                {Math.round(sector.progreso_porcentaje)}%
+            {/* Lista de sectores con su estado */}
+            <Box mt={3}>
+                <Typography variant="h6" gutterBottom>
+                    Sectores del Lote Actual
+                </Typography>
+                <Grid container spacing={1}>
+                    {sectores.map((sector) => (
+                        <Grid item xs={12} sm={6} md={4} key={sector.id}>
+                            <Card 
+                                variant="outlined" 
+                                sx={{ 
+                                    p: 1.5,
+                                    bgcolor: sector.estado === 'completado' ? 'success.light' : 
+                                             sector.estado === 'en_progreso' ? 'warning.light' : 
+                                             'background.paper',
+                                    opacity: sector.activo ? 1 : 0.5
+                                }}
+                            >
+                                <Box display="flex" justifyContent="space-between" alignItems="center">
+                                    <Box>
+                                        <Typography variant="subtitle2" fontWeight="bold">
+                                            Sector {sector.numero_sector}
+                                        </Typography>
+                                        <Typography variant="caption" color="textSecondary">
+                                            {sector.nombre_sector}
+                                        </Typography>
+                                        {sector.nombre_lote && (
+                                            <Typography variant="caption" display="block" color="textSecondary">
+                                                📍 {sector.nombre_lote}
                                             </Typography>
                                         )}
                                     </Box>
-                                </Grid>
-                            );
-                        })}
-                    </Grid>
-                </Box>
-
-                <Box display="flex" justifyContent="center" gap={1} mt={2} flexWrap="wrap">
-                    <Chip 
-                        icon={<CheckCircle />}
-                        label={`${sectores.filter(s => s.estado === 'completado').length} Completados`}
-                        size="small"
-                        color="success"
-                        variant="outlined"
-                    />
-                    <Chip 
-                        icon={<PlayArrow />}
-                        label={`${sectores.filter(s => s.estado === 'en_progreso').length} En Progreso`}
-                        size="small"
-                        color="primary"
-                        variant="outlined"
-                    />
-                    <Chip 
-                        icon={<Schedule />}
-                        label={`${sectores.filter(s => !s.estado || s.estado === 'pendiente').length} Pendientes`}
-                        size="small"
-                        color="default"
-                        variant="outlined"
-                    />
-                </Box>
-            </CardContent>
-        </Card>
+                                    <Box textAlign="right">
+                                        {sector.estado === 'completado' && (
+                                            <CheckCircle color="success" fontSize="small" />
+                                        )}
+                                        {sector.estado === 'en_progreso' && (
+                                            <PlayArrow color="warning" fontSize="small" />
+                                        )}
+                                        {sector.estado === 'pendiente' && (
+                                            <Schedule color="disabled" fontSize="small" />
+                                        )}
+                                        <Typography variant="caption" display="block">
+                                            {sector.progreso_porcentaje 
+                                                ? `${parseFloat(sector.progreso_porcentaje).toFixed(0)}%`
+                                                : sector.estado
+                                            }
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </Card>
+                        </Grid>
+                    ))}
+                </Grid>
+            </Box>
+        </Box>
     );
 }
 

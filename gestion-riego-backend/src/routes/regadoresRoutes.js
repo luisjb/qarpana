@@ -195,13 +195,16 @@ router.get('/:regadorId/geozonas', verifyToken, async (req, res) => {
     try {
         const { regadorId } = req.params;
         
-        // Primero, obtener la posiciÃ³n actual del regador para saber en quÃ© lote estÃ¡
+        // ✅ PASO 1: Obtener la posición actual del regador para saber en qué lote está
         const queryPosicionActual = `
             SELECT 
                 dog.geozona_id,
-                gp.lote_id
+                gp.lote_id,
+                gp.nombre_sector,
+                l.nombre_lote
             FROM datos_operacion_gps dog
             LEFT JOIN geozonas_pivote gp ON dog.geozona_id = gp.id
+            LEFT JOIN lotes l ON gp.lote_id = l.id
             WHERE dog.regador_id = $1
               AND dog.dentro_geozona = true
             ORDER BY dog.timestamp DESC
@@ -211,38 +214,89 @@ router.get('/:regadorId/geozonas', verifyToken, async (req, res) => {
         const resultPosicion = await client.query(queryPosicionActual, [regadorId]);
         const loteActual = resultPosicion.rows[0]?.lote_id || null;
         
-        // Construir query base
-        let query = `
-            SELECT 
-                gp.*,
-                l.nombre_lote,
-                esr.estado,
-                esr.progreso_porcentaje,
-                esr.agua_aplicada_litros,
-                esr.fecha_inicio_real,
-                esr.fecha_fin_real
-            FROM geozonas_pivote gp
-            LEFT JOIN lotes l ON gp.lote_id = l.id
-            LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
-            WHERE gp.regador_id = $1
-        `;
+        console.log(`📍 Regador ${regadorId} - Lote actual detectado:`, loteActual || 'Ninguno');
         
-        const params = [regadorId];
+        // ✅ PASO 2: Si NO está en ningún lote, devolver TODOS los sectores
+        // ✅ PASO 3: Si SÍ está en un lote, devolver SOLO los sectores de ese lote
         
-        // Si estÃ¡ en un lote especÃ­fico, filtrar solo por ese lote
+        let query;
+        let params;
+        
         if (loteActual) {
-            query += ` AND gp.lote_id = $2`;
-            params.push(loteActual);
+            // ✅ Está en un lote específico - filtrar SOLO ese lote
+            query = `
+                SELECT 
+                    gp.id,
+                    gp.regador_id,
+                    gp.lote_id,
+                    gp.nombre_sector,
+                    gp.numero_sector,
+                    gp.angulo_inicio,
+                    gp.angulo_fin,
+                    gp.radio_interno,
+                    gp.radio_externo,
+                    gp.activo,
+                    gp.color_display,
+                    gp.coeficiente_riego,
+                    gp.prioridad,
+                    gp.fecha_creacion,
+                    l.nombre_lote,
+                    esr.estado,
+                    esr.progreso_porcentaje,
+                    esr.agua_aplicada_litros,
+                    esr.fecha_inicio_real,
+                    esr.fecha_fin_real
+                FROM geozonas_pivote gp
+                LEFT JOIN lotes l ON gp.lote_id = l.id
+                LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
+                WHERE gp.regador_id = $1
+                  AND gp.lote_id = $2
+                ORDER BY gp.numero_sector
+            `;
+            params = [regadorId, loteActual];
+        } else {
+            // ✅ NO está en ningún lote - devolver todos los sectores activos
+            query = `
+                SELECT 
+                    gp.id,
+                    gp.regador_id,
+                    gp.lote_id,
+                    gp.nombre_sector,
+                    gp.numero_sector,
+                    gp.angulo_inicio,
+                    gp.angulo_fin,
+                    gp.radio_interno,
+                    gp.radio_externo,
+                    gp.activo,
+                    gp.color_display,
+                    gp.coeficiente_riego,
+                    gp.prioridad,
+                    gp.fecha_creacion,
+                    l.nombre_lote,
+                    esr.estado,
+                    esr.progreso_porcentaje,
+                    esr.agua_aplicada_litros,
+                    esr.fecha_inicio_real,
+                    esr.fecha_fin_real
+                FROM geozonas_pivote gp
+                LEFT JOIN lotes l ON gp.lote_id = l.id
+                LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
+                WHERE gp.regador_id = $1
+                ORDER BY gp.numero_sector
+            `;
+            params = [regadorId];
         }
-        
-        query += ` ORDER BY gp.numero_sector`;
         
         const { rows } = await client.query(query, params);
         
+        console.log(`📊 Sectores devueltos: ${rows.length}`);
+        
         res.json({
             lote_actual: loteActual,
+            nombre_lote: resultPosicion.rows[0]?.nombre_lote || null,
             sectores: rows
         });
+        
     } catch (err) {
         console.error('Error al obtener geozonas:', err);
         res.status(500).json({ error: 'Error del servidor' });
@@ -250,6 +304,7 @@ router.get('/:regadorId/geozonas', verifyToken, async (req, res) => {
         client.release();
     }
 });
+
 
 // Crear/actualizar geozonas de un lote para un regador
 router.post('/:regadorId/geozonas', verifyToken, isAdmin, async (req, res) => {
