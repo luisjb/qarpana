@@ -4,13 +4,13 @@ import { CheckCircle, Schedule, PlayArrow, Pause, Stop } from '@mui/icons-materi
 
 /**
  * Componente de visualización circular del riego con sectores
- * CORREGIDO: 
- * - Muestra el estado real del regador (Para/Regando/etc.)
- * - Filtra correctamente los sectores por lote actual
+ * VERSIÓN ULTRA-ROBUSTA:
+ * - Acepta sectores como prop (no hace fetch)
+ * - Acepta regador como objeto
+ * - Manejo de errores mejorado
+ * - No crashea si faltan datos
  */
 function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 600 }) {
-    const regadorId = regador?.regador_id || regador?.id;
-
     const canvasRef = useRef(null);
     const [sectores, setSectores] = useState([]);
     const [estadoActual, setEstadoActual] = useState(null);
@@ -18,59 +18,130 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
     const [vueltaActual, setVueltaActual] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Obtener regadorId del objeto regador
+    const regadorId = regador?.regador_id || regador?.id;
+
+    console.log('🎨 CircularRiegoVisualization montado:', {
+        regadorId,
+        sectores: sectoresProp?.length,
+        regador: regador?.nombre_dispositivo
+    });
+
+    // Actualizar sectores cuando cambian las props
     useEffect(() => {
-        cargarDatos();
-        const interval = setInterval(cargarDatos, 10000); // Actualizar cada 10 segundos
+        if (sectoresProp && Array.isArray(sectoresProp)) {
+            console.log('✅ Sectores recibidos:', sectoresProp.length);
+            setSectores(sectoresProp);
+            setLoading(false);
+        } else {
+            console.warn('⚠️ No hay sectores en props');
+            setLoading(false);
+        }
+    }, [sectoresProp]);
+
+    // Cargar datos adicionales SOLO si hay regadorId
+    useEffect(() => {
+        if (!regadorId) {
+            console.warn('⚠️ No hay regadorId, saltando carga de datos adicionales');
+            return;
+        }
+
+        cargarDatosAdicionales();
+        const interval = setInterval(cargarDatosAdicionales, 10000);
         return () => clearInterval(interval);
     }, [regadorId]);
 
+    // Dibujar cuando hay datos
     useEffect(() => {
         if (sectores.length > 0 && canvasRef.current) {
-            dibujarVisualizacion();
+            console.log('🖌️ Dibujando canvas con', sectores.length, 'sectores');
+            try {
+                dibujarVisualizacion();
+            } catch (error) {
+                console.error('❌ Error dibujando canvas:', error);
+            }
         }
     }, [sectores, anguloActual]);
 
-    const cargarDatos = async () => {
+    const cargarDatosAdicionales = async () => {
+        if (!regadorId) return;
+
         try {
             // 1. Obtener el último estado del regador
+            console.log('📡 Cargando estado de regador:', regadorId);
+            
             const estadoResponse = await fetch(`/api/regadores/${regadorId}/ultimo-estado`);
-            const estadoData = await estadoResponse.json();
             
-            if (estadoData && !estadoData.error) {
-                setEstadoActual(estadoData);
-                setAnguloActual(estadoData.angulo_actual);
-            }
-
-            // 2. Obtener las geozonas/sectores (ya filtradas por lote en el backend)
-            const geozonas = await fetch(`/api/regadores/${regadorId}/geozonas`);
-            const geozonasData = await geozonas.json();
+            console.log('📡 Response status:', estadoResponse.status);
+            console.log('📡 Content-Type:', estadoResponse.headers.get('content-type'));
             
-            if (geozonasData.sectores) {
-                setSectores(geozonasData.sectores);
-            }
-
-            // 3. Obtener la vuelta actual si existe
-            const vueltaResponse = await fetch(`/api/regadores/${regadorId}/vuelta-actual`);
-            const vueltaData = await vueltaResponse.json();
-            
-            if (vueltaData.success && vueltaData.data) {
-                setVueltaActual(vueltaData.data.vuelta);
+            if (estadoResponse.ok) {
+                const contentType = estadoResponse.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    const estadoData = await estadoResponse.json();
+                    
+                    if (estadoData && !estadoData.error) {
+                        console.log('✅ Estado cargado:', estadoData);
+                        setEstadoActual(estadoData);
+                        setAnguloActual(estadoData.angulo_actual);
+                    } else {
+                        console.warn('⚠️ Estado con error:', estadoData);
+                    }
+                } else {
+                    console.warn('⚠️ Response no es JSON, es:', contentType);
+                    const text = await estadoResponse.text();
+                    console.warn('⚠️ Response text:', text.substring(0, 200));
+                }
             } else {
-                setVueltaActual(null);
+                console.warn('⚠️ Estado response no OK:', estadoResponse.status);
             }
 
-            setLoading(false);
+            // 2. Obtener la vuelta actual si existe
+            try {
+                const vueltaResponse = await fetch(`/api/regadores/${regadorId}/vuelta-actual`);
+                
+                if (vueltaResponse.ok) {
+                    const contentType = vueltaResponse.headers.get('content-type');
+                    
+                    if (contentType && contentType.includes('application/json')) {
+                        const vueltaData = await vueltaResponse.json();
+                        
+                        if (vueltaData.success && vueltaData.data) {
+                            setVueltaActual(vueltaData.data.vuelta);
+                        } else {
+                            setVueltaActual(null);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('ℹ️ No hay vuelta actual disponible (OK)');
+            }
         } catch (error) {
-            console.error('Error cargando datos:', error);
-            setLoading(false);
+            console.error('❌ Error cargando datos adicionales:', error);
+            // No hacer nada, el componente seguirá mostrando los sectores
         }
+    };
+
+    const getMaxRadioExterno = () => {
+        if (sectores.length === 0) return 100;
+        const max = Math.max(...sectores.map(s => s.radio_externo || 100));
+        return max > 0 ? max : 100;
     };
 
     const dibujarVisualizacion = () => {
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        if (!canvas) {
+            console.warn('⚠️ Canvas ref no disponible');
+            return;
+        }
 
         const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.warn('⚠️ No se pudo obtener contexto 2D');
+            return;
+        }
+
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         const maxRadius = Math.min(centerX, centerY) - 20;
@@ -78,360 +149,230 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
         // Limpiar canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Dibujar sectores
-        sectores.forEach((sector) => {
-            const radioInterno = (sector.radio_interno / getMaxRadioExterno()) * maxRadius;
-            const radioExterno = (sector.radio_externo / getMaxRadioExterno()) * maxRadius;
-            
-            // Convertir ángulos a radianes (Canvas usa radianes, con 0° a la derecha)
-            // Ajustar para que 0° esté arriba (Norte)
-            const startAngle = ((sector.angulo_inicio - 90) * Math.PI) / 180;
-            const endAngle = ((sector.angulo_fin - 90) * Math.PI) / 180;
-
-            // Determinar color según estado
-            let color = sector.color_display || '#cccccc';
-            
-            if (sector.estado === 'completado') {
-                color = '#4CAF50'; // Verde
-            } else if (sector.estado === 'en_progreso') {
-                color = '#FFC107'; // Amarillo/Naranja
-            } else if (sector.estado === 'pendiente') {
-                color = '#E0E0E0'; // Gris claro
-            }
-
-            // Dibujar sector externo
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, radioExterno, startAngle, endAngle);
-            ctx.lineTo(
-                centerX + radioInterno * Math.cos(endAngle),
-                centerY + radioInterno * Math.sin(endAngle)
-            );
-            ctx.arc(centerX, centerY, radioInterno, endAngle, startAngle, true);
-            ctx.closePath();
-            ctx.fillStyle = color;
-            ctx.fill();
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Dibujar número del sector en el centro del arco
-            const midAngle = (startAngle + endAngle) / 2;
-            const midRadius = (radioInterno + radioExterno) / 2;
-            const textX = centerX + midRadius * Math.cos(midAngle);
-            const textY = centerY + midRadius * Math.sin(midAngle);
-
-            ctx.fillStyle = '#000000';
-            ctx.font = 'bold 14px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(sector.numero_sector, textX, textY);
-        });
-
-        // Dibujar círculo central
+        // Dibujar círculo de fondo
         ctx.beginPath();
-        ctx.arc(centerX, centerY, 40, 0, 2 * Math.PI);
-        ctx.fillStyle = '#ffffff';
+        ctx.arc(centerX, centerY, maxRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = '#f5f5f5';
         ctx.fill();
-        ctx.strokeStyle = '#2196F3';
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#ddd';
+        ctx.lineWidth = 1;
         ctx.stroke();
 
-        // Texto en el centro
-        ctx.fillStyle = '#2196F3';
-        ctx.font = 'bold 12px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('Vuelta', centerX, centerY - 8);
-        
-        if (vueltaActual) {
-            ctx.font = 'bold 16px Arial';
-            ctx.fillText(vueltaActual.numero_vuelta, centerX, centerY + 8);
-        } else {
-            ctx.font = 'bold 16px Arial';
-            ctx.fillText('0', centerX, centerY + 8);
-        }
+        // Dibujar sectores
+        sectores.forEach((sector, index) => {
+            try {
+                const radioInterno = ((sector.radio_interno || 0) / getMaxRadioExterno()) * maxRadius;
+                const radioExterno = ((sector.radio_externo || 100) / getMaxRadioExterno()) * maxRadius;
+                
+                // Convertir ángulos a radianes
+                const startAngle = (((sector.angulo_inicio || 0) - 90) * Math.PI) / 180;
+                const endAngle = (((sector.angulo_fin || 0) - 90) * Math.PI) / 180;
 
-        // Dibujar indicador de posición actual (flecha/línea)
-        if (anguloActual !== null) {
-            const angle = ((anguloActual - 90) * Math.PI) / 180;
-            const indicatorLength = maxRadius + 10;
+                // Determinar color según estado
+                let color = sector.color_display || '#cccccc';
+                
+                if (sector.estado === 'completado') {
+                    color = '#4CAF50';
+                } else if (sector.estado === 'en_progreso') {
+                    color = '#FFC107';
+                } else if (sector.estado === 'pendiente') {
+                    color = '#E0E0E0';
+                }
 
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.lineTo(
-                centerX + indicatorLength * Math.cos(angle),
-                centerY + indicatorLength * Math.sin(angle)
-            );
-            ctx.strokeStyle = '#FF5722'; // Rojo/Naranja
-            ctx.lineWidth = 4;
-            ctx.stroke();
+                // Dibujar sector
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radioExterno, startAngle, endAngle);
+                ctx.arc(centerX, centerY, radioInterno, endAngle, startAngle, true);
+                ctx.closePath();
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
 
-            // Dibujar punto al final
-            ctx.beginPath();
-            ctx.arc(
-                centerX + indicatorLength * Math.cos(angle),
-                centerY + indicatorLength * Math.sin(angle),
-                8,
-                0,
-                2 * Math.PI
-            );
-            ctx.fillStyle = '#FF5722';
-            ctx.fill();
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-        }
+                // Dibujar número de sector
+                const midAngle = (startAngle + endAngle) / 2;
+                const textRadius = (radioInterno + radioExterno) / 2;
+                const textX = centerX + textRadius * Math.cos(midAngle);
+                const textY = centerY + textRadius * Math.sin(midAngle);
 
-        // Dibujar leyenda en la esquina
-        dibujarLeyenda(ctx);
-    };
-
-    const dibujarLeyenda = (ctx) => {
-        const leyendaX = 10;
-        const leyendaY = 10;
-        const cuadroSize = 15;
-        const spacing = 20;
-
-        const estados = [
-            { texto: 'Completado', color: '#4CAF50' },
-            { texto: 'En Progreso', color: '#FFC107' },
-            { texto: 'Pendiente', color: '#E0E0E0' }
-        ];
-
-        ctx.font = '12px Arial';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-
-        estados.forEach((estado, index) => {
-            const y = leyendaY + index * spacing;
-
-            // Cuadro de color
-            ctx.fillStyle = estado.color;
-            ctx.fillRect(leyendaX, y, cuadroSize, cuadroSize);
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(leyendaX, y, cuadroSize, cuadroSize);
-
-            // Texto
-            ctx.fillStyle = '#000000';
-            ctx.fillText(estado.texto, leyendaX + cuadroSize + 5, y + cuadroSize / 2);
+                ctx.fillStyle = '#000000';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(sector.numero_sector || (index + 1), textX, textY);
+            } catch (error) {
+                console.error('❌ Error dibujando sector', index, ':', error);
+            }
         });
+
+        // Dibujar indicador de posición actual si existe
+        if (anguloActual !== null && anguloActual !== undefined) {
+            try {
+                const anguloRad = ((anguloActual - 90) * Math.PI) / 180;
+                const indicadorX = centerX + maxRadius * Math.cos(anguloRad);
+                const indicadorY = centerY + maxRadius * Math.sin(anguloRad);
+
+                // Línea desde el centro
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(indicadorX, indicadorY);
+                ctx.strokeStyle = '#FF0000';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Círculo en el extremo
+                ctx.beginPath();
+                ctx.arc(indicadorX, indicadorY, 8, 0, 2 * Math.PI);
+                ctx.fillStyle = '#FF0000';
+                ctx.fill();
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            } catch (error) {
+                console.error('❌ Error dibujando indicador:', error);
+            }
+        }
+
+        // Dibujar centro (pivote)
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI);
+        ctx.fillStyle = '#333333';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        console.log('✅ Canvas dibujado correctamente');
     };
 
-    const getMaxRadioExterno = () => {
-        if (sectores.length === 0) return 1;
-        return Math.max(...sectores.map(s => s.radio_externo));
-    };
-
-    /**
-     * ✅ FUNCIÓN CORREGIDA: Determina el estado visual correcto
-     */
-    const getEstadoRegador = () => {
-        if (!estadoActual) return { texto: 'Desconocido', color: 'default', icon: <Stop /> };
-
-        const { estado_texto, regando, moviendose, encendido } = estadoActual;
-
-        // Mapeo correcto según el estado de la base de datos
-        if (estado_texto === 'regando_activo') {
-            return { texto: 'Regando', color: 'success', icon: <PlayArrow /> };
-        }
-        
-        if (estado_texto === 'regando_detenido') {
-            return { texto: 'Regando (Detenido)', color: 'warning', icon: <Pause /> };
-        }
-        
-        if (estado_texto === 'movimiento_sin_riego') {
-            return { texto: 'En Movimiento', color: 'info', icon: <PlayArrow /> };
-        }
-        
-        if (estado_texto === 'encendido_detenido') {
-            return { texto: 'Para', color: 'default', icon: <Pause /> };
-        }
-        
-        if (estado_texto === 'apagado' || !encendido) {
-            return { texto: 'Apagado', color: 'error', icon: <Stop /> };
-        }
-
-        return { texto: 'Para', color: 'default', icon: <Pause /> };
-    };
-
-    if (loading) {
+    if (loading && sectores.length === 0) {
         return (
-            <Box display="flex" justifyContent="center" alignItems="center" height="400px">
+            <Box display="flex" justifyContent="center" alignItems="center" height={size} sx={{ bgcolor: '#f5f5f5', borderRadius: 2 }}>
                 <Typography>Cargando visualización...</Typography>
             </Box>
         );
     }
 
-    const estadoRegador = getEstadoRegador();
+    if (sectores.length === 0) {
+        return (
+            <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" height={size} sx={{ bgcolor: '#f5f5f5', borderRadius: 2, p: 3 }}>
+                <Typography color="textSecondary" variant="h6" gutterBottom>
+                    No hay sectores configurados
+                </Typography>
+                <Typography color="textSecondary" variant="body2">
+                    Configure sectores para este regador para ver la visualización
+                </Typography>
+            </Box>
+        );
+    }
+
+    const getEstadoChip = () => {
+        if (!estadoActual) return null;
+
+        let color = 'default';
+        let icon = <Schedule />;
+        let label = 'Desconocido';
+
+        switch (estadoActual.estado_texto) {
+            case 'Regando':
+                color = 'success';
+                icon = <PlayArrow />;
+                label = 'Regando';
+                break;
+            case 'Detenido':
+                color = 'error';
+                icon = <Stop />;
+                label = 'Detenido';
+                break;
+            case 'Pausado':
+                color = 'warning';
+                icon = <Pause />;
+                label = 'Pausado';
+                break;
+            default:
+                break;
+        }
+
+        return <Chip icon={icon} label={label} color={color} size="small" />;
+    };
 
     return (
-        <Box>
-            {/* Header con información del estado */}
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Box display="flex" alignItems="center" gap={2}>
-                    <Typography variant="h6">Estado Actual</Typography>
-                    
-                    {/* ✅ CHIP CORREGIDO: Muestra el estado real */}
-                    <Chip
-                        icon={estadoRegador.icon}
-                        label={estadoRegador.texto}
-                        color={estadoRegador.color}
-                        size="medium"
-                    />
-                </Box>
-
-                <Box display="flex" gap={2}>
-                    {estadoActual?.nombre_sector && (
-                        <Chip
-                            label={`Sector ${estadoActual.numero_sector} - ${estadoActual.nombre_sector}`}
-                            color="primary"
-                            variant="outlined"
-                        />
-                    )}
-                    
-                    {estadoActual?.nombre_lote && (
-                        <Chip
-                            label={estadoActual.nombre_lote}
-                            color="secondary"
-                            variant="outlined"
-                        />
-                    )}
-                </Box>
-            </Box>
-
-            {/* Información de la vuelta actual */}
-            {vueltaActual && (
-                <Card sx={{ mb: 2, p: 2, bgcolor: 'primary.light', color: 'white' }}>
-                    <Box display="flex" alignItems="center" justifyContent="space-between">
-                        <Box>
-                            <Typography variant="subtitle1" fontWeight="bold">
-                                Vuelta {vueltaActual.numero_vuelta} en Progreso
-                            </Typography>
-                            <Typography variant="caption">
-                                Ángulo inicial: {parseFloat(vueltaActual.angulo_inicio).toFixed(1)}°
-                            </Typography>
-                        </Box>
-                        <Box textAlign="right">
-                            <Typography variant="h5" fontWeight="bold">
-                                {parseFloat(vueltaActual.porcentaje_completado || 0).toFixed(1)}%
-                            </Typography>
-                            <Typography variant="caption">Completado</Typography>
-                        </Box>
-                    </Box>
-                    <LinearProgress
-                        variant="determinate"
-                        value={parseFloat(vueltaActual.porcentaje_completado || 0)}
-                        sx={{ mt: 1, height: 8, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.3)' }}
-                    />
-                </Card>
-            )}
-
-            {/* Canvas de visualización */}
-            <Box display="flex" justifyContent="center">
-                <canvas
-                    ref={canvasRef}
-                    width={600}
-                    height={600}
-                    style={{ border: '1px solid #e0e0e0', borderRadius: '8px' }}
-                />
-            </Box>
-
-            {/* Información adicional */}
-            <Grid container spacing={2} sx={{ mt: 2 }}>
-                <Grid item xs={12} sm={4}>
-                    <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="caption" color="textSecondary">
-                            Sectores Activos
-                        </Typography>
-                        <Typography variant="h5" color="primary">
-                            {sectores.filter(s => s.activo).length}
-                        </Typography>
-                    </Card>
-                </Grid>
-                
-                <Grid item xs={12} sm={4}>
-                    <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="caption" color="textSecondary">
-                            Ángulo Actual
-                        </Typography>
-                        <Typography variant="h5" color="secondary">
-                            {anguloActual !== null ? `${anguloActual.toFixed(1)}°` : 'N/A'}
-                        </Typography>
-                    </Card>
-                </Grid>
-                
-                <Grid item xs={12} sm={4}>
-                    <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="caption" color="textSecondary">
-                            {estadoActual?.presion ? 'Presión' : 'Velocidad'}
-                        </Typography>
-                        <Typography variant="h5" color="info.main">
-                            {estadoActual?.presion 
-                                ? `${estadoActual.presion.toFixed(1)} PSI` 
-                                : estadoActual?.velocidad 
-                                    ? `${estadoActual.velocidad.toFixed(1)} km/h`
-                                    : 'N/A'
-                            }
-                        </Typography>
-                    </Card>
-                </Grid>
-            </Grid>
-
-            {/* Lista de sectores con su estado */}
-            <Box mt={3}>
-                <Typography variant="h6" gutterBottom>
-                    Sectores del Lote Actual
-                </Typography>
-                <Grid container spacing={1}>
-                    {sectores.map((sector) => (
-                        <Grid item xs={12} sm={6} md={4} key={sector.id}>
-                            <Card 
+        <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {/* Información del estado */}
+            <Box sx={{ mb: 2, width: '100%' }}>
+                <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} md={6}>
+                        <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+                            {getEstadoChip()}
+                            {anguloActual !== null && anguloActual !== undefined && (
+                                <Chip 
+                                    label={`Ángulo: ${anguloActual.toFixed(1)}°`} 
+                                    variant="outlined" 
+                                    size="small" 
+                                />
+                            )}
+                            <Chip 
+                                label={`${sectores.length} sectores`} 
                                 variant="outlined" 
-                                sx={{ 
-                                    p: 1.5,
-                                    bgcolor: sector.estado === 'completado' ? 'success.light' : 
-                                             sector.estado === 'en_progreso' ? 'warning.light' : 
-                                             'background.paper',
-                                    opacity: sector.activo ? 1 : 0.5
-                                }}
-                            >
-                                <Box display="flex" justifyContent="space-between" alignItems="center">
-                                    <Box>
-                                        <Typography variant="subtitle2" fontWeight="bold">
-                                            Sector {sector.numero_sector}
-                                        </Typography>
-                                        <Typography variant="caption" color="textSecondary">
-                                            {sector.nombre_sector}
-                                        </Typography>
-                                        {sector.nombre_lote && (
-                                            <Typography variant="caption" display="block" color="textSecondary">
-                                                📍 {sector.nombre_lote}
-                                            </Typography>
-                                        )}
-                                    </Box>
-                                    <Box textAlign="right">
-                                        {sector.estado === 'completado' && (
-                                            <CheckCircle color="success" fontSize="small" />
-                                        )}
-                                        {sector.estado === 'en_progreso' && (
-                                            <PlayArrow color="warning" fontSize="small" />
-                                        )}
-                                        {sector.estado === 'pendiente' && (
-                                            <Schedule color="disabled" fontSize="small" />
-                                        )}
-                                        <Typography variant="caption" display="block">
-                                            {sector.progreso_porcentaje 
-                                                ? `${parseFloat(sector.progreso_porcentaje).toFixed(0)}%`
-                                                : sector.estado
-                                            }
-                                        </Typography>
-                                    </Box>
-                                </Box>
+                                size="small" 
+                            />
+                        </Box>
+                    </Grid>
+                    {vueltaActual && (
+                        <Grid item xs={12} md={6}>
+                            <Card variant="outlined" sx={{ p: 1 }}>
+                                <Typography variant="caption" color="textSecondary">
+                                    Vuelta {vueltaActual.numero_vuelta}
+                                </Typography>
+                                <LinearProgress 
+                                    variant="determinate" 
+                                    value={parseFloat(vueltaActual.porcentaje_completado || 0)} 
+                                    sx={{ mt: 0.5, mb: 0.5 }}
+                                />
+                                <Typography variant="caption">
+                                    {parseFloat(vueltaActual.porcentaje_completado || 0).toFixed(1)}% completado
+                                </Typography>
                             </Card>
                         </Grid>
-                    ))}
+                    )}
                 </Grid>
+            </Box>
+
+            {/* Canvas de visualización */}
+            <canvas
+                ref={canvasRef}
+                width={size}
+                height={size}
+                style={{
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    maxWidth: '100%',
+                    height: 'auto',
+                    display: 'block'
+                }}
+            />
+
+            {/* Leyenda */}
+            <Box sx={{ mt: 2, display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <Box display="flex" alignItems="center" gap={0.5}>
+                    <Box sx={{ width: 16, height: 16, bgcolor: '#4CAF50', borderRadius: 1, border: '1px solid #ddd' }} />
+                    <Typography variant="caption">Completado</Typography>
+                </Box>
+                <Box display="flex" alignItems="center" gap={0.5}>
+                    <Box sx={{ width: 16, height: 16, bgcolor: '#FFC107', borderRadius: 1, border: '1px solid #ddd' }} />
+                    <Typography variant="caption">En Progreso</Typography>
+                </Box>
+                <Box display="flex" alignItems="center" gap={0.5}>
+                    <Box sx={{ width: 16, height: 16, bgcolor: '#E0E0E0', borderRadius: 1, border: '1px solid #ddd' }} />
+                    <Typography variant="caption">Pendiente</Typography>
+                </Box>
+                {anguloActual !== null && (
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                        <Box sx={{ width: 16, height: 16, bgcolor: '#FF0000', borderRadius: 1, border: '1px solid #ddd' }} />
+                        <Typography variant="caption">Posición Actual</Typography>
+                    </Box>
+                )}
             </Box>
         </Box>
     );
