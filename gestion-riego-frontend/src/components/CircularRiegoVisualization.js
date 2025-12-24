@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Chip } from '@mui/material';
-import { CheckCircle, Schedule, PlayArrow, Pause, Stop } from '@mui/icons-material';
+import { CheckCircle, Schedule, PlayArrow, Pause, Stop, MyLocation } from '@mui/icons-material';
 
 /**
  * Componente de visualización circular del riego con sectores
- * VERSIÓN CON SVG - Mantiene el diseño original
+ * VERSIÓN CON SVG - Con indicador de posición del regador
  */
 function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 600 }) {
     const [sectores, setSectores] = useState([]);
     const [estadoActual, setEstadoActual] = useState(null);
     const [sectorActual, setSectorActual] = useState(null);
+    const [anguloActual, setAnguloActual] = useState(null);
     const [vueltaActual, setVueltaActual] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -50,11 +51,16 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
                     
                     if (estadoData && !estadoData.error) {
                         setEstadoActual(estadoData);
+                        // Obtener el ángulo actual del regador
+                        if (estadoData.angulo_actual !== null && estadoData.angulo_actual !== undefined) {
+                            setAnguloActual(estadoData.angulo_actual);
+                            console.log('📍 Ángulo actual del regador:', estadoData.angulo_actual);
+                        }
                     }
                 }
             }
 
-            // Posición actual
+            // Posición actual (nombre del sector)
             try {
                 const posResponse = await fetch(`/api/gps/regadores/${regadorId}/posicion-actual`);
                 if (posResponse.ok) {
@@ -203,6 +209,16 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
         return <Chip icon={icon} label={label} color={color} size="small" />;
     };
 
+    // Calcular posición del indicador del regador
+    const getIndicadorPosicion = () => {
+        if (anguloActual === null || anguloActual === undefined) return null;
+
+        const pos = polarToCartesian(centerX, centerY, radius, anguloActual);
+        return pos;
+    };
+
+    const indicadorPos = getIndicadorPosicion();
+
     return (
         <Box sx={{ width: '100%' }}>
             {/* Indicador del sector actual */}
@@ -214,12 +230,19 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
                 </Box>
             )}
 
-            {/* Estado del regador */}
-            {estadoActual && (
-                <Box mb={2} display="flex" justifyContent="center">
-                    {getEstadoChip()}
-                </Box>
-            )}
+            {/* Estado del regador y ángulo */}
+            <Box mb={2} display="flex" justifyContent="center" gap={2} flexWrap="wrap">
+                {estadoActual && getEstadoChip()}
+                {anguloActual !== null && anguloActual !== undefined && (
+                    <Chip 
+                        icon={<MyLocation />} 
+                        label={`Ángulo: ${anguloActual.toFixed(1)}°`} 
+                        variant="outlined" 
+                        size="small" 
+                        color="primary"
+                    />
+                )}
+            </Box>
 
             {/* SVG de visualización circular */}
             <Box display="flex" justifyContent="center" mb={2}>
@@ -287,6 +310,83 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
                         );
                     })}
 
+                    {/* Indicador de posición del regador */}
+                    {indicadorPos && (
+                        <g>
+                            {/* Línea desde el centro hasta la posición */}
+                            <line
+                                x1={centerX}
+                                y1={centerY}
+                                x2={indicadorPos.x}
+                                y2={indicadorPos.y}
+                                stroke="#FF5722"
+                                strokeWidth="4"
+                                strokeLinecap="round"
+                            />
+
+                            {/* Círculo pulsante en la posición del regador */}
+                            <circle
+                                cx={indicadorPos.x}
+                                cy={indicadorPos.y}
+                                r="12"
+                                fill="#FF5722"
+                                stroke="#ffffff"
+                                strokeWidth="3"
+                            >
+                                {/* Animación de pulso */}
+                                <animate
+                                    attributeName="r"
+                                    values="12;16;12"
+                                    dur="2s"
+                                    repeatCount="indefinite"
+                                />
+                                <animate
+                                    attributeName="opacity"
+                                    values="1;0.6;1"
+                                    dur="2s"
+                                    repeatCount="indefinite"
+                                />
+                            </circle>
+
+                            {/* Círculo exterior para efecto de onda */}
+                            <circle
+                                cx={indicadorPos.x}
+                                cy={indicadorPos.y}
+                                r="12"
+                                fill="none"
+                                stroke="#FF5722"
+                                strokeWidth="2"
+                                opacity="0"
+                            >
+                                <animate
+                                    attributeName="r"
+                                    values="12;24;36"
+                                    dur="2s"
+                                    repeatCount="indefinite"
+                                />
+                                <animate
+                                    attributeName="opacity"
+                                    values="0.8;0.4;0"
+                                    dur="2s"
+                                    repeatCount="indefinite"
+                                />
+                            </circle>
+
+                            {/* Icono del regador */}
+                            <text
+                                x={indicadorPos.x}
+                                y={indicadorPos.y}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fontSize="12"
+                                fill="#ffffff"
+                                fontWeight="bold"
+                            >
+                                📍
+                            </text>
+                        </g>
+                    )}
+
                     {/* Centro con información de la vuelta */}
                     <circle
                         cx={centerX}
@@ -335,6 +435,19 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
                     <Box sx={{ width: 20, height: 20, bgcolor: '#E0E0E0', borderRadius: 1 }} />
                     <Typography variant="body2">Pendiente</Typography>
                 </Box>
+                {indicadorPos && (
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <Box sx={{ 
+                            width: 20, 
+                            height: 20, 
+                            bgcolor: '#FF5722', 
+                            borderRadius: '50%',
+                            border: '2px solid white',
+                            boxShadow: '0 0 10px rgba(255, 87, 34, 0.5)'
+                        }} />
+                        <Typography variant="body2">Posición Actual</Typography>
+                    </Box>
+                )}
             </Box>
         </Box>
     );
