@@ -8,7 +8,9 @@ import { CheckCircle, Schedule, PlayArrow, Pause, Stop } from '@mui/icons-materi
  * - Muestra el estado real del regador (Para/Regando/etc.)
  * - Filtra correctamente los sectores por lote actual
  */
-function CircularRiegoVisualization({ regadorId }) {
+function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 600 }) {
+    const regadorId = regador?.regador_id || regador?.id;
+
     const canvasRef = useRef(null);
     const [sectores, setSectores] = useState([]);
     const [estadoActual, setEstadoActual] = useState(null);
