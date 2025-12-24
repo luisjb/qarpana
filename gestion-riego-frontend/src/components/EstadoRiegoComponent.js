@@ -243,8 +243,8 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
         // Área del círculo en m²
         const areaM2 = Math.PI * Math.pow(regador.radio_cobertura, 2);
 
-        // Lámina (mm) = (agua en litros * 0.001 / área m²) * 1000
-        const laminaMM = (regador.agua_total_aplicada * 0.001 / areaM2) * 1000;
+        // Lámina (mm) = (agua en litros * 0.001 / área m²) / 10
+        const laminaMM = (regador.agua_total_aplicada * 0.001 / areaM2) / 10;
 
         return laminaMM.toFixed(2);
     };
