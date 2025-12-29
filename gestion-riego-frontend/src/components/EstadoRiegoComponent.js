@@ -692,6 +692,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                 <CircularRiegoVisualization
                                     sectores={sectoresDetalle}
                                     regador={selectedRegador}
+                                    estadoActualProp={estadoActual}  
                                     size={500}
                                 />
                             ) : (
