@@ -1,20 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Chip } from '@mui/material';
 import { CheckCircle, Schedule, PlayArrow, Pause, Stop, MyLocation } from '@mui/icons-material';
+import axios from '../axiosConfig';
 
 /**
  * Componente de visualización circular del riego con sectores
  * VERSIÓN CON SVG - Con indicador de posición del regador
  */
-function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 600 }) {
+function CircularRiegoVisualization({ sectores: sectoresProp, regador, estadoActualProp, size = 600 }) {
     const [sectores, setSectores] = useState([]);
-    const [estadoActual, setEstadoActual] = useState(null);
+    const [estadoActual, setEstadoActual] = useState(estadoActualProp || null);
     const [sectorActual, setSectorActual] = useState(null);
     const [anguloActual, setAnguloActual] = useState(null);
     const [vueltaActual, setVueltaActual] = useState(null);
     const [loading, setLoading] = useState(true);
 
     const regadorId = regador?.regador_id || regador?.id;
+
+    console.log('🔍 CircularRiegoVisualization props:', {
+        regadorId,
+        sectores: sectoresProp?.length,
+        estadoActualProp,
+        regador
+    });
+
+    // Actualizar cuando cambia estadoActualProp
+    useEffect(() => {
+        if (estadoActualProp) {
+            console.log('📍 Estado actual recibido desde props:', estadoActualProp);
+            setEstadoActual(estadoActualProp);
+            
+            if (estadoActualProp.angulo_actual !== null && estadoActualProp.angulo_actual !== undefined) {
+                setAnguloActual(estadoActualProp.angulo_actual);
+                console.log('✅ Ángulo desde props:', estadoActualProp.angulo_actual);
+            }
+            
+            if (estadoActualProp.nombre_sector) {
+                setSectorActual(estadoActualProp.nombre_sector);
+            }
+        }
+    }, [estadoActualProp]);
 
     // Actualizar sectores cuando cambian las props
     useEffect(() => {
@@ -29,7 +54,10 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
 
     // Cargar datos adicionales
     useEffect(() => {
-        if (!regadorId) return;
+        if (!regadorId) {
+            console.warn('⚠️ No hay regadorId disponible');
+            return;
+        }
 
         cargarDatosAdicionales();
         const interval = setInterval(cargarDatosAdicionales, 10000);
@@ -39,56 +67,79 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
     const cargarDatosAdicionales = async () => {
         if (!regadorId) return;
 
-        try {
-            // Estado del regador
-            const estadoResponse = await fetch(`/api/regadores/${regadorId}/ultimo-estado`);
-            
-            if (estadoResponse.ok) {
-                const contentType = estadoResponse.headers.get('content-type');
-                
-                if (contentType && contentType.includes('application/json')) {
-                    const estadoData = await estadoResponse.json();
-                    
-                    if (estadoData && !estadoData.error) {
-                        setEstadoActual(estadoData);
-                        // Obtener el ángulo actual del regador
-                        if (estadoData.angulo_actual !== null && estadoData.angulo_actual !== undefined) {
-                            setAnguloActual(estadoData.angulo_actual);
-                            console.log('📍 Ángulo actual del regador:', estadoData.angulo_actual);
-                        }
-                    }
-                }
-            }
+        console.log('🔄 Cargando datos adicionales para regador:', regadorId);
 
-            // Posición actual (nombre del sector)
+        try {
+            // Intentar obtener posición actual desde /gps/regadores/:id/posicion-actual
             try {
-                const posResponse = await fetch(`/api/gps/regadores/${regadorId}/posicion-actual`);
-                if (posResponse.ok) {
-                    const posData = await posResponse.json();
-                    if (posData.success && posData.data) {
-                        setSectorActual(posData.data.nombre_sector);
+                console.log('📡 Llamando a /gps/regadores/${regadorId}/posicion-actual');
+                const posResponse = await axios.get(`/gps/regadores/${regadorId}/posicion-actual`);
+                
+                console.log('📡 Respuesta posicion-actual:', posResponse.data);
+                
+                if (posResponse.data.success && posResponse.data.data) {
+                    const data = posResponse.data.data;
+                    
+                    setSectorActual(data.nombre_sector);
+                    
+                    // Intentar obtener ángulo de diferentes campos posibles
+                    let angulo = null;
+                    
+                    if (data.angulo_actual !== null && data.angulo_actual !== undefined) {
+                        angulo = data.angulo_actual;
+                    } else if (data.angulo !== null && data.angulo !== undefined) {
+                        angulo = data.angulo;
+                    } else if (data.curso !== null && data.curso !== undefined) {
+                        angulo = data.curso;
+                    }
+                    
+                    if (angulo !== null) {
+                        setAnguloActual(angulo);
+                        console.log('✅ Ángulo obtenido de posicion-actual:', angulo);
+                    } else {
+                        console.warn('⚠️ No hay ángulo en posicion-actual:', data);
+                    }
+                    
+                    // Actualizar estado si no viene de props
+                    if (!estadoActualProp) {
+                        setEstadoActual(data);
                     }
                 }
             } catch (error) {
-                // Posición actual es opcional
+                console.log('ℹ️ No hay posición actual disponible:', error.message);
+            }
+
+            // Intentar obtener desde ultimo-estado si no tenemos ángulo
+            if (anguloActual === null) {
+                try {
+                    console.log('📡 Intentando ultimo-estado');
+                    const estadoResponse = await axios.get(`/regadores/${regadorId}/ultimo-estado`);
+                    
+                    console.log('📡 Respuesta ultimo-estado:', estadoResponse.data);
+                    
+                    if (estadoResponse.data && !estadoResponse.data.error) {
+                        if (estadoResponse.data.angulo_actual !== null && estadoResponse.data.angulo_actual !== undefined) {
+                            setAnguloActual(estadoResponse.data.angulo_actual);
+                            console.log('✅ Ángulo obtenido de ultimo-estado:', estadoResponse.data.angulo_actual);
+                        }
+                        
+                        if (!estadoActualProp) {
+                            setEstadoActual(estadoResponse.data);
+                        }
+                    }
+                } catch (error) {
+                    console.log('ℹ️ No hay ultimo-estado:', error.message);
+                }
             }
 
             // Vuelta actual
             try {
-                const vueltaResponse = await fetch(`/api/regadores/${regadorId}/vuelta-actual`);
+                const vueltaResponse = await axios.get(`/regadores/${regadorId}/vuelta-actual`);
                 
-                if (vueltaResponse.ok) {
-                    const contentType = vueltaResponse.headers.get('content-type');
-                    
-                    if (contentType && contentType.includes('application/json')) {
-                        const vueltaData = await vueltaResponse.json();
-                        
-                        if (vueltaData.success && vueltaData.data) {
-                            setVueltaActual(vueltaData.data.vuelta);
-                        } else {
-                            setVueltaActual(null);
-                        }
-                    }
+                if (vueltaResponse.data.success && vueltaResponse.data.data) {
+                    setVueltaActual(vueltaResponse.data.data.vuelta);
+                } else {
+                    setVueltaActual(null);
                 }
             } catch (error) {
                 // Vuelta actual es opcional
@@ -186,18 +237,23 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
         let icon = <Schedule />;
         let label = 'Desconocido';
 
-        switch (estadoActual.estado_texto) {
+        const estado = estadoActual.estado_texto || estadoActual.estado;
+
+        switch (estado) {
             case 'Regando':
+            case 'regando':
                 color = 'success';
                 icon = <PlayArrow />;
                 label = 'Regando';
                 break;
             case 'Detenido':
+            case 'detenido':
                 color = 'error';
                 icon = <Stop />;
                 label = 'Detenido';
                 break;
             case 'Pausado':
+            case 'pausado':
                 color = 'warning';
                 icon = <Pause />;
                 label = 'Pausado';
@@ -211,8 +267,12 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
 
     // Calcular posición del indicador del regador
     const getIndicadorPosicion = () => {
-        if (anguloActual === null || anguloActual === undefined) return null;
+        if (anguloActual === null || anguloActual === undefined) {
+            console.log('⚠️ No hay ángulo actual para mostrar indicador. Ángulo:', anguloActual);
+            return null;
+        }
 
+        console.log('✅ Dibujando indicador en ángulo:', anguloActual);
         const pos = polarToCartesian(centerX, centerY, radius, anguloActual);
         return pos;
     };
@@ -221,6 +281,17 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, size = 60
 
     return (
         <Box sx={{ width: '100%' }}>
+            {/* DEBUG INFO */}
+            {process.env.NODE_ENV === 'development' && (
+                <Box mb={1} p={1} bgcolor="yellow" borderRadius={1}>
+                    <Typography variant="caption">
+                        <strong>DEBUG:</strong> regadorId={regadorId}, 
+                        anguloActual={anguloActual !== null ? anguloActual.toFixed(1) : 'null'}, 
+                        sectorActual={sectorActual || 'null'}
+                    </Typography>
+                </Box>
+            )}
+
             {/* Indicador del sector actual */}
             {sectorActual && (
                 <Box mb={2} p={2} bgcolor="primary.light" borderRadius={2}>
