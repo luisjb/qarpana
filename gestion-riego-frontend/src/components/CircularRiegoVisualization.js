@@ -31,8 +31,9 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, estadoAct
             setEstadoActual(estadoActualProp);
             
             if (estadoActualProp.angulo_actual !== null && estadoActualProp.angulo_actual !== undefined) {
-                setAnguloActual(estadoActualProp.angulo_actual);
-                console.log('✅ Ángulo desde props:', estadoActualProp.angulo_actual);
+                const angulo = parseFloat(estadoActualProp.angulo_actual);
+                setAnguloActual(angulo);
+                console.log('✅ Ángulo desde props:', angulo);
             }
             
             if (estadoActualProp.nombre_sector) {
@@ -86,14 +87,14 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, estadoAct
                     let angulo = null;
                     
                     if (data.angulo_actual !== null && data.angulo_actual !== undefined) {
-                        angulo = data.angulo_actual;
+                        angulo = parseFloat(data.angulo_actual);
                     } else if (data.angulo !== null && data.angulo !== undefined) {
-                        angulo = data.angulo;
+                        angulo = parseFloat(data.angulo);
                     } else if (data.curso !== null && data.curso !== undefined) {
-                        angulo = data.curso;
+                        angulo = parseFloat(data.curso);
                     }
                     
-                    if (angulo !== null) {
+                    if (angulo !== null && !isNaN(angulo)) {
                         setAnguloActual(angulo);
                         console.log('✅ Ángulo obtenido de posicion-actual:', angulo);
                     } else {
@@ -119,8 +120,11 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, estadoAct
                     
                     if (estadoResponse.data && !estadoResponse.data.error) {
                         if (estadoResponse.data.angulo_actual !== null && estadoResponse.data.angulo_actual !== undefined) {
-                            setAnguloActual(estadoResponse.data.angulo_actual);
-                            console.log('✅ Ángulo obtenido de ultimo-estado:', estadoResponse.data.angulo_actual);
+                            const angulo = parseFloat(estadoResponse.data.angulo_actual);
+                            if (!isNaN(angulo)) {
+                                setAnguloActual(angulo);
+                                console.log('✅ Ángulo obtenido de ultimo-estado:', angulo);
+                            }
                         }
                         
                         if (!estadoActualProp) {
@@ -286,7 +290,7 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, estadoAct
                 <Box mb={1} p={1} bgcolor="yellow" borderRadius={1}>
                     <Typography variant="caption">
                         <strong>DEBUG:</strong> regadorId={regadorId}, 
-                        anguloActual={anguloActual !== null ? anguloActual.toFixed(1) : 'null'}, 
+                        anguloActual={anguloActual !== null ? parseFloat(anguloActual).toFixed(1) : 'null'}, 
                         sectorActual={sectorActual || 'null'}
                     </Typography>
                 </Box>
@@ -307,7 +311,7 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, estadoAct
                 {anguloActual !== null && anguloActual !== undefined && (
                     <Chip 
                         icon={<MyLocation />} 
-                        label={`Ángulo: ${anguloActual.toFixed(1)}°`} 
+                        label={`Ángulo: ${parseFloat(anguloActual).toFixed(1)}°`} 
                         variant="outlined" 
                         size="small" 
                         color="primary"
