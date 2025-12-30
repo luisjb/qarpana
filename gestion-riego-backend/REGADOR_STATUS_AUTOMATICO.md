@@ -4,10 +4,14 @@
 
 Se ha implementado un sistema automático que gestiona el estado `activo/inactivo` de los regadores basándose en:
 
-1. **Activación automática**: Cuando un regador envía datos GPS y estaba marcado como inactivo
-2. **Desactivación automática**: Cuando:
-   - El regador envía señal de apagado (`ignition = false`)
-   - No ha enviado datos en más de 1 hora
+1. **Activación automática**: Cuando un regador envía datos GPS (independientemente de si está encendido o apagado)
+2. **Desactivación automática**: Solo cuando no ha enviado datos en más de 1 hora
+3. **Visualización completa**: TODOS los regadores se muestran en el Estado de Riego, estén activos o inactivos
+
+### ⚠️ Importante:
+- Un regador **NO se desactiva** cuando se apaga o detiene temporalmente
+- Solo se marca como inactivo después de **1 hora sin enviar datos**
+- Esto significa que verás TODOS tus regadores, incluso si están detenidos
 
 ---
 
@@ -17,22 +21,19 @@ Se ha implementado un sistema automático que gestiona el estado `activo/inactiv
 
 #### Nuevo Método: `actualizarEstadoActivo()`
 ```javascript
-async actualizarEstadoActivo(regadorId, encendido) {
-    // Si está encendido, activar el regador
-    if (encendido) {
-        await pool.query(
-            'UPDATE regadores SET activo = true WHERE id = $1 AND activo = false',
-            [regadorId]
-        );
-    } else {
-        // Si está apagado, desactivar el regador
-        await pool.query(
-            'UPDATE regadores SET activo = false WHERE id = $1 AND activo = true',
-            [regadorId]
-        );
+async actualizarEstadoActivo(regadorId) {
+    // Siempre activar cuando recibe datos GPS
+    const result = await pool.query(
+        'UPDATE regadores SET activo = true WHERE id = $1 AND activo = false RETURNING nombre_dispositivo',
+        [regadorId]
+    );
+    
+    if (result.rows.length > 0) {
+        console.log(`✅ Regador activado: ${result.rows[0].nombre_dispositivo}`);
     }
 }
 ```
+**Nota**: Este método SOLO activa regadores. La desactivación es manejada por el servicio en segundo plano.
 
 #### Nuevo Método: `buscarRegadorSinFiltro()`
 ```javascript
@@ -51,7 +52,7 @@ async buscarRegadorSinFiltro(nombreDispositivo) {
 #### Modificación en `procesarPosicion()`
 - Ahora usa `buscarRegadorSinFiltro()` en lugar de `buscarRegador()`
 - Llama a `actualizarEstadoActivo()` cada vez que recibe datos GPS
-- Actualiza el estado basándose en el valor de `ignition` de Traccar
+- **NO desactiva** el regador cuando está apagado - solo activa cuando recibe datos
 
 ---
 
@@ -112,11 +113,8 @@ app.listen(port, '0.0.0.0', () => {
 1. **Traccar** envía datos GPS → `/api/gps/posicion`
 2. **gpsProcessingService** recibe los datos
 3. Busca el regador (sin filtrar por estado activo)
-4. Lee el valor de `ignition` del dispositivo
-5. **Actualiza el estado**:
-   - Si `ignition = true` → Marca como `activo = true`
-   - Si `ignition = false` → Marca como `activo = false`
-6. Continúa con el procesamiento normal de GPS
+4. **Activa el regador** automáticamente (si estaba inactivo)
+5. Continúa con el procesamiento normal de GPS
 
 ### Monitoreo en segundo plano:
 
@@ -129,6 +127,12 @@ app.listen(port, '0.0.0.0', () => {
 2. Desactiva los regadores encontrados
 3. Registra en consola los cambios
 
+### Visualización en el Frontend:
+
+- **TODOS los regadores** del campo se muestran en el Estado de Riego
+- El campo `regador_activo` indica si está online (true) o offline (false)
+- Los regadores se ordenan con los activos primero
+
 ---
 
 ## 📊 Impacto en la Base de Datos
@@ -138,18 +142,20 @@ app.listen(port, '0.0.0.0', () => {
 - Campo `fecha_actualizacion` se actualiza cada vez que cambia el estado
 
 ### Consultas afectadas:
-- `obtenerEstadoCampo()` en `gpsController.js` - Filtra por `activo = true`
+- `obtenerEstadoCampo()` en `gpsController.js` - **Ahora muestra TODOS los regadores** (sin filtrar por activo)
+- Los regadores se ordenan con activos primero: `ORDER BY r.activo DESC, r.id`
 - Todas las consultas que usan `regador_activo` ahora reflejan el estado real
 
 ---
 
 ## 🎯 Beneficios
 
-1. ✅ **Estado en tiempo real**: El campo `regador_activo` refleja el estado actual del dispositivo
-2. ✅ **Sincronización automática**: No requiere intervención manual
-3. ✅ **Detección de inactividad**: Identifica dispositivos offline automáticamente
-4. ✅ **Ahorro de recursos**: Las consultas solo procesan regadores activos
-5. ✅ **Logs informativos**: Registra todos los cambios de estado en consola
+1. ✅ **Visibilidad completa**: Siempre ves TODOS tus regadores, incluso si están detenidos
+2. ✅ **Estado en tiempo real**: El campo `regador_activo` refleja si el dispositivo está comunicándose
+3. ✅ **Sin pérdida de información**: Un regador detenido temporalmente NO desaparece de la vista
+4. ✅ **Detección de problemas**: Identifica dispositivos que realmente están offline (>1 hora sin datos)
+5. ✅ **Sincronización automática**: No requiere intervención manual
+6. ✅ **Logs informativos**: Registra todos los cambios de estado en consola
 
 ---
 
@@ -199,12 +205,20 @@ this.intervalo = setInterval(() => {
 ## 🐛 Troubleshooting
 
 ### Problema: Los regadores no se activan automáticamente
-- **Verificar**: Que Traccar esté enviando el atributo `ignition`
-- **Solución**: Revisar los logs de `procesarPosicion()` para ver el valor de `ignition`
+- **Verificar**: Que Traccar esté enviando datos GPS correctamente
+- **Solución**: Revisar los logs de `procesarPosicion()` para confirmar recepción de datos
+
+### Problema: Un regador aparece como inactivo pero está funcionando
+- **Causa**: Puede haber un problema de comunicación con Traccar
+- **Solución**: Verificar que los datos GPS estén llegando al backend
 
 ### Problema: Los regadores se desactivan muy rápido
 - **Causa**: El timeout de 1 hora es muy corto para tu caso de uso
 - **Solución**: Aumentar `TIMEOUT_INACTIVIDAD` en `regadorStatusService.js`
+
+### Problema: Quiero que un regador inactivo no se muestre
+- **Causa**: El sistema ahora muestra TODOS los regadores por diseño
+- **Solución**: Puedes filtrar en el frontend basándote en `regador_activo`, o eliminar el regador de la base de datos si ya no lo usas
 
 ### Problema: El servicio no inicia
 - **Verificar**: Que no haya errores en los logs del servidor al iniciar

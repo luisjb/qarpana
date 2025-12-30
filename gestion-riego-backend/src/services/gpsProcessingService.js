@@ -74,22 +74,20 @@ class GPSProcessingService {
     }
 
     /**
-     * Actualiza el estado activo/inactivo del regador
+     * Actualiza el estado activo del regador cuando recibe datos
+     * Solo ACTIVA cuando recibe datos, NO desactiva por ignition=false
+     * La desactivación solo ocurre por timeout (1 hora sin datos)
      */
-    async actualizarEstadoActivo(regadorId, encendido) {
+    async actualizarEstadoActivo(regadorId) {
         try {
-            // Si está encendido, activar el regador
-            if (encendido) {
-                await pool.query(
-                    'UPDATE regadores SET activo = true, fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = $1 AND activo = false',
-                    [regadorId]
-                );
-            } else {
-                // Si está apagado, desactivar el regador
-                await pool.query(
-                    'UPDATE regadores SET activo = false, fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = $1 AND activo = true',
-                    [regadorId]
-                );
+            // Siempre activar cuando recibe datos GPS
+            const result = await pool.query(
+                'UPDATE regadores SET activo = true, fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = $1 AND activo = false RETURNING nombre_dispositivo',
+                [regadorId]
+            );
+
+            if (result.rows.length > 0) {
+                console.log(`✅ Regador activado: ${result.rows[0].nombre_dispositivo}`);
             }
         } catch (error) {
             console.error('Error actualizando estado activo del regador:', error);
@@ -113,11 +111,9 @@ class GPSProcessingService {
                 return { processed: false, reason: 'Regador no encontrado' };
             }
 
-            // Determinar estado del regador
-            const ignition = position.attributes?.ignition || false;
-
-            // ⭐ ACTUALIZAR ESTADO ACTIVO/INACTIVO AUTOMÁTICAMENTE
-            await this.actualizarEstadoActivo(regador.id, ignition);
+            // ⭐ ACTIVAR AUTOMÁTICAMENTE cuando recibe datos
+            // (La desactivación solo ocurre por timeout de 1 hora sin datos)
+            await this.actualizarEstadoActivo(regador.id);
 
             // Verificar que el regador tenga coordenadas configuradas
             if (!regador.latitud_centro || !regador.longitud_centro) {
