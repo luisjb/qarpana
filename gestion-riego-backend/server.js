@@ -29,6 +29,7 @@ const regadoresRoutes = require('./src/routes/regadoresRoutes');
 const cron = require('node-cron');
 const actualizacionDiaria = require('./src/utils/actualizacionDiaria');
 const weatherService = require('./src/utils/weatherService');
+const regadorStatusService = require('./src/services/regadorStatusService');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -37,7 +38,7 @@ app.use(cors({
     origin: process.env.CORS_ORIGIN || 'https://qarpana.com.ar',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'authorization'], 
+    allowedHeaders: ['Content-Type', 'Authorization', 'authorization'],
     preflightContinue: false,
     optionsSuccessStatus: 204
 }));
@@ -54,10 +55,10 @@ async function ejecutarActualizacionesDiarias() {
     try {
         console.log('Actualizando pronósticos meteorológicos...');
         await weatherService.actualizarDatosMeteorologicos();
-        
+
         console.log('Ejecutando actualización diaria de cálculos...');
         await actualizacionDiaria();
-        
+
         console.log('Todas las actualizaciones diarias completadas con éxito');
     } catch (error) {
         console.error('Error en las actualizaciones diarias:', error);
@@ -100,12 +101,12 @@ app.use('/api/gps', gpsRoutes);
 app.post('/api/forzar-actualizacion', async (req, res) => {
     try {
         await ejecutarActualizacionesDiarias();
-        res.status(200).json({ 
+        res.status(200).json({
             message: 'Actualizaciones forzadas completadas con éxito'
         });
     } catch (error) {
         console.error('Error en las actualizaciones forzadas:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Error al realizar las actualizaciones forzadas',
             details: error.message
         });
@@ -121,7 +122,7 @@ app.use((err, req, res, next) => {
 app.post('/api/gps/posicion', async (req, res) => {
     console.log('📍 Position Forwarding recibido');
     console.log('📦 Dispositivo:', req.body.device?.name);
-    
+
     try {
         await gpsController.procesarPosicion(req, res);
     } catch (error) {
@@ -133,4 +134,7 @@ app.post('/api/gps/posicion', async (req, res) => {
 app.listen(port, '0.0.0.0', () => {
     console.log(`Servidor corriendo en https://qarpana.com.ar:${port}`);
     console.log('🎯 Traccar Event Forwarding configurado en /api/traccar/webhook');
+
+    // ⭐ Iniciar servicio de monitoreo de estado de regadores
+    regadorStatusService.iniciar();
 });
