@@ -585,18 +585,29 @@ class GPSProcessingService {
             const progresoFinal = Math.max(progresoTiempo, progresoAngulo);
             const progresoFinalRedondeado = Math.min(Math.round(progresoFinal), 99);
 
-            // Actualizar progreso
+            // Calcular agua aplicada
+            const aguaAplicada = sector.caudal
+                ? gpsCalc.calcularAguaAplicada(sector.caudal, minutosTranscurridos, sector.coeficiente_riego || 1.0)
+                : 0;
+
+            // Actualizar progreso y agua aplicada
             await pool.query(
                 `UPDATE estado_sectores_riego 
                  SET progreso_porcentaje = $1,
-                     ultima_actualizacion = $2
-                 WHERE geozona_id = $3`,
-                [progresoFinalRedondeado, datosOperacion.timestamp, geozonaId]
+                     ultima_actualizacion = $2,
+                     agua_aplicada_litros = $3
+                 WHERE geozona_id = $4`,
+                [
+                    progresoFinalRedondeado,
+                    datosOperacion.timestamp,
+                    Math.round(aguaAplicada),
+                    geozonaId
+                ]
             );
 
             console.log(
                 `📊 Sector ${sector.numero_sector}: ${progresoFinalRedondeado}% ` +
-                `(tiempo: ${progresoTiempo.toFixed(0)}%, ángulo: ${progresoAngulo.toFixed(0)}%)`
+                `(tiempo: ${progresoTiempo.toFixed(0)}%, ángulo: ${progresoAngulo.toFixed(0)}%) - Agua: ${Math.round(aguaAplicada)}L`
             );
 
         } catch (error) {

@@ -115,7 +115,7 @@ class GPSController {
                     COUNT(DISTINCT CASE WHEN esr.estado = 'pendiente' OR esr.estado IS NULL THEN gp.id END) as sectores_pendientes,
                     
                     -- Progreso
-                    COALESCE(AVG(esr.progreso_porcentaje), 0) as progreso_promedio,
+                    COALESCE(AVG(COALESCE(esr.progreso_porcentaje, 0)), 0) as progreso_promedio,
                     
                     -- Agua y tiempo
                     COALESCE(SUM(esr.agua_aplicada_litros), 0) as agua_total_aplicada,
@@ -391,7 +391,7 @@ class GPSController {
                     END) as sectores_pendientes,
                     
                     -- Progreso promedio
-                    COALESCE(AVG(esr.progreso_porcentaje), 0) as progreso_promedio,
+                    COALESCE(AVG(COALESCE(esr.progreso_porcentaje, 0)), 0) as progreso_promedio,
                     
                     -- Agua total aplicada
                     COALESCE(SUM(esr.agua_aplicada_litros), 0) as agua_total_aplicada,
