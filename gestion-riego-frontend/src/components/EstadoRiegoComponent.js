@@ -244,7 +244,7 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
         const areaM2 = Math.PI * Math.pow(regador.radio_cobertura, 2);
 
         // Lámina (mm) = (agua en litros * 0.001 / área m²) / 10
-        const laminaMM = (regador.agua_total_aplicada * 0.001 / areaM2) / 10;
+        const laminaMM = (regador.agua_total_aplicada * 0.001 / areaM2);
 
         return laminaMM.toFixed(2);
     };
@@ -692,7 +692,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                 <CircularRiegoVisualization
                                     sectores={sectoresDetalle}
                                     regador={selectedRegador}
-                                    estadoActualProp={estadoActual}  
+                                    estadoActualProp={estadoActual}
                                     size={500}
                                 />
                             ) : (

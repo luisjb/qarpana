@@ -111,6 +111,35 @@ class GPSProcessingService {
                 return { processed: false, reason: 'Regador no encontrado' };
             }
 
+            // ⭐ RECUPERAR ESTADO PREVIO SI NO EXISTE EN MEMORIA (AL REINICIAR SERVIDOR)
+            if (!this.ultimasPosiciones.has(regador.id)) {
+                try {
+                    const queryUltima = `
+                        SELECT * FROM datos_operacion_gps 
+                        WHERE regador_id = $1 
+                        ORDER BY timestamp DESC 
+                        LIMIT 1
+                    `;
+                    const resultUltima = await pool.query(queryUltima, [regador.id]);
+                    if (resultUltima.rows.length > 0) {
+                        const last = resultUltima.rows[0];
+                        this.ultimasPosiciones.set(regador.id, {
+                            timestamp: new Date(last.timestamp),
+                            estado: {
+                                encendido: last.encendido,
+                                regando: last.regando,
+                                moviendose: last.moviendose,
+                                estado_texto: last.estado_texto
+                            },
+                            geozona_id: last.geozona_id
+                        });
+                        console.log(`📥 Estado previo recuperado DB para ${regador.nombre_dispositivo}`);
+                    }
+                } catch (err) {
+                    console.error('Error recuperando estado previo:', err);
+                }
+            }
+
             // ⭐ ACTIVAR AUTOMÁTICAMENTE cuando recibe datos
             // (La desactivación solo ocurre por timeout de 1 hora sin datos)
             await this.actualizarEstadoActivo(regador.id);
@@ -218,13 +247,6 @@ class GPSProcessingService {
                     traccar_position_id: position.id
                 });
 
-                // Actualizar caché
-                this.ultimasPosiciones.set(regador.id, {
-                    timestamp: timestamp,
-                    estado: estado,
-                    geozona_id: geozona?.id
-                });
-
                 // Detectar eventos de entrada/salida de geozona (solo si hay geozonas configuradas)
                 if (regador.latitud_centro && regador.longitud_centro) {
                     await this.detectarEventosGeozona(regador.id, geozona, datosOperacion);
@@ -234,6 +256,13 @@ class GPSProcessingService {
                         await this.actualizarEstadoSectorMejorado(geozona.id, datosOperacion, regador);
                     }
                 }
+
+                // Actualizar caché DESPUÉS de detectar eventos (para tener el estado previo correcto)
+                this.ultimasPosiciones.set(regador.id, {
+                    timestamp: timestamp,
+                    estado: estado,
+                    geozona_id: geozona?.id
+                });
 
                 const estadoEmoji = estado.regando ? '💧' : estado.moviendose ? '🚜' : '⏸️';
                 const vueltaInfo = vueltaActual ? ` - Vuelta ${vueltaActual.numero_vuelta}` : '';
