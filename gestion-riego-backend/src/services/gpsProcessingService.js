@@ -344,9 +344,14 @@ class GPSProcessingService {
             const geozonas = result.rows;
 
             // Buscar en qué geozona está
+            // Buscar en qué geozona está
+            const TOLERANCIA_DISTANCIA = 50; // metros (margen de error GPS y dimensiones físicas)
+
             for (const geozona of geozonas) {
-                // Verificar distancia
-                if (distancia < geozona.radio_interno || distancia > geozona.radio_externo) {
+                // Verificar distancia con tolerancia
+                // radio_interno suele ser 0, radio_externo es el radio del pivote
+                if (distancia < (geozona.radio_interno - TOLERANCIA_DISTANCIA) || distancia > (geozona.radio_externo + TOLERANCIA_DISTANCIA)) {
+                    // console.log(`❌ Sector ${geozona.numero_sector} descartado por distancia: ${distancia.toFixed(1)}m (Rango: ${geozona.radio_interno}-${geozona.radio_externo})`);
                     continue;
                 }
 
@@ -362,9 +367,19 @@ class GPSProcessingService {
                 }
 
                 if (enSector) {
+                    // console.log(`✅ ¡Encontrado! Sector ${geozona.numero_sector}`);
                     return geozona;
+                } else {
+                    // console.log(`❌ Sector ${geozona.numero_sector} descartado por ángulo: ${angulo.toFixed(1)}° (Rango: ${geozona.angulo_inicio}-${geozona.angulo_fin})`);
                 }
             }
+
+            // Si llegamos aquí y no encontramos geozona, pero hay geozonas configuradas y la distancia es válida para alguna de ellas
+            // podría ser un problema de huecos en los ángulos. Intenta buscar el sector más cercano si el desfase es pequeño (< 5 grados).
+            // Esto ayuda con problemas de punto flotante o huecos pequeños.
+            // (Opcional - Implementación futura si persiste el problema)
+
+            console.log(`⚠️ No se encontró geozona para Regador ${regadorId} - Dist: ${distancia?.toFixed(1)}m, Ang: ${angulo?.toFixed(1)}°`);
 
             return null;
 
