@@ -635,8 +635,21 @@ class GPSProcessingService {
                 progresoAngulo = (avanceEnSector / anguloSector) * 100;
             }
 
-            // Usar el mayor de los dos progresos (más conservador)
-            const progresoFinal = Math.max(progresoTiempo, progresoAngulo);
+            // Usar prioritaria mente el progreso por ángulo si está disponible
+            // Math.max con tiempo causaba que se quedara en 99% si estaba detenido mucho tiempo
+            let progresoFinal = 0;
+            if (progresoAngulo > 0 || (progresoAngulo === 0 && anguloActual !== null)) {
+                progresoFinal = progresoAngulo;
+            } else {
+                progresoFinal = progresoTiempo; // Fallback si no hay ángulo
+            }
+
+            // Solo si se está moviendo activamente (speed > 0.01), podemos considerar el tiempo como "avance"
+            // (por si el GPS se queda pegado pero avanza físicamente, aunque es raro)
+            if (datosOperacion.velocidad > 0.01) {
+                progresoFinal = Math.max(progresoFinal, progresoTiempo);
+            }
+
             const progresoFinalRedondeado = Math.min(Math.round(progresoFinal), 99);
 
             // Calcular agua aplicada

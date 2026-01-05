@@ -278,7 +278,7 @@ class GPSCalculationsService {
 
         // 1 litro = 0.001 m³
         // 1 hectárea = 10,000 m²
-        // Lámina (mm) = (volumen m³ / área m²) * 1000
+        // Lámina (mm) = (volumen m³ / área m²) / 10
         const areaM2 = areaHectareas * 10000;
         const laminaMM = (aguaLitros * 0.001 / areaM2) / 10;
 

@@ -1,12 +1,12 @@
 ﻿import React, { useRef, useEffect, useState } from 'react';
-import { 
-    Box, Typography, Card, CardContent, Grid, Chip, 
+import {
+    Box, Typography, Card, CardContent, Grid, Chip,
     Tabs, Tab, Accordion, AccordionSummary, AccordionDetails,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
     Divider, LinearProgress
 } from '@mui/material';
-import { 
-    CheckCircle, Schedule, PlayArrow, Pause, 
+import {
+    CheckCircle, Schedule, PlayArrow, Pause,
     ExpandMore, Water, Speed, Timer, TrendingUp
 } from '@mui/icons-material';
 
@@ -27,16 +27,16 @@ function RiegoVisualizationConVueltas({ regadorId }) {
         try {
             const response = await fetch(`/api/regadores/${regadorId}/resumen-completo`);
             const data = await response.json();
-            
+
             if (data.success) {
                 setResumenCompleto(data.data);
-                
+
                 // Si hay vuelta actual, seleccionarla por defecto
                 if (data.data.vuelta_actual) {
                     cargarDetalleVuelta(data.data.vuelta_actual.id);
                 }
             }
-            
+
             setLoading(false);
         } catch (error) {
             console.error('Error cargando datos:', error);
@@ -48,7 +48,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
         try {
             const response = await fetch(`/api/regadores/${regadorId}/vueltas/${vueltaId}/detalles`);
             const data = await response.json();
-            
+
             if (data.success) {
                 setVueltaSeleccionada(data.data);
             }
@@ -75,7 +75,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
                     <Typography variant="h5" gutterBottom>
                         {regador.nombre} - Sistema de Riego
                     </Typography>
-                    
+
                     <Grid container spacing={2} sx={{ mt: 1 }}>
                         <Grid item xs={12} sm={6} md={3}>
                             <Box textAlign="center">
@@ -87,7 +87,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
                                 </Typography>
                             </Box>
                         </Grid>
-                        
+
                         <Grid item xs={12} sm={6} md={3}>
                             <Box textAlign="center">
                                 <Typography variant="h4" color="success.main">
@@ -98,7 +98,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
                                 </Typography>
                             </Box>
                         </Grid>
-                        
+
                         <Grid item xs={12} sm={6} md={3}>
                             <Box textAlign="center">
                                 <Typography variant="h4" color="info.main">
@@ -109,7 +109,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
                                 </Typography>
                             </Box>
                         </Grid>
-                        
+
                         <Grid item xs={12} sm={6} md={3}>
                             <Box textAlign="center">
                                 <Typography variant="h4" color="warning.main">
@@ -134,13 +134,13 @@ function RiegoVisualizationConVueltas({ regadorId }) {
                                 Vuelta {vuelta_actual.numero_vuelta} - En Progreso
                             </Typography>
                         </Box>
-                        
-                        <LinearProgress 
-                            variant="determinate" 
-                            value={parseFloat(vuelta_actual.porcentaje_completado || 0)} 
+
+                        <LinearProgress
+                            variant="determinate"
+                            value={parseFloat(vuelta_actual.porcentaje_completado || 0)}
                             sx={{ mb: 2, height: 8, borderRadius: 4 }}
                         />
-                        
+
                         <Grid container spacing={2}>
                             <Grid item xs={6} md={3}>
                                 <Typography variant="caption" color="textSecondary">
@@ -150,7 +150,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
                                     {parseFloat(vuelta_actual.porcentaje_completado || 0).toFixed(1)}%
                                 </Typography>
                             </Grid>
-                            
+
                             <Grid item xs={6} md={3}>
                                 <Typography variant="caption" color="textSecondary">
                                     Ángulo Inicio
@@ -159,7 +159,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
                                     {parseFloat(vuelta_actual.angulo_inicio).toFixed(1)}°
                                 </Typography>
                             </Grid>
-                            
+
                             <Grid item xs={6} md={3}>
                                 <Typography variant="caption" color="textSecondary">
                                     Tiempo Transcurrido
@@ -168,7 +168,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
                                     {calcularTiempoTranscurrido(vuelta_actual.fecha_inicio)}
                                 </Typography>
                             </Grid>
-                            
+
                             <Grid item xs={6} md={3}>
                                 <Typography variant="caption" color="textSecondary">
                                     Fecha Inicio
@@ -193,7 +193,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
                 {/* Tab 0: Visualización Circular */}
                 {tabActual === 0 && (
                     <Box p={3}>
-                        <CircularRiegoVisualizationConVuelta 
+                        <CircularRiegoVisualizationConVuelta
                             regador={regador}
                             vueltaActual={vuelta_actual}
                             sectoresVueltaActual={vueltaSeleccionada?.sectores || []}
@@ -204,7 +204,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
                 {/* Tab 1: Historial de Vueltas */}
                 {tabActual === 1 && (
                     <Box p={3}>
-                        <HistorialVueltas 
+                        <HistorialVueltas
                             vueltas={vueltas}
                             onSeleccionarVuelta={cargarDetalleVuelta}
                         />
@@ -238,7 +238,7 @@ function RiegoVisualizationConVueltas({ regadorId }) {
 function CircularRiegoVisualizationConVuelta({ regador, vueltaActual, sectoresVueltaActual, size = 400 }) {
     const [geozonas, setGeozonas] = useState([]);
     const [sectorActual, setSectorActual] = useState(null);
-    
+
     useEffect(() => {
         cargarGeozonas();
     }, [regador.id]);
@@ -304,7 +304,7 @@ function CircularRiegoVisualizationConVuelta({ regador, vueltaActual, sectoresVu
 
     const getSectorColor = (geozona) => {
         const sectorEnVuelta = sectoresVueltaActual.find(s => s.geozona_id === geozona.id);
-        
+
         if (sectorActual === geozona.nombre_sector) {
             // Sector activo actual
             return '#4CAF50'; // Verde brillante
@@ -322,14 +322,14 @@ function CircularRiegoVisualizationConVuelta({ regador, vueltaActual, sectoresVu
 
     const getTextPosition = (startAngle, endAngle) => {
         let midAngle = (startAngle + endAngle) / 2;
-        
+
         if (endAngle < startAngle) {
             midAngle = ((startAngle + endAngle + 360) / 2) % 360;
         }
-        
+
         const textRadius = radius * 0.7;
         const angleInRadians = (midAngle - 90) * Math.PI / 180.0;
-        
+
         return {
             x: centerX + (textRadius * Math.cos(angleInRadians)),
             y: centerY + (textRadius * Math.sin(angleInRadians))
@@ -364,11 +364,11 @@ function CircularRiegoVisualizationConVuelta({ regador, vueltaActual, sectoresVu
                     {geozonas.map((geozona, index) => {
                         const startAngle = parseFloat(geozona.angulo_inicio) || 0;
                         const endAngle = parseFloat(geozona.angulo_fin) || 0;
-                        
+
                         if (startAngle === endAngle || startAngle < 0 || endAngle < 0 || startAngle >= 360 || endAngle > 360) {
                             return null;
                         }
-                        
+
                         const sectorPath = createSectorPath(centerX, centerY, radius, startAngle, endAngle);
                         const textPos = getTextPosition(startAngle, endAngle);
                         const sectorEnVuelta = sectoresVueltaActual.find(s => s.geozona_id === geozona.id);
@@ -450,7 +450,7 @@ function CircularRiegoVisualizationConVuelta({ regador, vueltaActual, sectoresVu
             {/* Leyenda */}
             <Grid container spacing={1} justifyContent="center">
                 <Grid item>
-                    <Chip 
+                    <Chip
                         icon={<PlayArrow />}
                         label="Actual"
                         size="small"
@@ -458,7 +458,7 @@ function CircularRiegoVisualizationConVuelta({ regador, vueltaActual, sectoresVu
                     />
                 </Grid>
                 <Grid item>
-                    <Chip 
+                    <Chip
                         icon={<CheckCircle />}
                         label="Completado"
                         size="small"
@@ -466,7 +466,7 @@ function CircularRiegoVisualizationConVuelta({ regador, vueltaActual, sectoresVu
                     />
                 </Grid>
                 <Grid item>
-                    <Chip 
+                    <Chip
                         icon={<Schedule />}
                         label="En Progreso"
                         size="small"
@@ -474,7 +474,7 @@ function CircularRiegoVisualizationConVuelta({ regador, vueltaActual, sectoresVu
                     />
                 </Grid>
                 <Grid item>
-                    <Chip 
+                    <Chip
                         label="Pendiente"
                         size="small"
                         sx={{ bgcolor: '#E0E0E0' }}
@@ -494,9 +494,9 @@ function HistorialVueltas({ vueltas, onSeleccionarVuelta }) {
             <Typography variant="h6" gutterBottom>
                 Historial de Vueltas
             </Typography>
-            
+
             {vueltas.map((vuelta) => (
-                <Accordion 
+                <Accordion
                     key={vuelta.vuelta_id}
                     expanded={expandida === vuelta.vuelta_id}
                     onChange={() => {
@@ -509,40 +509,40 @@ function HistorialVueltas({ vueltas, onSeleccionarVuelta }) {
                 >
                     <AccordionSummary expandIcon={<ExpandMore />}>
                         <Box display="flex" alignItems="center" gap={2} width="100%">
-                            <Chip 
+                            <Chip
                                 label={`Vuelta ${vuelta.numero_vuelta}`}
                                 color="primary"
                                 size="small"
                             />
-                            
+
                             {vuelta.completada ? (
-                                <Chip 
+                                <Chip
                                     icon={<CheckCircle />}
                                     label="Completada"
                                     color="success"
                                     size="small"
                                 />
                             ) : (
-                                <Chip 
+                                <Chip
                                     icon={<PlayArrow />}
                                     label="En curso"
                                     color="warning"
                                     size="small"
                                 />
                             )}
-                            
+
                             <Typography variant="body2" color="textSecondary">
                                 {new Date(vuelta.fecha_inicio).toLocaleDateString()}
                             </Typography>
-                            
+
                             <Box flexGrow={1} />
-                            
+
                             <Typography variant="body2" fontWeight="bold">
                                 {parseFloat(vuelta.lamina_promedio_mm || 0).toFixed(1)} mm
                             </Typography>
                         </Box>
                     </AccordionSummary>
-                    
+
                     <AccordionDetails>
                         <Grid container spacing={2}>
                             <Grid item xs={6} md={3}>
@@ -553,7 +553,7 @@ function HistorialVueltas({ vueltas, onSeleccionarVuelta }) {
                                     {vuelta.duracion_total_minutos} min
                                 </Typography>
                             </Grid>
-                            
+
                             <Grid item xs={6} md={3}>
                                 <Typography variant="caption" color="textSecondary">
                                     Agua Aplicada
@@ -562,7 +562,7 @@ function HistorialVueltas({ vueltas, onSeleccionarVuelta }) {
                                     {parseFloat(vuelta.agua_total_litros || 0).toFixed(0)} L
                                 </Typography>
                             </Grid>
-                            
+
                             <Grid item xs={6} md={3}>
                                 <Typography variant="caption" color="textSecondary">
                                     Área
@@ -571,7 +571,7 @@ function HistorialVueltas({ vueltas, onSeleccionarVuelta }) {
                                     {parseFloat(vuelta.area_total_ha || 0).toFixed(2)} ha
                                 </Typography>
                             </Grid>
-                            
+
                             <Grid item xs={6} md={3}>
                                 <Typography variant="caption" color="textSecondary">
                                     Presión Promedio
@@ -580,7 +580,7 @@ function HistorialVueltas({ vueltas, onSeleccionarVuelta }) {
                                     {parseFloat(vuelta.presion_promedio_vuelta || 0).toFixed(1)} PSI
                                 </Typography>
                             </Grid>
-                            
+
                             <Grid item xs={12}>
                                 <Typography variant="caption" color="textSecondary">
                                     Sectores: {vuelta.sectores_completados} / {vuelta.sectores_pasados}
@@ -603,13 +603,13 @@ function DetalleVuelta({ vuelta }) {
             <Typography variant="h6" gutterBottom>
                 Detalle Vuelta {infoVuelta.numero_vuelta}
             </Typography>
-            
+
             <Divider sx={{ my: 2 }} />
-            
+
             <Typography variant="subtitle1" gutterBottom fontWeight="bold">
                 Sectores Regados
             </Typography>
-            
+
             <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                     <TableHead>
@@ -644,8 +644,8 @@ function DetalleVuelta({ vuelta }) {
                                     {parseFloat(sector.area_sector_ha || 0).toFixed(2)}
                                 </TableCell>
                                 <TableCell align="right">
-                                    {sector.presion_promedio 
-                                        ? `${parseFloat(sector.presion_promedio).toFixed(1)} (${parseFloat(sector.presion_min).toFixed(1)}-${parseFloat(sector.presion_max).toFixed(1)})`
+                                    {sector.presion_promedio
+                                        ? `${parseFloat(sector.presion_promedio).toFixed(1)}`
                                         : '-'
                                     }
                                 </TableCell>
@@ -664,10 +664,10 @@ function calcularTiempoTranscurrido(fechaInicio) {
     const inicio = new Date(fechaInicio);
     const diffMs = ahora - inicio;
     const diffMinutos = Math.floor(diffMs / 60000);
-    
+
     const horas = Math.floor(diffMinutos / 60);
     const minutos = diffMinutos % 60;
-    
+
     return `${horas}h ${minutos}m`;
 }
 
