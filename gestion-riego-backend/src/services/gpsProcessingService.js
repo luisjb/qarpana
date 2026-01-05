@@ -453,37 +453,47 @@ class GPSProcessingService {
             const ultimaPosicion = this.ultimasPosiciones.get(regadorId);
 
             const geozonaAnterior = ultimaPosicion?.geozona_id;
+            const estabaRegando = ultimaPosicion?.estado?.regando || false;
+            const estaRegando = datosOperacion.regando;
 
-            // Detectar cambio de geozona
-            if (geozonaActual?.id !== geozonaAnterior) {
-                // Salida de geozona anterior
-                if (geozonaAnterior && datosOperacion.regando) {
-                    await this.registrarEventoRiego(regadorId, geozonaAnterior, 'salida', datosOperacion);
+            const cambioGeozona = geozonaActual?.id !== geozonaAnterior;
+            // Detectar cambio de estado de riego
+            const inicioRiego = estaRegando && !estabaRegando;
+            const finRiego = !estaRegando && estabaRegando;
 
-                    // ⭐ NUEVO: Registrar salida en vuelta
-                    await vueltasService.registrarSalidaSector(
-                        regadorId,
-                        geozonaAnterior,
-                        datosOperacion.timestamp
-                    );
+            // CASO 1: SALIDA DE SECTOR O FIN DE RIEGO
+            // Si estábamos en una geozona regando y (nos movimos de zona O dejamos de regar)
+            if (geozonaAnterior && estabaRegando && (cambioGeozona || finRiego)) {
+                // Registrar evento de salida
+                await this.registrarEventoRiego(regadorId, geozonaAnterior, 'salida', datosOperacion);
 
-                    // ✅ AGREGAR ESTA LÍNEA: Completar el sector al salir
+                // Registrar salida en la vuelta (cierra el segmento actual)
+                await vueltasService.registrarSalidaSector(
+                    regadorId,
+                    geozonaAnterior,
+                    datosOperacion.timestamp
+                );
+
+                // Completar el sector SOLO si hubo cambio de geozona (físicamente salió)
+                // Si solo cortó el agua, no necesariamente completó el sector (puede ser pause)
+                if (cambioGeozona) {
                     await this.completarSector(geozonaAnterior, datosOperacion.timestamp);
-
-                    // Si la salida es porque está completando riego, cerrar el ciclo
                     await this.completarCicloRiego(geozonaAnterior, datosOperacion.timestamp);
                 }
-                // Entrada a nueva geozona
-                if (geozonaActual && datosOperacion.regando) {
-                    await this.registrarEventoRiego(regadorId, geozonaActual.id, 'entrada', datosOperacion);
+            }
 
-                    // ⭐ NUEVO: Registrar entrada en vuelta
-                    await vueltasService.registrarEntradaSector(
-                        regadorId,
-                        geozonaActual.id,
-                        datosOperacion.timestamp
-                    );
-                }
+            // CASO 2: ENTRADA A SECTOR O INICIO DE RIEGO
+            // Si estamos en una geozona regando y (es una zona nueva O acabamos de encender el agua)
+            // !geozonaAnterior cubre el caso inicial o perdida de tracking
+            if (geozonaActual && estaRegando && (cambioGeozona || inicioRiego || !geozonaAnterior)) {
+                await this.registrarEventoRiego(regadorId, geozonaActual.id, 'entrada', datosOperacion);
+
+                // Registrar entrada en vuelta
+                await vueltasService.registrarEntradaSector(
+                    regadorId,
+                    geozonaActual.id,
+                    datosOperacion.timestamp
+                );
             }
 
         } catch (error) {
