@@ -45,7 +45,8 @@ function RegadoresManagement({ open, onClose, campo }) {
     const fetchLotes = async () => {
         try {
             const response = await axios.get(`/lotes/campo/${campo.id}`);
-            setLotes(response.data.lotes || []);
+            const activeLotes = (response.data.lotes || []).filter(lote => lote.activo);
+            setLotes(activeLotes);
         } catch (error) {
             console.error('Error al obtener lotes:', error);
         }
@@ -86,7 +87,7 @@ function RegadoresManagement({ open, onClose, campo }) {
             } else {
                 await axios.post('/regadores', regadorData);
             }
-            
+
             setOpenRegadorDialog(false);
             setRegadorEdit(null);
             fetchRegadores();
@@ -137,7 +138,7 @@ function RegadoresManagement({ open, onClose, campo }) {
                         <Typography variant="h6">
                             Gestión de Regadores - {campo.nombre_campo}
                         </Typography>
-                        <Chip 
+                        <Chip
                             label={`${regadores.length} Regador${regadores.length !== 1 ? 'es' : ''}`}
                             color="primary"
                             variant="outlined"
@@ -168,7 +169,7 @@ function RegadoresManagement({ open, onClose, campo }) {
                                                 <Typography variant="caption" display="block">
                                                     {regador.tipo_regador} - Radio: {regador.radio_cobertura}m
                                                 </Typography>
-                                                <Chip 
+                                                <Chip
                                                     label={getRegadorStatusText(regador)}
                                                     size="small"
                                                     color={regador.activo ? 'success' : 'default'}
@@ -183,7 +184,7 @@ function RegadoresManagement({ open, onClose, campo }) {
                                                     </IconButton>
                                                 </Tooltip>
                                                 <Tooltip title="Eliminar regador">
-                                                    <IconButton 
+                                                    <IconButton
                                                         onClick={() => handleDeleteRegador(regador.id)}
                                                         color="error"
                                                     >
@@ -264,7 +265,7 @@ function RegadoresManagement({ open, onClose, campo }) {
                     <Button onClick={onClose}>
                         Cerrar
                     </Button>
-                    <Button 
+                    <Button
                         onClick={handleAddRegador}
                         variant="contained"
                         startIcon={<Add />}
