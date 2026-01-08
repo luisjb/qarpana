@@ -300,7 +300,7 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, estadoAct
             {sectorActual && (
                 <Box mb={2} p={2} bgcolor="primary.light" borderRadius={2}>
                     <Typography variant="h6" color="white" textAlign="center">
-                        🎯 Regando actualmente: {sectorActual}
+                        Regando actualmente: {sectorActual}
                     </Typography>
                 </Box>
             )}
@@ -500,7 +500,7 @@ function CircularRiegoVisualization({ sectores: sectoresProp, regador, estadoAct
             <Box display="flex" justifyContent="center" gap={3} flexWrap="wrap">
                 <Box display="flex" alignItems="center" gap={1}>
                     <Box sx={{ width: 20, height: 20, bgcolor: '#4CAF50', borderRadius: 1 }} />
-                    <Typography variant="body2">Activo / Completado</Typography>
+                    <Typography variant="body2">Activo</Typography>
                 </Box>
                 <Box display="flex" alignItems="center" gap={1}>
                     <Box sx={{ width: 20, height: 20, bgcolor: '#FFA726', borderRadius: 1 }} />

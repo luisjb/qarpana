@@ -673,7 +673,7 @@ class GPSProcessingService {
             // Actualizar progreso y agua aplicada
             await pool.query(
                 `UPDATE estado_sectores_riego 
-                 SET progreso_porcentaje = $1,
+                 SET progreso_porcentaje = GREATEST(progreso_porcentaje, $1),
                      ultima_actualizacion = $2,
                      agua_aplicada_litros = $3
                  WHERE geozona_id = $4`,

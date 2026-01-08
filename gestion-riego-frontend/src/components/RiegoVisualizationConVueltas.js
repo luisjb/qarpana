@@ -342,7 +342,7 @@ function CircularRiegoVisualizationConVuelta({ regador, vueltaActual, sectoresVu
             {sectorActual && (
                 <Box mb={2} p={2} bgcolor="primary.light" borderRadius={2}>
                     <Typography variant="h6" color="white" textAlign="center">
-                        🎯 Regando actualmente: {sectorActual}
+                        Regando actualmente: {sectorActual}
                     </Typography>
                 </Box>
             )}
