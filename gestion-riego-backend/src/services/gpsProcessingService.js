@@ -201,8 +201,8 @@ class GPSProcessingService {
                 // Verificar si completÃ³ la vuelta
                 const verificacion = await vueltasService.verificarCompletarVuelta(
                     regador.id,
-                    datosOperacion.angulo_actual,
-                    datosOperacion.timestamp
+                    angulo,
+                    timestamp
                 );
 
                 console.log(`🔄 Verificación vuelta - Regador ${regador.id}: ${verificacion.progreso}% completado`);
@@ -213,8 +213,8 @@ class GPSProcessingService {
                     // Iniciar nueva vuelta automáticamente
                     await vueltasService.inicializarVuelta(
                         regador.id,
-                        datosOperacion.angulo_actual,
-                        datosOperacion.timestamp
+                        angulo,
+                        timestamp
                     );
                 }
             }
