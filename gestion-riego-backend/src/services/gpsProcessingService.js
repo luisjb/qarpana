@@ -201,17 +201,20 @@ class GPSProcessingService {
                 // Verificar si completÃ³ la vuelta
                 const verificacion = await vueltasService.verificarCompletarVuelta(
                     regador.id,
-                    angulo,
-                    timestamp
+                    datosOperacion.angulo_actual,
+                    datosOperacion.timestamp
                 );
 
+                console.log(`🔄 Verificación vuelta - Regador ${regador.id}: ${verificacion.progreso}% completado`);
+
                 if (verificacion.completada) {
-                    console.log(`ðŸŽ‰ Vuelta completada! Iniciando nueva vuelta...`);
-                    // Reiniciar nueva vuelta automÃ¡ticamente
-                    vueltaActual = await vueltasService.inicializarVuelta(
+                    console.log(`🎉 Vuelta completada! Iniciando nueva vuelta...`);
+                    
+                    // Iniciar nueva vuelta automáticamente
+                    await vueltasService.inicializarVuelta(
                         regador.id,
-                        angulo,
-                        timestamp
+                        datosOperacion.angulo_actual,
+                        datosOperacion.timestamp
                     );
                 }
             }
@@ -251,6 +254,18 @@ class GPSProcessingService {
                 if (regador.latitud_centro && regador.longitud_centro) {
                     await this.detectarEventosGeozona(regador.id, geozona, datosOperacion);
 
+                    if (datosOperacion.regando && datosOperacion.geozona_id) {
+                        const vueltaActiva = await vueltasService.obtenerVueltaActiva(regador.id);
+                        
+                        if (!vueltaActiva) {
+                            console.log(`⚠️ Regador ${regador.id} regando sin vuelta - Inicializando automáticamente`);
+                            await vueltasService.inicializarVuelta(
+                                regador.id,
+                                datosOperacion.angulo_actual,
+                                datosOperacion.timestamp
+                            );
+                        }
+                    }
                     // Actualizar estado del sector si estÃ¡ regando
                     if (geozona && estado.regando) {
                         await this.actualizarEstadoSectorMejorado(geozona.id, datosOperacion, regador);
@@ -673,10 +688,10 @@ class GPSProcessingService {
             // Actualizar progreso y agua aplicada
             await pool.query(
                 `UPDATE estado_sectores_riego 
-                 SET progreso_porcentaje = GREATEST(progreso_porcentaje, $1),
-                     ultima_actualizacion = $2,
-                     agua_aplicada_litros = $3
-                 WHERE geozona_id = $4`,
+                SET progreso_porcentaje = GREATEST(progreso_porcentaje, $1),
+                    ultima_actualizacion = $2,
+                    agua_aplicada_litros = GREATEST(COALESCE(agua_aplicada_litros, 0), $3)
+                WHERE geozona_id = $4`,
                 [
                     progresoFinalRedondeado,
                     datosOperacion.timestamp,

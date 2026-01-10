@@ -85,6 +85,44 @@ class VueltasRiegoService {
     }
 
     /**
+     * Obtiene la vuelta activa (no completada) de un regador
+     */
+    async obtenerVueltaActiva(regadorId) {
+        try {
+            // Primero buscar en memoria
+            const vueltaMemoria = this.vueltasActivas.get(regadorId);
+            if (vueltaMemoria) {
+                return vueltaMemoria;
+            }
+
+            // Si no está en memoria, buscar en BD
+            const query = `
+                SELECT * FROM vueltas_riego
+                WHERE regador_id = $1 AND completada = false
+                ORDER BY fecha_inicio DESC
+                LIMIT 1
+            `;
+
+            const result = await pool.query(query, [regadorId]);
+
+            if (result.rows.length > 0) {
+                const vuelta = result.rows[0];
+                // Asegurar que angulo_inicio sea número
+                vuelta.angulo_inicio = parseFloat(vuelta.angulo_inicio);
+                // Guardar en memoria
+                this.vueltasActivas.set(regadorId, vuelta);
+                return vuelta;
+            }
+
+            return null;
+
+        } catch (error) {
+            console.error('Error obteniendo vuelta activa:', error);
+            return null;
+        }
+    }
+
+    /**
      * Verifica si completó la vuelta y la cierra si es necesario
      */
     async verificarCompletarVuelta(regadorId, anguloActual, timestamp) {
@@ -114,9 +152,15 @@ class VueltasRiegoService {
             );
 
             if (verificacion.completada) {
-                // Completar la vuelta
+                 // Completar la vuelta
                 await this.completarVuelta(regadorId, anguloActual, timestamp, verificacion);
-                return { completada: true, vuelta: vueltaActiva };
+                
+                // Iniciar nueva vuelta automáticamente
+                await this.inicializarVuelta(regadorId, anguloActual, timestamp);
+                
+                console.log(`🔄 Nueva vuelta iniciada automáticamente para regador ${regadorId}`);
+                
+                return { completada: true, vuelta: vueltaActiva, nuevaVueltaIniciada: true };
             }
 
             // Actualizar porcentaje de avance
@@ -244,6 +288,60 @@ class VueltasRiegoService {
 
         } catch (error) {
             console.error('Error actualizando progreso vuelta:', error);
+        }
+    }
+
+    /**
+     * Actualiza los totales de agua, lámina y área de una vuelta
+     * Se debe llamar cada vez que se completa un sector
+     */
+    async actualizarTotalesVuelta(vueltaId) {
+        try {
+            // Obtener totales de sectores completados
+            const queryTotales = `
+                SELECT 
+                    COUNT(*) FILTER (WHERE completado = true) as sectores_completados,
+                    SUM(agua_aplicada_litros) FILTER (WHERE completado = true) as agua_total,
+                    SUM(area_sector_ha) FILTER (WHERE completado = true) as area_total,
+                    AVG(presion_promedio) FILTER (WHERE completado = true AND presion_promedio IS NOT NULL) as presion_promedio,
+                    SUM(duracion_minutos) FILTER (WHERE completado = true) as duracion_total
+                FROM sectores_por_vuelta
+                WHERE vuelta_id = $1
+            `;
+
+            const result = await pool.query(queryTotales, [vueltaId]);
+            const totales = result.rows[0];
+
+            // Calcular lámina promedio
+            const laminaPromedio = (totales.area_total > 0 && totales.agua_total > 0)
+                ? totales.agua_total / (totales.area_total * 10000)  // Tu fórmula correcta
+                : 0;
+
+            // Actualizar vuelta
+            const queryUpdate = `
+                UPDATE vueltas_riego
+                SET agua_total_litros = $1,
+                    area_total_ha = $2,
+                    lamina_promedio_mm = $3,
+                    presion_promedio = $4,
+                    duracion_minutos = $5
+                WHERE id = $6
+            `;
+
+            await pool.query(queryUpdate, [
+                totales.agua_total || 0,
+                totales.area_total || 0,
+                laminaPromedio,
+                totales.presion_promedio,
+                totales.duracion_total || 0,
+                vueltaId
+            ]);
+
+            console.log(`📊 Totales actualizados - Vuelta ${vueltaId}: ${Math.round(totales.agua_total || 0)}L, ${laminaPromedio.toFixed(1)}mm`);
+
+        } catch (error) {
+            console.error('Error actualizando totales de vuelta:', error);
+            throw error;
         }
     }
 
@@ -425,6 +523,8 @@ class VueltasRiegoService {
             const registroActualizado = result.rows[0];
 
             console.log(`📍 Salida de sector ${datos.nombre_sector} - Duración: ${duracionMinutos}min - Lámina: ${laminaMM.toFixed(1)}mm - Agua: ${Math.round(aguaLitros)}L`);
+
+            await this.actualizarTotalesVuelta(vueltaActiva.id);
 
             return registroActualizado;
 
