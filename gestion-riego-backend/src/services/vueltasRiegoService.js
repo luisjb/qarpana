@@ -148,7 +148,9 @@ class VueltasRiegoService {
             const verificacion = gpsCalc.verificarVueltaCompletada(
                 vueltaActiva.angulo_inicio,
                 anguloActual,
-                this.MARGEN_SEGURIDAD
+                'auto',    // ✅ Detectar sentido automáticamente
+                10,        // ✅ Margen 10% (requiere 324°)
+                50         // ✅ Mínimo 180° de avance
             );
 
             if (verificacion.completada) {

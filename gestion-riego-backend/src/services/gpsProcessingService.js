@@ -87,7 +87,7 @@ class GPSProcessingService {
             );
 
             if (result.rows.length > 0) {
-                console.log(`âœ… Regador activado: ${result.rows[0].nombre_dispositivo}`);
+                console.log(` Regador activado: ${result.rows[0].nombre_dispositivo}`);
             }
         } catch (error) {
             console.error('Error actualizando estado activo del regador:', error);
@@ -107,7 +107,7 @@ class GPSProcessingService {
             const regador = await this.buscarRegadorSinFiltro(device.name);
 
             if (!regador) {
-                console.log(`âš ï¸ Regador no encontrado para dispositivo: ${device.name}`);
+                console.log(` Regador no encontrado para dispositivo: ${device.name}`);
                 return { processed: false, reason: 'Regador no encontrado' };
             }
 
@@ -133,7 +133,7 @@ class GPSProcessingService {
                             },
                             geozona_id: last.geozona_id
                         });
-                        console.log(`ðŸ“¥ Estado previo recuperado DB para ${regador.nombre_dispositivo}`);
+                        console.log(` Estado previo recuperado DB para ${regador.nombre_dispositivo}`);
                     }
                 } catch (err) {
                     console.error('Error recuperando estado previo:', err);
@@ -146,7 +146,7 @@ class GPSProcessingService {
 
             // Verificar que el regador tenga coordenadas configuradas
             if (!regador.latitud_centro || !regador.longitud_centro) {
-                console.log(`âš ï¸ Regador ${device.name} sin coordenadas configuradas - se guardarÃ¡ sin geozona`);
+                console.log(` Regador ${device.name} sin coordenadas configuradas - se guardarÃ¡ sin geozona`);
             }
 
             // Extraer IO9 de los atributos
@@ -281,11 +281,11 @@ class GPSProcessingService {
 
                 const estadoEmoji = estado.regando ? 'ðŸ’§' : estado.moviendose ? 'ðŸšœ' : 'â¸ï¸';
                 const vueltaInfo = vueltaActual ? ` - Vuelta ${vueltaActual.numero_vuelta}` : '';
-                console.log(`${estadoEmoji} PosiciÃ³n guardada - ${device.name} - ${estado.estado_texto}${geozona ? ` - ${geozona.nombre_sector}` : ' - Sin geozona'}${presion ? ` - PresiÃ³n: ${presion.toFixed(1)} PSI` : ''}${vueltaInfo}`);
+                console.log(`${estadoEmoji} Posición guardada - ${device.name} - ${estado.estado_texto}${geozona ? ` - ${geozona.nombre_sector}` : ' - Sin geozona'}${presion ? ` - Presión: ${presion.toFixed(1)} PSI` : ''}${vueltaInfo}`);
             } else {
                 const tiempoDesdeUltimo = timestamp - this.ultimasPosiciones.get(regador.id)?.timestamp;
                 const minutosDesdeUltimo = Math.floor(tiempoDesdeUltimo / 60000);
-                console.log(`â­ï¸ PosiciÃ³n omitida (${minutosDesdeUltimo} min desde Ãºltima) - ${device.name}`);
+                console.log(` Posición omitida (${minutosDesdeUltimo} min desde Última) - ${device.name}`);
             }
 
             return {
@@ -299,7 +299,7 @@ class GPSProcessingService {
             };
 
         } catch (error) {
-            console.error('Error procesando posiciÃ³n:', error);
+            console.error('Error procesando posición:', error);
             throw error;
         }
     }
@@ -407,7 +407,7 @@ class GPSProcessingService {
             // Esto ayuda con problemas de punto flotante o huecos pequeÃ±os.
             // (Opcional - ImplementaciÃ³n futura si persiste el problema)
 
-            console.log(`âš ï¸ No se encontrÃ³ geozona para Regador ${regadorId} - Dist: ${distancia?.toFixed(1)}m, Ang: ${angulo?.toFixed(1)}Â°`);
+            console.log(`â No se encontró geozona para Regador ${regadorId} - Dist: ${distancia?.toFixed(1)}m, Ang: ${angulo?.toFixed(1)}Â°`);
 
             return null;
 
@@ -468,7 +468,7 @@ class GPSProcessingService {
             return result.rows[0];
 
         } catch (error) {
-            console.error('Error guardando datos operaciÃ³n:', error);
+            console.error('Error guardando datos operación:', error);
             throw error;
         }
     }
@@ -555,7 +555,7 @@ class GPSProcessingService {
                 datosOperacion.velocidad
             ]);
 
-            console.log(`ðŸ“ Evento: ${tipoEvento} geozona ${geozonaId}`);
+            console.log(` Evento: ${tipoEvento} geozona ${geozonaId}`);
 
             return result.rows[0];
 
@@ -585,7 +585,7 @@ class GPSProcessingService {
             const resultSector = await pool.query(querySector, [geozonaId]);
 
             if (resultSector.rows.length === 0) {
-                console.warn(`âš ï¸ Sector ${geozonaId} no encontrado`);
+                console.warn(` Sector ${geozonaId} no encontrado`);
                 return;
             }
 
@@ -701,8 +701,8 @@ class GPSProcessingService {
             );
 
             console.log(
-                `ðŸ“Š Sector ${sector.numero_sector}: ${progresoFinalRedondeado}% ` +
-                `(tiempo: ${progresoTiempo.toFixed(0)}%, Ã¡ngulo: ${progresoAngulo.toFixed(0)}%) - Agua: ${Math.round(aguaAplicada)}L`
+                ` Sector ${sector.numero_sector}: ${progresoFinalRedondeado}% ` +
+                `(tiempo: ${progresoTiempo.toFixed(0)}%, Ángulo: ${progresoAngulo.toFixed(0)}%) - Agua: ${Math.round(aguaAplicada)}L`
             );
 
         } catch (error) {
@@ -797,7 +797,7 @@ class GPSProcessingService {
             ]);
 
             if (progreso > 0) {
-                console.log(`ðŸ“Š Sector actualizado - ${sector.nombre_sector}: ${progreso.toFixed(1)}% - ${Math.round(aguaAplicada)}L - LÃ¡mina: ${laminaAplicada.toFixed(1)}mm`);
+                console.log(` Sector actualizado - ${sector.nombre_sector}: ${progreso.toFixed(1)}% - ${Math.round(aguaAplicada)}L - LÃ¡mina: ${laminaAplicada.toFixed(1)}mm`);
             }
 
             return result.rows[0];
@@ -876,7 +876,7 @@ class GPSProcessingService {
             const fechaInicio = datos.fecha_inicio_real;
 
             if (!fechaInicio) {
-                console.warn(`âš ï¸ No hay fecha de inicio para geozona ${geozonaId}`);
+                console.warn(` No hay fecha de inicio para geozona ${geozonaId}`);
                 return;
             }
 
@@ -885,7 +885,7 @@ class GPSProcessingService {
             const duracionMinutos = Math.round(duracionMs / 60000);
 
             if (duracionMinutos <= 0) {
-                console.warn(`âš ï¸ DuraciÃ³n invÃ¡lida: ${duracionMinutos} minutos`);
+                console.warn(` Duración inválida: ${duracionMinutos} minutos`);
                 return;
             }
 
@@ -970,7 +970,7 @@ class GPSProcessingService {
                 aguaAplicada
             ]);
 
-            console.log(`âœ… Ciclo completado - ${datos.nombre_sector}: ${Math.round(aguaAplicada)}L en ${duracionMinutos}min - LÃ¡mina: ${laminaMM.toFixed(1)}mm`);
+            console.log(` Ciclo completado - ${datos.nombre_sector}: ${Math.round(aguaAplicada)}L en ${duracionMinutos}min - Lámina: ${laminaMM.toFixed(1)}mm`);
 
             return ciclo.rows[0];
 
