@@ -172,9 +172,11 @@ class GPSCalculationsService {
             const avanceHorarioNormalizado = avanceHorario < 0 ? avanceHorario + 360 : avanceHorario;
             const avanceAntihorarioNormalizado = avanceAntihorario < 0 ? avanceAntihorario + 360 : avanceAntihorario;
 
-            // Usar el avance menor (el que tiene mÃ¡s sentido)
-            // Si ambos son similares, preferir antihorario (mÃ¡s comÃºn)
-            if (avanceHorarioNormalizado < avanceAntihorarioNormalizado && avanceHorarioNormalizado < 180) {
+            const UMBRAL_MINIMO_AVANCE = 10;
+                
+            if (avanceHorarioNormalizado < avanceAntihorarioNormalizado && 
+                avanceHorarioNormalizado > UMBRAL_MINIMO_AVANCE &&
+                avanceHorarioNormalizado < 180) {
                 avance = avanceHorarioNormalizado;
                 sentidoDetectado = 'horario';
             } else {
