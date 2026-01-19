@@ -149,8 +149,8 @@ class VueltasRiegoService {
                 vueltaActiva.angulo_inicio,
                 anguloActual,
                 'auto',    // ✅ Detectar sentido automáticamente
-                10,        // ✅ Margen 10% (requiere 324°)
-                50         // ✅ Mínimo 180° de avance
+                5,        // ✅ Margen 10% (requiere 324°)
+                95         // ✅ Mínimo 180° de avance
             );
 
             if (verificacion.completada) {
@@ -293,59 +293,7 @@ class VueltasRiegoService {
         }
     }
 
-    /**
-     * Actualiza los totales de agua, lámina y área de una vuelta
-     * Se debe llamar cada vez que se completa un sector
-     */
-    async actualizarTotalesVuelta(vueltaId) {
-        try {
-            // Obtener totales de sectores completados
-            const queryTotales = `
-                SELECT 
-                    COUNT(*) FILTER (WHERE completado = true) as sectores_completados,
-                    SUM(agua_aplicada_litros) FILTER (WHERE completado = true) as agua_total,
-                    SUM(area_sector_ha) FILTER (WHERE completado = true) as area_total,
-                    AVG(presion_promedio) FILTER (WHERE completado = true AND presion_promedio IS NOT NULL) as presion_promedio,
-                    SUM(duracion_minutos) FILTER (WHERE completado = true) as duracion_total
-                FROM sectores_por_vuelta
-                WHERE vuelta_id = $1
-            `;
 
-            const result = await pool.query(queryTotales, [vueltaId]);
-            const totales = result.rows[0];
-
-            // Calcular lámina promedio
-            const laminaPromedio = (totales.area_total > 0 && totales.agua_total > 0)
-                ? totales.agua_total / (totales.area_total * 10000)  // Tu fórmula correcta
-                : 0;
-
-            // Actualizar vuelta
-            const queryUpdate = `
-                UPDATE vueltas_riego
-                SET agua_total_litros = $1,
-                    area_total_ha = $2,
-                    lamina_promedio_mm = $3,
-                    presion_promedio = $4,
-                    duracion_minutos = $5
-                WHERE id = $6
-            `;
-
-            await pool.query(queryUpdate, [
-                totales.agua_total || 0,
-                totales.area_total || 0,
-                laminaPromedio,
-                totales.presion_promedio,
-                totales.duracion_total || 0,
-                vueltaId
-            ]);
-
-            console.log(`📊 Totales actualizados - Vuelta ${vueltaId}: ${Math.round(totales.agua_total || 0)}L, ${laminaPromedio.toFixed(1)}mm`);
-
-        } catch (error) {
-            console.error('Error actualizando totales de vuelta:', error);
-            throw error;
-        }
-    }
 
     /**
      * Registra la entrada a un sector en la vuelta actual
@@ -603,6 +551,60 @@ class VueltasRiegoService {
 
         } catch (error) {
             console.error('Error obteniendo estadísticas generales:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Actualiza los totales de agua, lámina y área de una vuelta
+     * Se debe llamar cada vez que se completa un sector
+     */
+    async actualizarTotalesVuelta(vueltaId) {
+        try {
+            // Obtener totales de sectores completados
+            const queryTotales = `
+                SELECT 
+                    COUNT(*) FILTER (WHERE completado = true) as sectores_completados,
+                    SUM(agua_aplicada_litros) FILTER (WHERE completado = true) as agua_total,
+                    SUM(area_sector_ha) FILTER (WHERE completado = true) as area_total,
+                    AVG(presion_promedio) FILTER (WHERE completado = true AND presion_promedio IS NOT NULL) as presion_promedio,
+                    SUM(duracion_minutos) FILTER (WHERE completado = true) as duracion_total
+                FROM sectores_por_vuelta
+                WHERE vuelta_id = $1
+            `;
+
+            const result = await pool.query(queryTotales, [vueltaId]);
+            const totales = result.rows[0];
+
+            // Calcular lámina promedio
+            const laminaPromedio = (totales.area_total > 0 && totales.agua_total > 0)
+                ? totales.agua_total / (totales.area_total * 10000)
+                : 0;
+
+            // Actualizar vuelta
+            const queryUpdate = `
+                UPDATE vueltas_riego
+                SET agua_total_litros = $1,
+                    area_total_ha = $2,
+                    lamina_promedio_mm = $3,
+                    presion_promedio = $4,
+                    duracion_minutos = $5
+                WHERE id = $6
+            `;
+
+            await pool.query(queryUpdate, [
+                totales.agua_total || 0,
+                totales.area_total || 0,
+                laminaPromedio,
+                totales.presion_promedio,
+                totales.duracion_total || 0,
+                vueltaId
+            ]);
+
+            console.log(`📊 Totales actualizados - Vuelta ${vueltaId}: ${Math.round(totales.agua_total || 0)}L, ${laminaPromedio.toFixed(1)}mm`);
+
+        } catch (error) {
+            console.error('Error actualizando totales de vuelta:', error);
             throw error;
         }
     }
