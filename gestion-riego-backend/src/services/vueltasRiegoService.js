@@ -12,74 +12,89 @@ class VueltasRiegoService {
     /**
      * Inicializa o recupera la vuelta activa de un regador
      */
-    async inicializarVuelta(regadorId, anguloActual, timestamp) {
+    async inicializarVuelta(regadorId, anguloInicio, timestamp) {
         try {
-            // Validar que anguloActual no sea null o undefined
-            if (anguloActual === null || anguloActual === undefined) {
-                console.warn(`⚠️ No se puede inicializar vuelta para regador ${regadorId}: ángulo no disponible`);
-                return null;
+            // ✅ FIX 1: Verificar en memoria primero
+            const vueltaMemoria = this.vueltasActivas.get(regadorId);
+            if (vueltaMemoria) {
+                return vueltaMemoria;
             }
 
-            // Verificar si hay una vuelta activa en memoria
-            if (this.vueltasActivas.has(regadorId)) {
-                return this.vueltasActivas.get(regadorId);
-            }
-
-            // Buscar vuelta activa en la base de datos
-            const queryVuelta = `
+            // ✅ FIX 2: Verificar en BD (evita duplicados)
+            const queryExistente = `
                 SELECT * FROM vueltas_riego
                 WHERE regador_id = $1 AND completada = false
                 ORDER BY fecha_inicio DESC
                 LIMIT 1
             `;
+            const resultExistente = await pool.query(queryExistente, [regadorId]);
             
-            const resultVuelta = await pool.query(queryVuelta, [regadorId]);
-
-            if (resultVuelta.rows.length > 0) {
-                // Recuperar vuelta existente y convertir tipos numéricos
-                const vuelta = resultVuelta.rows[0];
-                // Asegurar que angulo_inicio sea un número JavaScript
-                vuelta.angulo_inicio = parseFloat(vuelta.angulo_inicio);
-                this.vueltasActivas.set(regadorId, vuelta);
-                console.log(`🔄 Vuelta ${vuelta.numero_vuelta} recuperada para regador ${regadorId}`);
-                return vuelta;
+            if (resultExistente.rows.length > 0) {
+                const vueltaExistente = resultExistente.rows[0];
+                vueltaExistente.angulo_inicio = parseFloat(vueltaExistente.angulo_inicio);
+                this.vueltasActivas.set(regadorId, vueltaExistente);
+                console.log(`♻️ Vuelta ${vueltaExistente.numero_vuelta} recuperada para regador ${regadorId}`);
+                return vueltaExistente;
             }
 
-            // Crear nueva vuelta
-            const queryNumeroVuelta = `
-                SELECT COALESCE(MAX(numero_vuelta), 0) + 1 as siguiente_numero
+            // ✅ FIX 3: Crear nueva vuelta
+            const queryUltimaVuelta = `
+                SELECT COALESCE(MAX(numero_vuelta), 0) as ultima_vuelta
                 FROM vueltas_riego
                 WHERE regador_id = $1
             `;
-            
-            const resultNumero = await pool.query(queryNumeroVuelta, [regadorId]);
-            const numeroVuelta = resultNumero.rows[0].siguiente_numero;
+
+            const resultUltima = await pool.query(queryUltimaVuelta, [regadorId]);
+            const numeroVuelta = resultUltima.rows[0].ultima_vuelta + 1;
 
             const queryInsert = `
                 INSERT INTO vueltas_riego (
-                    regador_id, numero_vuelta, fecha_inicio, angulo_inicio, completada
-                ) VALUES ($1, $2, $3, $4, false)
+                    regador_id,
+                    numero_vuelta,
+                    fecha_inicio,
+                    angulo_inicio,
+                    completada,
+                    porcentaje_completado
+                ) VALUES ($1, $2, $3, $4, false, 0)
                 RETURNING *
             `;
 
-            const resultInsert = await pool.query(queryInsert, [
+            const result = await pool.query(queryInsert, [
                 regadorId,
                 numeroVuelta,
                 timestamp,
-                anguloActual
+                anguloInicio
             ]);
 
-            const nuevaVuelta = resultInsert.rows[0];
-            // Asegurar que angulo_inicio sea un número JavaScript
-            nuevaVuelta.angulo_inicio = parseFloat(nuevaVuelta.angulo_inicio);
-            this.vueltasActivas.set(regadorId, nuevaVuelta);
+            const vueltaNueva = result.rows[0];
+            vueltaNueva.angulo_inicio = parseFloat(vueltaNueva.angulo_inicio);
 
-            console.log(`🆕 Nueva vuelta ${numeroVuelta} iniciada para regador ${regadorId} en ángulo ${anguloActual.toFixed(1)}°`);
+            this.vueltasActivas.set(regadorId, vueltaNueva);
 
-            return nuevaVuelta;
+            console.log(`🆕 Nueva vuelta ${numeroVuelta} iniciada para regador ${regadorId} en ángulo ${anguloInicio.toFixed(1)}°`);
+
+            return vueltaNueva;
 
         } catch (error) {
             console.error('Error inicializando vuelta:', error);
+            
+            // ✅ FIX 4: Si falla por duplicado, recuperar la existente
+            if (error.code === '23505') {
+                const queryExistente = `
+                    SELECT * FROM vueltas_riego
+                    WHERE regador_id = $1 AND completada = false
+                    ORDER BY fecha_inicio DESC
+                    LIMIT 1
+                `;
+                const result = await pool.query(queryExistente, [regadorId]);
+                if (result.rows.length > 0) {
+                    const vueltaExistente = result.rows[0];
+                    vueltaExistente.angulo_inicio = parseFloat(vueltaExistente.angulo_inicio);
+                    this.vueltasActivas.set(regadorId, vueltaExistente);
+                    return vueltaExistente;
+                }
+            }
+            
             throw error;
         }
     }
@@ -158,22 +173,28 @@ class VueltasRiegoService {
                 await this.completarVuelta(regadorId, anguloActual, timestamp, verificacion);
                 
                 // Iniciar nueva vuelta automáticamente
-                await this.inicializarVuelta(regadorId, anguloActual, timestamp);
+                const nuevaVuelta = await this.inicializarVuelta(regadorId, anguloActual, timestamp);
                 
-                console.log(`🔄 Nueva vuelta iniciada automáticamente para regador ${regadorId}`);
+                console.log(`🔄 Nueva vuelta ${nuevaVuelta.numero_vuelta} iniciada automáticamente`);
                 
-                return { completada: true, vuelta: vueltaActiva, nuevaVueltaIniciada: true };
+                return { 
+                    completada: true, 
+                    vuelta: vueltaActiva, 
+                    progreso: 100  // ✅ FIX: Agregar progreso
+                };
             }
 
-            // Actualizar porcentaje de avance
             if (verificacion.porcentajeCompletado > 0) {
-                await this.actualizarProgresoVuelta(
-                    vueltaActiva.id,
-                    verificacion.porcentajeCompletado
-                );
-            }
+            await this.actualizarProgresoVuelta(
+                vueltaActiva.id,
+                verificacion.porcentajeCompletado
+            );
+        }
 
-            return { completada: false, progreso: verificacion.porcentajeCompletado };
+        return { 
+            completada: false, 
+            progreso: verificacion.porcentajeCompletado || 0  // ✅ FIX: Usar progreso
+        };
 
         } catch (error) {
             console.error('Error verificando completar vuelta:', error);

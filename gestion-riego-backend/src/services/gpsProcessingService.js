@@ -188,37 +188,42 @@ class GPSProcessingService {
                 );
             }
 
-            // ========== INICIO: GESTIÃ“N DE VUELTAS ==========
+            // ========== INICIO: GESTIÓN DE VUELTAS ==========
             let vueltaActual = null;
-            if (regador.latitud_centro && regador.longitud_centro && estado.regando) {
-                // Inicializar o recuperar vuelta activa
-                vueltaActual = await vueltasService.inicializarVuelta(
-                    regador.id,
-                    angulo,
-                    timestamp
-                );
-
-                // Verificar si completÃ³ la vuelta
-                const verificacion = await vueltasService.verificarCompletarVuelta(
-                    regador.id,
-                    angulo,
-                    timestamp
-                );
-
-                console.log(`🔄 Verificación vuelta - Regador ${regador.id}: ${verificacion.progreso}% completado`);
-
-                if (verificacion.completada) {
-                    console.log(`🎉 Vuelta completada! Iniciando nueva vuelta...`);
-                    
-                    // Iniciar nueva vuelta automáticamente
-                    await vueltasService.inicializarVuelta(
+            try {
+                if (regador.latitud_centro && regador.longitud_centro && estado.regando) {
+                    // Inicializar o recuperar vuelta activa
+                    vueltaActual = await vueltasService.inicializarVuelta(
                         regador.id,
                         angulo,
                         timestamp
                     );
+
+                    // Verificar si completó la vuelta
+                    const verificacion = await vueltasService.verificarCompletarVuelta(
+                        regador.id,
+                        angulo,
+                        timestamp
+                    );
+
+                    // ✅ FIX: Validar que progreso existe y es un número
+                    const progreso = (verificacion && typeof verificacion.progreso === 'number') 
+                        ? verificacion.progreso.toFixed(1) 
+                        : '0.0';
+
+                    console.log(`🔄 Verificación vuelta - Regador ${regador.id}: ${progreso}% completado`);
+
+                    // ✅ FIX: Solo completar si progreso >= 95%
+                    if (verificacion && verificacion.completada && verificacion.progreso >= 95) {
+                        console.log(`🎉 Vuelta completada! Progreso: ${verificacion.progreso.toFixed(1)}%`);
+                        
+                        // NO iniciar nueva vuelta aquí, se hace en completarVuelta
+                    }
                 }
+            } catch (errorVueltas) {
+                console.error('⚠️ Error en gestión de vueltas:', errorVueltas.message);
             }
-            // ========== FIN: GESTIÃ“N DE VUELTAS ==========
+            // ========== FIN: GESTIÓN DE VUELTAS ==========
 
             // Verificar si debe guardar (cada 10-30 min dependiendo del estado o cambio de estado)
             const debeGuardar = this.debeGuardarPosicion(regador.id, timestamp, estado) ||
