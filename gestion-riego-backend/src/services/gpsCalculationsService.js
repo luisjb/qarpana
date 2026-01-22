@@ -166,24 +166,34 @@ class GPSCalculationsService {
 
         // Si es 'auto', detectar el sentido basÃ¡ndose en el avance
         if (sentidoGiro === 'auto') {
-            const avanceHorario = anguloInicio - anguloActual;
-            const avanceAntihorario = anguloActual - anguloInicio;
+        const avanceHorario = anguloInicio - anguloActual;
+        const avanceAntihorario = anguloActual - anguloInicio;
 
-            const avanceHorarioNormalizado = avanceHorario < 0 ? avanceHorario + 360 : avanceHorario;
-            const avanceAntihorarioNormalizado = avanceAntihorario < 0 ? avanceAntihorario + 360 : avanceAntihorario;
+        const avanceHorarioNormalizado = avanceHorario < 0 ? avanceHorario + 360 : avanceHorario;
+        const avanceAntihorarioNormalizado = avanceAntihorario < 0 ? avanceAntihorario + 360 : avanceAntihorario;
 
-            const UMBRAL_MINIMO_AVANCE = 10;
-                
-            if (avanceHorarioNormalizado < avanceAntihorarioNormalizado && 
-                avanceHorarioNormalizado > UMBRAL_MINIMO_AVANCE &&
-                avanceHorarioNormalizado < 180) {
-                avance = avanceHorarioNormalizado;
-                sentidoDetectado = 'horario';
-            } else {
-                avance = avanceAntihorarioNormalizado;
-                sentidoDetectado = 'antihorario';
-            }
+        // ✅ MEJORADO: Solo considerar como avance válido si > 30° (evita movimientos pequeños)
+        const UMBRAL_MINIMO = 30;  // 30° mínimo para considerar que está girando
+        
+        // Si horario es muy pequeño (< 30°), probablemente es ruido
+        if (avanceHorarioNormalizado < UMBRAL_MINIMO) {
+            avance = avanceAntihorarioNormalizado;
+            sentidoDetectado = 'antihorario';
         }
+        // Si antihorario es muy pequeño (< 30°), probablemente es ruido
+        else if (avanceAntihorarioNormalizado < UMBRAL_MINIMO) {
+            avance = avanceHorarioNormalizado;
+            sentidoDetectado = 'horario';
+        }
+        // Si ambos > 30°, usar el menor (el que tiene más sentido)
+        else if (avanceHorarioNormalizado < avanceAntihorarioNormalizado && avanceHorarioNormalizado < 180) {
+            avance = avanceHorarioNormalizado;
+            sentidoDetectado = 'horario';
+        } else {
+            avance = avanceAntihorarioNormalizado;
+            sentidoDetectado = 'antihorario';
+        }
+    }
 
         // Ãngulo requerido para completar (360Â° - margen)
         // Por ejemplo: 360Â° - 36Â° = 324Â° (90% de la vuelta)

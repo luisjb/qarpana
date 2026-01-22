@@ -886,3 +886,11 @@ COMMENT ON TABLE vueltas_riego IS 'Registra cada vuelta completa del regador';
 COMMENT ON TABLE sectores_por_vuelta IS 'Registra el paso del regador por cada sector en cada vuelta';
 COMMENT ON COLUMN vueltas_riego.completada_con_margen IS 'TRUE si se consideró completa por el margen de seguridad del 10%';
 COMMENT ON COLUMN vueltas_riego.porcentaje_completado IS 'Porcentaje real de la vuelta completada (puede ser > 100% si dio varias vueltas)';
+
+-- Ejecutar esta migración SQL:
+ALTER TABLE vueltas_riego 
+ADD COLUMN IF NOT EXISTS historial_angulos JSONB DEFAULT '[]'::jsonb;
+
+-- Crear índice para búsquedas rápidas
+CREATE INDEX IF NOT EXISTS idx_vueltas_historial 
+ON vueltas_riego USING gin(historial_angulos);

@@ -145,31 +145,55 @@ class VueltasRiegoService {
             const vueltaActiva = this.vueltasActivas.get(regadorId);
             
             if (!vueltaActiva) {
-                return { completada: false };
+                return { completada: false, progreso: 0 };
             }
 
             // Validar que los ángulos sean válidos
             if (vueltaActiva.angulo_inicio === null || vueltaActiva.angulo_inicio === undefined) {
                 console.warn(`⚠️ Vuelta activa sin ángulo de inicio para regador ${regadorId}`);
-                return { completada: false };
+                return { completada: false, progreso: 0 };
             }
 
             if (anguloActual === null || anguloActual === undefined) {
                 console.warn(`⚠️ Ángulo actual no disponible para regador ${regadorId}`);
-                return { completada: false };
+                return { completada: false, progreso: 0 };
             }
 
-            // Verificar si completó la vuelta con margen de seguridad
+            // ✅ NUEVO: Mantener historial de últimos 10 ángulos
+            if (!vueltaActiva.historial_angulos) {
+                vueltaActiva.historial_angulos = [];
+            }
+            
+            vueltaActiva.historial_angulos.push({
+                angulo: anguloActual,
+                timestamp: timestamp
+            });
+            
+            // Mantener solo últimos 10 puntos
+            if (vueltaActiva.historial_angulos.length > 10) {
+                vueltaActiva.historial_angulos = vueltaActiva.historial_angulos.slice(-10);
+            }
+
+            // ✅ NUEVO: Detectar sentido de giro real basado en historial
+            let sentidoGiro = 'auto';
+            
+            if (vueltaActiva.historial_angulos.length >= 3) {
+                sentidoGiro = this.detectarSentidoReal(vueltaActiva.historial_angulos);
+                console.log(`🔄 Sentido detectado para regador ${regadorId}: ${sentidoGiro}`);
+            }
+
+            // Verificar si completó la vuelta
             const verificacion = gpsCalc.verificarVueltaCompletada(
                 vueltaActiva.angulo_inicio,
                 anguloActual,
-                'auto',    // ✅ Detectar sentido automáticamente
-                5,        // ✅ Margen 10% (requiere 324°)
-                95         // ✅ Mínimo 180° de avance
+                sentidoGiro,  // ✅ Usar sentido detectado del historial
+                2,            // Margen 2% (requiere 352.8°)
+                98            // Mínimo 98% (debe avanzar al menos 352.8°)
             );
 
-            if (verificacion.completada) {
-                 // Completar la vuelta
+            // ✅ IMPORTANTE: Solo completar si realmente avanzó lo suficiente
+            if (verificacion.completada && verificacion.avanceGrados >= 350) {
+                // Completar la vuelta
                 await this.completarVuelta(regadorId, anguloActual, timestamp, verificacion);
                 
                 // Iniciar nueva vuelta automáticamente
@@ -179,26 +203,89 @@ class VueltasRiegoService {
                 
                 return { 
                     completada: true, 
-                    vuelta: vueltaActiva, 
-                    progreso: 100  // ✅ FIX: Agregar progreso
+                    vuelta: nuevaVuelta,
+                    progreso: 100,
+                    porcentajeCompletado: 100
                 };
             }
 
+            // Actualizar porcentaje de avance
             if (verificacion.porcentajeCompletado > 0) {
-            await this.actualizarProgresoVuelta(
-                vueltaActiva.id,
-                verificacion.porcentajeCompletado
-            );
-        }
+                await this.actualizarProgresoVuelta(
+                    vueltaActiva.id,
+                    verificacion.porcentajeCompletado
+                );
+            }
 
-        return { 
-            completada: false, 
-            progreso: verificacion.porcentajeCompletado || 0  // ✅ FIX: Usar progreso
-        };
+            return { 
+                completada: false, 
+                progreso: verificacion.porcentajeCompletado || 0,
+                porcentajeCompletado: verificacion.porcentajeCompletado || 0
+            };
 
         } catch (error) {
             console.error('Error verificando completar vuelta:', error);
             throw error;
+        }
+    }
+
+    
+    /**
+     * Detecta el sentido de giro real basándose en el historial de ángulos
+     * @param {Array} historial - Array de {angulo, timestamp}
+     * @returns {string} - 'horario', 'antihorario', o 'auto'
+     */
+    detectarSentidoReal(historial) {
+        if (historial.length < 3) {
+            return 'auto';
+        }
+
+        let movimientosHorario = 0;
+        let movimientosAntihorario = 0;
+        let movimientosTotales = 0;
+
+        // Analizar los últimos N movimientos
+        for (let i = 1; i < historial.length; i++) {
+            const anguloAnterior = historial[i - 1].angulo;
+            const anguloActual = historial[i].angulo;
+            
+            // Calcular diferencia angular
+            let diff = anguloActual - anguloAnterior;
+            
+            // Normalizar a -180 a +180
+            if (diff > 180) {
+                diff -= 360;
+            } else if (diff < -180) {
+                diff += 360;
+            }
+            
+            // Solo contar movimientos significativos (> 0.5°)
+            if (Math.abs(diff) > 0.5) {
+                movimientosTotales++;
+                
+                if (diff > 0) {
+                    movimientosAntihorario++;  // Ángulo aumenta
+                } else {
+                    movimientosHorario++;  // Ángulo disminuye
+                }
+            }
+        }
+
+        // Decidir el sentido predominante
+        if (movimientosTotales === 0) {
+            return 'auto';  // No hay movimiento suficiente
+        }
+
+        const porcentajeAntihorario = (movimientosAntihorario / movimientosTotales) * 100;
+        const porcentajeHorario = (movimientosHorario / movimientosTotales) * 100;
+
+        // Requiere al menos 70% de consistencia para decidir
+        if (porcentajeAntihorario >= 70) {
+            return 'antihorario';
+        } else if (porcentajeHorario >= 70) {
+            return 'horario';
+        } else {
+            return 'auto';  // Movimiento inconsistente
         }
     }
 
