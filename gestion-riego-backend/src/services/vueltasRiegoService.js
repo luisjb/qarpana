@@ -191,8 +191,28 @@ class VueltasRiegoService {
                 98            // Mínimo 98% (debe avanzar al menos 352.8°)
             );
 
-            // ✅ IMPORTANTE: Solo completar si realmente avanzó lo suficiente
-            if (verificacion.completada && verificacion.avanceGrados >= 350) {
+            if (verificacion.completada) {
+                // ✅ VALIDACIÓN CRÍTICA: Verificar tiempo transcurrido
+                const tiempoTranscurridoMs = new Date(timestamp) - new Date(vueltaActiva.fecha_inicio);
+                const horasTranscurridas = tiempoTranscurridoMs / (1000 * 60 * 60);
+                
+                // ⏰ REGLA SIMPLE: Una vuelta NO puede durar menos de 12 horas
+                const MINIMO_HORAS_POR_VUELTA = 12;
+                
+                if (horasTranscurridas < MINIMO_HORAS_POR_VUELTA) {
+                    console.log(`⏳ Vuelta ${vueltaActiva.numero_vuelta} de regador ${regadorId}: Solo ${horasTranscurridas.toFixed(1)}h transcurridas (mínimo: ${MINIMO_HORAS_POR_VUELTA}h) - NO completar aún`);
+                    
+                    // No completar todavía, retornar como si estuviera al 95%
+                    return { 
+                        completada: false, 
+                        progreso: 95,
+                        porcentajeCompletado: 95
+                    };
+                }
+                
+                // ✅ Si pasaron más de 12 horas, SÍ completar
+                console.log(`✅ Vuelta ${vueltaActiva.numero_vuelta} de regador ${regadorId}: ${horasTranscurridas.toFixed(1)}h transcurridas - Completando`);
+                
                 // Completar la vuelta
                 await this.completarVuelta(regadorId, anguloActual, timestamp, verificacion);
                 

@@ -1,0 +1,161 @@
+-- ============================================================================
+-- LIMPIEZA ROBUSTA DE VUELTAS - Maneja duplicados
+-- ============================================================================
+
+-- Primero: ROLLBACK de la transacción anterior que falló
+ROLLBACK;
+
+-- Comenzar nueva transacción
+BEGIN;
+
+-- ==========================================================================
+-- PASO 1: Ver el estado actual (cuántas vueltas tiene cada regador)
+-- ==========================================================================
+SELECT 
+    r.nombre_dispositivo,
+    COUNT(*) as total_vueltas,
+    COUNT(*) FILTER (WHERE vr.completada = false) as vueltas_activas,
+    MIN(vr.numero_vuelta) as primera_vuelta,
+    MAX(vr.numero_vuelta) as ultima_vuelta
+FROM regadores r
+LEFT JOIN vueltas_riego vr ON r.id = vr.regador_id
+WHERE r.activo = true
+GROUP BY r.id, r.nombre_dispositivo
+ORDER BY total_vueltas DESC
+LIMIT 20;
+
+
+-- ==========================================================================
+-- PASO 2: Eliminar sectores de vueltas que vamos a borrar
+-- ==========================================================================
+DELETE FROM sectores_por_vuelta
+WHERE vuelta_id IN (
+    -- Todas las vueltas EXCEPTO la última activa de cada regador
+    SELECT vr.id
+    FROM vueltas_riego vr
+    WHERE vr.id NOT IN (
+        -- Mantener solo la última vuelta activa de cada regador
+        SELECT DISTINCT ON (regador_id) id
+        FROM vueltas_riego
+        WHERE completada = false
+        ORDER BY regador_id, fecha_inicio DESC
+    )
+);
+
+
+-- ==========================================================================
+-- PASO 3: Eliminar todas las vueltas EXCEPTO la última activa
+-- ==========================================================================
+DELETE FROM vueltas_riego
+WHERE id NOT IN (
+    -- Mantener solo la última vuelta activa de cada regador
+    SELECT DISTINCT ON (regador_id) id
+    FROM vueltas_riego
+    WHERE completada = false
+    ORDER BY regador_id, fecha_inicio DESC
+);
+
+
+-- ==========================================================================
+-- PASO 4: Resetear las vueltas que quedaron a número 1
+-- ==========================================================================
+UPDATE vueltas_riego
+SET numero_vuelta = 1,
+    porcentaje_completado = 0,
+    agua_total_litros = 0,
+    lamina_promedio_mm = 0,
+    area_total_ha = 0,
+    fecha_inicio = NOW() - INTERVAL '1 hour'
+WHERE completada = false;
+
+
+-- ==========================================================================
+-- PASO 5: Resetear estados de sectores
+-- ==========================================================================
+UPDATE estado_sectores_riego
+SET estado = 'pendiente',
+    progreso_porcentaje = 0,
+    fecha_inicio_real = NULL,
+    fecha_fin_real = NULL,
+    agua_aplicada_litros = NULL,
+    ultima_actualizacion = CURRENT_TIMESTAMP;
+
+
+-- ==========================================================================
+-- PASO 6: Verificar resultado
+-- ==========================================================================
+SELECT 
+    r.nombre_dispositivo,
+    COUNT(*) as vueltas_total,
+    COUNT(*) FILTER (WHERE vr.completada = false) as vueltas_activas,
+    COUNT(*) FILTER (WHERE vr.completada = true) as vueltas_completadas,
+    STRING_AGG(vr.numero_vuelta::text, ', ' ORDER BY vr.numero_vuelta) as numeros_vuelta
+FROM regadores r
+LEFT JOIN vueltas_riego vr ON r.id = vr.regador_id
+WHERE r.activo = true
+GROUP BY r.id, r.nombre_dispositivo
+ORDER BY vueltas_total DESC;
+
+
+-- ==========================================================================
+-- PASO 7: Ver que cada regador tenga SOLO 1 vuelta activa (vuelta 1)
+-- ==========================================================================
+SELECT 
+    r.nombre_dispositivo,
+    vr.numero_vuelta,
+    vr.completada,
+    to_char(vr.fecha_inicio, 'DD/MM HH24:MI') as inicio,
+    vr.porcentaje_completado
+FROM regadores r
+LEFT JOIN vueltas_riego vr ON r.id = vr.regador_id
+WHERE r.activo = true AND vr.completada = false
+ORDER BY r.nombre_dispositivo;
+
+
+-- ==========================================================================
+-- PASO 8: CONFIRMAR O CANCELAR
+-- ==========================================================================
+
+-- Si todo se ve bien (cada regador tiene 1 vuelta activa = vuelta 1):
+COMMIT;
+
+-- Si algo salió mal:
+-- ROLLBACK;
+
+
+-- ==========================================================================
+-- POST-LIMPIEZA: Reiniciar el servidor
+-- ==========================================================================
+-- 
+-- ⚠️ IMPORTANTE: Después de hacer COMMIT, reinicia el servidor:
+--
+-- docker-compose restart backend
+-- # o
+-- pm2 restart backend
+--
+-- Esto limpia la caché en memoria de vueltas activas
+--
+-- ==========================================================================
+
+
+-- ==========================================================================
+-- MONITOREO POST-LIMPIEZA
+-- ==========================================================================
+
+-- Monitor cada 30 minutos durante las próximas 4-6 horas:
+/*
+SELECT 
+    r.nombre_dispositivo,
+    COUNT(*) as total_vueltas,
+    MAX(vr.numero_vuelta) as ultima_vuelta,
+    to_char(MAX(vr.fecha_inicio), 'DD/MM HH24:MI') as ultima_creacion
+FROM regadores r
+LEFT JOIN vueltas_riego vr ON r.id = vr.regador_id
+WHERE r.activo = true
+GROUP BY r.id, r.nombre_dispositivo
+ORDER BY total_vueltas DESC;
+*/
+
+-- Si ves que vuelve a crecer (ej: total_vueltas = 5, 10, 20...):
+-- → Los fixes de código NO se aplicaron correctamente
+-- → Vuelve a aplicar los fixes y reinicia el servidor
