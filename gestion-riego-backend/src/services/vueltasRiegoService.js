@@ -692,22 +692,45 @@ class VueltasRiegoService {
             // Obtener totales de sectores completados
             const queryTotales = `
                 SELECT 
-                    COUNT(*) FILTER (WHERE completado = true) as sectores_completados,
-                    SUM(agua_aplicada_litros) FILTER (WHERE completado = true) as agua_total,
-                    SUM(area_sector_ha) FILTER (WHERE completado = true) as area_total,
-                    AVG(presion_promedio) FILTER (WHERE completado = true AND presion_promedio IS NOT NULL) as presion_promedio,
-                    SUM(duracion_minutos) FILTER (WHERE completado = true) as duracion_total
-                FROM sectores_por_vuelta
-                WHERE vuelta_id = $1
+                    COUNT(*) FILTER (WHERE spv.completado = true) as sectores_completados,
+                    SUM(spv.agua_aplicada_litros) FILTER (WHERE spv.completado = true) as agua_total,
+                    SUM(spv.duracion_minutos) FILTER (WHERE spv.completado = true) as duracion_total,
+                    AVG(spv.presion_promedio) FILTER (WHERE spv.completado = true AND spv.presion_promedio IS NOT NULL) as presion_promedio,
+                    -- ✅ Calcular área REAL del sector basada en ángulos
+                    SUM(
+                        CASE 
+                            WHEN spv.completado = true AND gp.angulo_inicio IS NOT NULL AND gp.angulo_fin IS NOT NULL
+                            THEN (
+                                -- Ángulo del sector en grados
+                                CASE 
+                                    WHEN gp.angulo_fin >= gp.angulo_inicio 
+                                    THEN (gp.angulo_fin - gp.angulo_inicio)
+                                    ELSE ((gp.angulo_fin + 360) - gp.angulo_inicio)
+                                END 
+                                / 360.0  -- Fracción del círculo
+                                * 3.14159265359 * POWER(r.radio_cobertura, 2) / 10000  -- Área en hectáreas
+                            )
+                            ELSE 0
+                        END
+                    ) as area_total_calculada
+                FROM sectores_por_vuelta spv
+                JOIN geozonas_pivote gp ON spv.geozona_id = gp.id
+                JOIN regadores r ON gp.regador_id = r.id
+                WHERE spv.vuelta_id = $1
             `;
 
             const result = await pool.query(queryTotales, [vueltaId]);
             const totales = result.rows[0];
 
-            // Calcular lámina promedio
-            const laminaPromedio = (totales.area_total > 0 && totales.agua_total > 0)
-                ? totales.agua_total / (totales.area_total * 10000)
-                : 0;
+            // ✅ Calcular lámina promedio con área real
+            // Fórmula: Lámina (mm) = Agua (L) / Área (m²)
+            // Área en m² = area_total_calculada (ha) * 10,000
+            let laminaPromedio = 0;
+            
+            if (totales.area_total_calculada > 0 && totales.agua_total > 0) {
+                const areaM2 = totales.area_total_calculada * 10000;
+                laminaPromedio = totales.agua_total / areaM2;
+            }
 
             // Actualizar vuelta
             const queryUpdate = `
@@ -722,14 +745,14 @@ class VueltasRiegoService {
 
             await pool.query(queryUpdate, [
                 totales.agua_total || 0,
-                totales.area_total || 0,
+                totales.area_total_calculada || 0,
                 laminaPromedio,
                 totales.presion_promedio,
                 totales.duracion_total || 0,
                 vueltaId
             ]);
 
-            console.log(`📊 Totales actualizados - Vuelta ${vueltaId}: ${Math.round(totales.agua_total || 0)}L, ${laminaPromedio.toFixed(1)}mm`);
+            console.log(`📊 Totales actualizados - Vuelta ${vueltaId}: ${Math.round(totales.agua_total || 0)}L, Área: ${(totales.area_total_calculada || 0).toFixed(2)}ha, Lámina: ${laminaPromedio.toFixed(1)}mm`);
 
         } catch (error) {
             console.error('Error actualizando totales de vuelta:', error);
