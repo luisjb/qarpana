@@ -216,10 +216,10 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                 // ACTUALIZAR sector existente (conserva ID y datos históricos)
                 const result = await client.query(
                     `UPDATE geozonas_pivote 
-                     SET nombre_sector = $1,
-                         angulo_inicio = $2,
-                         angulo_fin = $3,
-                         radio_interno = $4,
+                     SET nombre_sector = $1, 
+                         angulo_inicio = $2, 
+                         angulo_fin = $3, 
+                         radio_interno = $4, 
                          radio_externo = $5,
                          activo = $6,
                          color_display = $7,
@@ -331,7 +331,65 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// Eliminar configuración de geozonas
+// ⭐ NUEVO: Eliminar una geozona individual
+router.delete('/geozona/:geozonaId', verifyToken, isAdmin, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const { geozonaId } = req.params;
+
+        // Verificar que la geozona existe
+        const geozonaQuery = await client.query(
+            'SELECT * FROM geozonas_pivote WHERE id = $1',
+            [geozonaId]
+        );
+
+        if (geozonaQuery.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Geozona no encontrada' });
+        }
+
+        const geozona = geozonaQuery.rows[0];
+
+        // Eliminar estado del sector primero
+        await client.query(
+            'DELETE FROM estado_sectores_riego WHERE geozona_id = $1',
+            [geozonaId]
+        );
+
+        // Eliminar la geozona
+        await client.query(
+            'DELETE FROM geozonas_pivote WHERE id = $1',
+            [geozonaId]
+        );
+
+        await client.query('COMMIT');
+
+        console.log(`🗑️ Geozona eliminada - ID: ${geozonaId}, Nombre: ${geozona.nombre_sector}`);
+
+        res.json({
+            message: 'Geozona eliminada con éxito',
+            deleted: {
+                id: geozonaId,
+                nombre_sector: geozona.nombre_sector,
+                numero_sector: geozona.numero_sector
+            }
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Error al eliminar geozona:', err);
+        res.status(500).json({
+            error: 'Error del servidor',
+            details: err.message
+        });
+    } finally {
+        client.release();
+    }
+});
+
+// Eliminar configuración de geozonas (todas las geozonas de un lote y regador)
 router.delete('/lote/:loteId/regador/:regadorId', verifyToken, isAdmin, async (req, res) => {
     const client = await pool.connect();
     try {

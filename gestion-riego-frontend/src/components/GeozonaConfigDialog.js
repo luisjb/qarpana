@@ -372,26 +372,64 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
         setEditingSector(null);
     };
 
-    const handleDeleteSector = (index) => {
+    const handleDeleteSector = async (index) => {
         if (sectores.length <= 1) {
             alert('Debe haber al menos un sector');
             return;
         }
+
+        const sectorAEliminar = sectores[index];
+        
+        // Confirmar eliminación
+        const confirmacion = window.confirm(
+            `¿Estás seguro de eliminar el sector "${sectorAEliminar.nombre_sector}"?\n\n` +
+            (sectorAEliminar.id ? 'Esta geozona será eliminada permanentemente de la base de datos.' : 'Esta geozona solo existe en esta sesión y no se ha guardado aún.')
+        );
+
+        if (!confirmacion) {
+            return;
+        }
+
+        // Si el sector tiene ID, significa que ya existe en la base de datos
+        if (sectorAEliminar.id) {
+            try {
+                await axios.delete(`/geozonas-pivote/geozona/${sectorAEliminar.id}`);
+                console.log(`✅ Geozona eliminada del backend: ${sectorAEliminar.nombre_sector}`);
+            } catch (error) {
+                console.error('Error al eliminar geozona del backend:', error);
+                alert('Error al eliminar la geozona: ' + (error.response?.data?.error || error.message));
+                return; // No continuar si falla la eliminación en el backend
+            }
+        }
+
+        // Eliminar del estado local
         const nuevosSectores = sectores.filter((_, i) => i !== index);
-        // Reordenar números de sector
-        const sectoresReordenados = nuevosSectores.map((sector, newIndex) => ({
-            ...sector,
-            numero_sector: newIndex + 1,
-            nombre_sector: `Sector ${newIndex + 1}`
-        }));
-        setSectores(sectoresReordenados);
+        
+        // NO reordenar números de sector si tienen IDs (son geozonas existentes)
+        // Solo reordenar si son nuevos sectores sin guardar
+        const hayGeozonasSinGuardar = sectores.some(s => !s.id);
+        
+        let sectoresActualizados;
+        if (hayGeozonasSinGuardar) {
+            // Si hay sectores sin guardar, mantener los números originales
+            sectoresActualizados = nuevosSectores;
+        } else {
+            // Si todos los sectores están guardados, mantener números originales
+            sectoresActualizados = nuevosSectores;
+        }
+        
+        setSectores(sectoresActualizados);
         
         if (selectedSector === index) {
             setSelectedSector(null);
         } else if (selectedSector > index) {
             setSelectedSector(selectedSector - 1);
         }
+
+        // Notificar éxito
+        console.log(`🗑️ Sector eliminado: ${sectorAEliminar.nombre_sector}`);
     };
+;
 
     const handleAddSector = () => {
         const ultimoSector = sectores[sectores.length - 1];
