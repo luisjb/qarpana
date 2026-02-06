@@ -34,6 +34,7 @@ function RegadoresManagement({ open, onClose, campo }) {
         try {
             setLoading(true);
             const response = await axios.get(`/regadores/campo/${campo.id}`);
+            console.log('📊 Regadores obtenidos:', response.data); // DEBUG
             setRegadores(response.data);
         } catch (error) {
             console.error('Error al obtener regadores:', error);
@@ -75,13 +76,15 @@ function RegadoresManagement({ open, onClose, campo }) {
     };
 
     const handleDeleteAllGeozonas = async (regador) => {
+        console.log('🗑️ Intentando eliminar geozonas del regador:', regador); // DEBUG
+        
         const confirmacion = window.confirm(
             `⚠️ ELIMINAR TODAS LAS GEOZONAS DEL REGADOR\n\n` +
             `Regador: ${regador.nombre_dispositivo}\n` +
-            `Sectores configurados: ${regador.total_sectores}\n\n` +
+            `Sectores configurados: ${regador.total_sectores || 0}\n\n` +
             `Esta acción eliminará:\n` +
             `• TODAS las geozonas de TODOS los lotes\n` +
-            `• Todos los sectores configurados (${regador.total_sectores})\n` +
+            `• Todos los sectores configurados\n` +
             `• Todo el historial de estados de riego\n\n` +
             `Motivos comunes para esta acción:\n` +
             `• El centro del pivote está mal configurado\n` +
@@ -98,7 +101,7 @@ function RegadoresManagement({ open, onClose, campo }) {
         // Segunda confirmación para seguridad adicional
         const confirmacionFinal = window.confirm(
             `🔴 CONFIRMACIÓN FINAL 🔴\n\n` +
-            `Vas a eliminar ${regador.total_sectores} sectores de "${regador.nombre_dispositivo}".\n\n` +
+            `Vas a eliminar todas las geozonas de "${regador.nombre_dispositivo}".\n\n` +
             `¿Confirmas que deseas eliminar TODAS las geozonas?`
         );
 
@@ -111,13 +114,13 @@ function RegadoresManagement({ open, onClose, campo }) {
             const response = await axios.delete(`/geozonas-pivote/regador/${regador.id}/all`);
             
             console.log(`✅ Todas las geozonas eliminadas - Regador: ${regador.nombre_dispositivo}`);
-            console.log(`📊 Sectores eliminados: ${response.data.sectores_eliminados || regador.total_sectores}`);
+            console.log(`📊 Sectores eliminados:`, response.data);
             
             // Mostrar mensaje de éxito
             alert(
                 `✅ Geozonas eliminadas exitosamente\n\n` +
                 `Regador: ${regador.nombre_dispositivo}\n` +
-                `Sectores eliminados: ${response.data.sectores_eliminados || regador.total_sectores}\n\n` +
+                `Sectores eliminados: ${response.data.sectores_eliminados || 0}\n\n` +
                 `Ahora puedes reconfigurar las geozonas correctamente.`
             );
             
@@ -188,6 +191,18 @@ function RegadoresManagement({ open, onClose, campo }) {
         return 'Parcialmente configurado';
     };
 
+    // Función para verificar si el regador tiene geozonas
+    const tieneGeozonas = (regador) => {
+        const tiene = (regador.total_sectores && regador.total_sectores > 0) || 
+                     (regador.latitud_centro && regador.longitud_centro);
+        console.log(`🔍 Regador ${regador.nombre_dispositivo} tiene geozonas:`, tiene, {
+            total_sectores: regador.total_sectores,
+            latitud_centro: regador.latitud_centro,
+            longitud_centro: regador.longitud_centro
+        }); // DEBUG
+        return tiene;
+    };
+
     if (!campo) return null;
 
     return (
@@ -256,7 +271,7 @@ function RegadoresManagement({ open, onClose, campo }) {
                                     />
                                     <CardContent>
                                         <Typography variant="body2" color="textSecondary" gutterBottom>
-                                            Sectores configurados: {regador.sectores_activos}/{regador.total_sectores}
+                                            Sectores configurados: {regador.sectores_activos || 0}/{regador.total_sectores || 0}
                                         </Typography>
 
                                         {regador.caudal && (
@@ -271,8 +286,18 @@ function RegadoresManagement({ open, onClose, campo }) {
                                             </Typography>
                                         )}
 
+                                        {/* DEBUG INFO */}
+                                        <Box sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                                            <Typography variant="caption" display="block">
+                                                DEBUG - total_sectores: {regador.total_sectores || 'null/undefined'}
+                                            </Typography>
+                                            <Typography variant="caption" display="block">
+                                                DEBUG - tiene coordenadas: {regador.latitud_centro ? 'Sí' : 'No'}
+                                            </Typography>
+                                        </Box>
+
                                         {/* Botón para eliminar TODAS las geozonas del regador */}
-                                        {regador.total_sectores > 0 && (
+                                        {tieneGeozonas(regador) && (
                                             <Box sx={{ mt: 2, mb: 2 }}>
                                                 <Alert severity="warning" sx={{ mb: 1 }}>
                                                     <Typography variant="caption">
@@ -287,7 +312,7 @@ function RegadoresManagement({ open, onClose, campo }) {
                                                     onClick={() => handleDeleteAllGeozonas(regador)}
                                                     size="small"
                                                 >
-                                                    Eliminar TODAS las geozonas ({regador.total_sectores} sectores)
+                                                    Eliminar TODAS las geozonas ({regador.total_sectores || 0} sectores)
                                                 </Button>
                                             </Box>
                                         )}
