@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
     Add, Edit, Delete, Settings, Visibility, Agriculture,
-    GpsFixed, PlayArrow, Pause, CheckCircle, Warning, DeleteSweep
+    GpsFixed, PlayArrow, Pause, CheckCircle, Warning, DeleteOutline
 } from '@mui/icons-material';
 import RegadorConfigDialog from './RegadorConfigDialog';
 import GeozonaConfigDialog from './GeozonaConfigDialog';
@@ -22,6 +22,7 @@ function RegadoresManagement({ open, onClose, campo }) {
     const [selectedLote, setSelectedLote] = useState(null);
     const [regadorEdit, setRegadorEdit] = useState(null);
     const [lotes, setLotes] = useState([]);
+    const [geozonasPorLote, setGeozonasPorLote] = useState({});
 
     useEffect(() => {
         if (open && campo) {
@@ -34,12 +35,44 @@ function RegadoresManagement({ open, onClose, campo }) {
         try {
             setLoading(true);
             const response = await axios.get(`/regadores/campo/${campo.id}`);
-            console.log('📊 Regadores obtenidos:', response.data); // DEBUG
             setRegadores(response.data);
+            
+            // Para cada regador, obtener información de geozonas por lote
+            for (const regador of response.data) {
+                await fetchGeozonasPorLote(regador.id);
+            }
         } catch (error) {
             console.error('Error al obtener regadores:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchGeozonasPorLote = async (regadorId) => {
+        try {
+            // Obtener todas las geozonas del regador
+            const response = await axios.get(`/geozonas-pivote/regador/${regadorId}`);
+            
+            if (response.data.success && response.data.data) {
+                // Agrupar por lote_id
+                const porLote = {};
+                response.data.data.forEach(geozona => {
+                    if (!porLote[geozona.lote_id]) {
+                        porLote[geozona.lote_id] = {
+                            count: 0,
+                            lote_nombre: geozona.nombre_lote
+                        };
+                    }
+                    porLote[geozona.lote_id].count++;
+                });
+                
+                setGeozonasPorLote(prev => ({
+                    ...prev,
+                    [regadorId]: porLote
+                }));
+            }
+        } catch (error) {
+            console.error('Error al obtener geozonas por lote:', error);
         }
     };
 
@@ -75,21 +108,22 @@ function RegadoresManagement({ open, onClose, campo }) {
         }
     };
 
-    const handleDeleteAllGeozonas = async (regador) => {
-        console.log('🗑️ Intentando eliminar geozonas del regador:', regador); // DEBUG
+    const handleDeleteGeozonas = async (regador, lote) => {
+        const geozonaInfo = geozonasPorLote[regador.id]?.[lote.id];
+        const sectoresCount = geozonaInfo?.count || 0;
         
         const confirmacion = window.confirm(
-            `⚠️ ELIMINAR TODAS LAS GEOZONAS DEL REGADOR\n\n` +
+            `⚠️ ELIMINAR GEOZONAS DEL LOTE\n\n` +
             `Regador: ${regador.nombre_dispositivo}\n` +
-            `Sectores configurados: ${regador.total_sectores || 0}\n\n` +
+            `Lote: ${lote.nombre_lote}\n` +
+            `Sectores a eliminar: ${sectoresCount}\n\n` +
             `Esta acción eliminará:\n` +
-            `• TODAS las geozonas de TODOS los lotes\n` +
-            `• Todos los sectores configurados\n` +
-            `• Todo el historial de estados de riego\n\n` +
-            `Motivos comunes para esta acción:\n` +
-            `• El centro del pivote está mal configurado\n` +
-            `• Se configuraron geozonas incorrectas\n` +
-            `• Necesitas reconfigurar todo desde cero\n\n` +
+            `• Todos los sectores (${sectoresCount}) configurados para este lote\n` +
+            `• Los estados de riego de estos sectores\n\n` +
+            `Motivos comunes:\n` +
+            `• El centro del pivote está mal ubicado\n` +
+            `• Se configuró el lote incorrecto\n` +
+            `• Las geozonas quedaron mal cargadas\n\n` +
             `⚠️ ESTA ACCIÓN NO SE PUEDE DESHACER ⚠️\n\n` +
             `¿Estás seguro de continuar?`
         );
@@ -98,29 +132,17 @@ function RegadoresManagement({ open, onClose, campo }) {
             return;
         }
 
-        // Segunda confirmación para seguridad adicional
-        const confirmacionFinal = window.confirm(
-            `🔴 CONFIRMACIÓN FINAL 🔴\n\n` +
-            `Vas a eliminar todas las geozonas de "${regador.nombre_dispositivo}".\n\n` +
-            `¿Confirmas que deseas eliminar TODAS las geozonas?`
-        );
-
-        if (!confirmacionFinal) {
-            return;
-        }
-
         try {
-            // Llamar al endpoint para eliminar todas las geozonas del regador
-            const response = await axios.delete(`/geozonas-pivote/regador/${regador.id}/all`);
+            await axios.delete(`/geozonas-pivote/lote/${lote.id}/regador/${regador.id}`);
             
-            console.log(`✅ Todas las geozonas eliminadas - Regador: ${regador.nombre_dispositivo}`);
-            console.log(`📊 Sectores eliminados:`, response.data);
+            console.log(`✅ Geozonas eliminadas - Regador: ${regador.nombre_dispositivo}, Lote: ${lote.nombre_lote}`);
             
             // Mostrar mensaje de éxito
             alert(
                 `✅ Geozonas eliminadas exitosamente\n\n` +
+                `Lote: ${lote.nombre_lote}\n` +
                 `Regador: ${regador.nombre_dispositivo}\n` +
-                `Sectores eliminados: ${response.data.sectores_eliminados || 0}\n\n` +
+                `Sectores eliminados: ${sectoresCount}\n\n` +
                 `Ahora puedes reconfigurar las geozonas correctamente.`
             );
             
@@ -129,11 +151,23 @@ function RegadoresManagement({ open, onClose, campo }) {
             
         } catch (error) {
             console.error('Error al eliminar geozonas:', error);
-            alert(
-                '❌ Error al eliminar geozonas\n\n' +
-                'Detalles: ' + (error.response?.data?.error || error.message) + '\n\n' +
-                'Por favor, intenta nuevamente o contacta al administrador.'
-            );
+            
+            // Mostrar error más amigable
+            const errorMsg = error.response?.data?.error || error.message;
+            if (error.response?.status === 404) {
+                alert(
+                    `ℹ️ No hay geozonas para eliminar\n\n` +
+                    `No se encontraron geozonas configuradas para:\n` +
+                    `Lote: ${lote.nombre_lote}\n` +
+                    `Regador: ${regador.nombre_dispositivo}`
+                );
+            } else {
+                alert(
+                    `❌ Error al eliminar geozonas\n\n` +
+                    `Detalles: ${errorMsg}\n\n` +
+                    `Por favor, intenta nuevamente o contacta al administrador.`
+                );
+            }
         }
     };
 
@@ -191,16 +225,14 @@ function RegadoresManagement({ open, onClose, campo }) {
         return 'Parcialmente configurado';
     };
 
-    // Función para verificar si el regador tiene geozonas
-    const tieneGeozonas = (regador) => {
-        const tiene = (regador.total_sectores && regador.total_sectores > 0) || 
-                     (regador.latitud_centro && regador.longitud_centro);
-        console.log(`🔍 Regador ${regador.nombre_dispositivo} tiene geozonas:`, tiene, {
-            total_sectores: regador.total_sectores,
-            latitud_centro: regador.latitud_centro,
-            longitud_centro: regador.longitud_centro
-        }); // DEBUG
-        return tiene;
+    // Función para verificar si un lote tiene geozonas configuradas
+    const lotetieneGeozonas = (regadorId, loteId) => {
+        return geozonasPorLote[regadorId]?.[loteId]?.count > 0;
+    };
+
+    // Función para obtener el número de sectores de un lote
+    const getSectoresLote = (regadorId, loteId) => {
+        return geozonasPorLote[regadorId]?.[loteId]?.count || 0;
     };
 
     if (!campo) return null;
@@ -271,7 +303,7 @@ function RegadoresManagement({ open, onClose, campo }) {
                                     />
                                     <CardContent>
                                         <Typography variant="body2" color="textSecondary" gutterBottom>
-                                            Sectores configurados: {regador.sectores_activos || 0}/{regador.total_sectores || 0}
+                                            Sectores configurados: {regador.sectores_activos}/{regador.total_sectores}
                                         </Typography>
 
                                         {regador.caudal && (
@@ -286,37 +318,6 @@ function RegadoresManagement({ open, onClose, campo }) {
                                             </Typography>
                                         )}
 
-                                        {/* DEBUG INFO */}
-                                        <Box sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                                            <Typography variant="caption" display="block">
-                                                DEBUG - total_sectores: {regador.total_sectores || 'null/undefined'}
-                                            </Typography>
-                                            <Typography variant="caption" display="block">
-                                                DEBUG - tiene coordenadas: {regador.latitud_centro ? 'Sí' : 'No'}
-                                            </Typography>
-                                        </Box>
-
-                                        {/* Botón para eliminar TODAS las geozonas del regador */}
-                                        {tieneGeozonas(regador) && (
-                                            <Box sx={{ mt: 2, mb: 2 }}>
-                                                <Alert severity="warning" sx={{ mb: 1 }}>
-                                                    <Typography variant="caption">
-                                                        Si las geozonas están mal configuradas (centro incorrecto, lote equivocado, etc.):
-                                                    </Typography>
-                                                </Alert>
-                                                <Button
-                                                    fullWidth
-                                                    variant="outlined"
-                                                    color="error"
-                                                    startIcon={<DeleteSweep />}
-                                                    onClick={() => handleDeleteAllGeozonas(regador)}
-                                                    size="small"
-                                                >
-                                                    Eliminar TODAS las geozonas ({regador.total_sectores || 0} sectores)
-                                                </Button>
-                                            </Box>
-                                        )}
-
                                         <Divider sx={{ my: 2 }} />
 
                                         <Typography variant="subtitle2" gutterBottom>
@@ -329,21 +330,57 @@ function RegadoresManagement({ open, onClose, campo }) {
                                             </Alert>
                                         ) : (
                                             <Box sx={{ maxHeight: 150, overflow: 'auto' }}>
-                                                {lotes.map((lote) => (
-                                                    <Box key={lote.id} display="flex" alignItems="center" justifyContent="space-between" py={0.5}>
-                                                        <Typography variant="body2">
-                                                            {lote.nombre_lote}
-                                                        </Typography>
-                                                        <Button
-                                                            size="small"
-                                                            startIcon={<Settings />}
-                                                            onClick={() => handleConfigureGeozonas(regador, lote)}
-                                                            variant="outlined"
+                                                {lotes.map((lote) => {
+                                                    const tieneGeozonas = lotetieneGeozonas(regador.id, lote.id);
+                                                    const sectoresCount = getSectoresLote(regador.id, lote.id);
+                                                    
+                                                    return (
+                                                        <Box 
+                                                            key={lote.id} 
+                                                            display="flex" 
+                                                            alignItems="center" 
+                                                            justifyContent="space-between" 
+                                                            py={0.5}
+                                                            sx={{
+                                                                borderLeft: tieneGeozonas ? '3px solid #4CAF50' : 'none',
+                                                                paddingLeft: tieneGeozonas ? 1 : 0,
+                                                                marginBottom: 0.5
+                                                            }}
                                                         >
-                                                            Geozonas
-                                                        </Button>
-                                                    </Box>
-                                                ))}
+                                                            <Box>
+                                                                <Typography variant="body2">
+                                                                    {lote.nombre_lote}
+                                                                </Typography>
+                                                                {tieneGeozonas && (
+                                                                    <Typography variant="caption" color="textSecondary">
+                                                                        {sectoresCount} sectores configurados
+                                                                    </Typography>
+                                                                )}
+                                                            </Box>
+                                                            <Box display="flex" gap={0.5}>
+                                                                <Button
+                                                                    size="small"
+                                                                    startIcon={<Settings />}
+                                                                    onClick={() => handleConfigureGeozonas(regador, lote)}
+                                                                    variant="outlined"
+                                                                >
+                                                                    Geozonas
+                                                                </Button>
+                                                                {tieneGeozonas && (
+                                                                    <Tooltip title={`Eliminar geozonas de ${lote.nombre_lote}`}>
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            onClick={() => handleDeleteGeozonas(regador, lote)}
+                                                                            color="error"
+                                                                        >
+                                                                            <DeleteOutline />
+                                                                        </IconButton>
+                                                                    </Tooltip>
+                                                                )}
+                                                            </Box>
+                                                        </Box>
+                                                    );
+                                                })}
                                             </Box>
                                         )}
                                     </CardContent>
