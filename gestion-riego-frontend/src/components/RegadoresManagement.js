@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
     Add, Edit, Delete, Settings, Visibility, Agriculture,
-    GpsFixed, PlayArrow, Pause, CheckCircle, Warning
+    GpsFixed, PlayArrow, Pause, CheckCircle, Warning, DeleteSweep
 } from '@mui/icons-material';
 import RegadorConfigDialog from './RegadorConfigDialog';
 import GeozonaConfigDialog from './GeozonaConfigDialog';
@@ -71,6 +71,66 @@ function RegadoresManagement({ open, onClose, campo }) {
                 console.error('Error al eliminar regador:', error);
                 alert('Error al eliminar regador: ' + (error.response?.data?.error || error.message));
             }
+        }
+    };
+
+    const handleDeleteAllGeozonas = async (regador) => {
+        const confirmacion = window.confirm(
+            `⚠️ ELIMINAR TODAS LAS GEOZONAS DEL REGADOR\n\n` +
+            `Regador: ${regador.nombre_dispositivo}\n` +
+            `Sectores configurados: ${regador.total_sectores}\n\n` +
+            `Esta acción eliminará:\n` +
+            `• TODAS las geozonas de TODOS los lotes\n` +
+            `• Todos los sectores configurados (${regador.total_sectores})\n` +
+            `• Todo el historial de estados de riego\n\n` +
+            `Motivos comunes para esta acción:\n` +
+            `• El centro del pivote está mal configurado\n` +
+            `• Se configuraron geozonas incorrectas\n` +
+            `• Necesitas reconfigurar todo desde cero\n\n` +
+            `⚠️ ESTA ACCIÓN NO SE PUEDE DESHACER ⚠️\n\n` +
+            `¿Estás seguro de continuar?`
+        );
+
+        if (!confirmacion) {
+            return;
+        }
+
+        // Segunda confirmación para seguridad adicional
+        const confirmacionFinal = window.confirm(
+            `🔴 CONFIRMACIÓN FINAL 🔴\n\n` +
+            `Vas a eliminar ${regador.total_sectores} sectores de "${regador.nombre_dispositivo}".\n\n` +
+            `¿Confirmas que deseas eliminar TODAS las geozonas?`
+        );
+
+        if (!confirmacionFinal) {
+            return;
+        }
+
+        try {
+            // Llamar al endpoint para eliminar todas las geozonas del regador
+            const response = await axios.delete(`/geozonas-pivote/regador/${regador.id}/all`);
+            
+            console.log(`✅ Todas las geozonas eliminadas - Regador: ${regador.nombre_dispositivo}`);
+            console.log(`📊 Sectores eliminados: ${response.data.sectores_eliminados || regador.total_sectores}`);
+            
+            // Mostrar mensaje de éxito
+            alert(
+                `✅ Geozonas eliminadas exitosamente\n\n` +
+                `Regador: ${regador.nombre_dispositivo}\n` +
+                `Sectores eliminados: ${response.data.sectores_eliminados || regador.total_sectores}\n\n` +
+                `Ahora puedes reconfigurar las geozonas correctamente.`
+            );
+            
+            // Actualizar la lista de regadores para reflejar el cambio
+            fetchRegadores();
+            
+        } catch (error) {
+            console.error('Error al eliminar geozonas:', error);
+            alert(
+                '❌ Error al eliminar geozonas\n\n' +
+                'Detalles: ' + (error.response?.data?.error || error.message) + '\n\n' +
+                'Por favor, intenta nuevamente o contacta al administrador.'
+            );
         }
     };
 
@@ -209,6 +269,27 @@ function RegadoresManagement({ open, onClose, campo }) {
                                             <Typography variant="body2" color="textSecondary">
                                                 Tiempo vuelta: {regador.tiempo_vuelta_completa} min
                                             </Typography>
+                                        )}
+
+                                        {/* Botón para eliminar TODAS las geozonas del regador */}
+                                        {regador.total_sectores > 0 && (
+                                            <Box sx={{ mt: 2, mb: 2 }}>
+                                                <Alert severity="warning" sx={{ mb: 1 }}>
+                                                    <Typography variant="caption">
+                                                        Si las geozonas están mal configuradas (centro incorrecto, lote equivocado, etc.):
+                                                    </Typography>
+                                                </Alert>
+                                                <Button
+                                                    fullWidth
+                                                    variant="outlined"
+                                                    color="error"
+                                                    startIcon={<DeleteSweep />}
+                                                    onClick={() => handleDeleteAllGeozonas(regador)}
+                                                    size="small"
+                                                >
+                                                    Eliminar TODAS las geozonas ({regador.total_sectores} sectores)
+                                                </Button>
+                                            </Box>
                                         )}
 
                                         <Divider sx={{ my: 2 }} />

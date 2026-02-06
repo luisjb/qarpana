@@ -389,6 +389,95 @@ router.delete('/geozona/:geozonaId', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
+// ⭐ NUEVO: Eliminar TODAS las geozonas de un regador (todos los lotes)
+router.delete('/regador/:regadorId/all', verifyToken, isAdmin, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const { regadorId } = req.params;
+
+        // Verificar que el regador existe
+        const regadorQuery = await client.query(
+            'SELECT * FROM regadores WHERE id = $1',
+            [regadorId]
+        );
+
+        if (regadorQuery.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Regador no encontrado' });
+        }
+
+        const regador = regadorQuery.rows[0];
+
+        // Contar geozonas antes de eliminar
+        const countQuery = await client.query(
+            'SELECT COUNT(*) as total FROM geozonas_pivote WHERE regador_id = $1',
+            [regadorId]
+        );
+        const sectoresEliminados = parseInt(countQuery.rows[0].total);
+
+        // Eliminar estados de sectores primero
+        await client.query(
+            `DELETE FROM estado_sectores_riego 
+             WHERE geozona_id IN (
+                 SELECT id FROM geozonas_pivote 
+                 WHERE regador_id = $1
+             )`,
+            [regadorId]
+        );
+
+        // Eliminar TODAS las geozonas del regador (de todos los lotes)
+        const result = await client.query(
+            'DELETE FROM geozonas_pivote WHERE regador_id = $1 RETURNING *',
+            [regadorId]
+        );
+
+        if (result.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ 
+                error: 'No se encontraron geozonas para eliminar',
+                message: 'Este regador no tiene geozonas configuradas'
+            });
+        }
+
+        // Resetear coordenadas del regador (opcional, pero recomendado)
+        await client.query(
+            `UPDATE regadores 
+             SET latitud_centro = NULL, 
+                 longitud_centro = NULL,
+                 fecha_actualizacion = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [regadorId]
+        );
+
+        await client.query('COMMIT');
+
+        console.log(`🗑️ TODAS las geozonas eliminadas - Regador: ${regador.nombre_dispositivo} (ID: ${regadorId})`);
+        console.log(`   📊 Total sectores eliminados: ${sectoresEliminados}`);
+        console.log(`   📍 Coordenadas del centro reseteadas`);
+
+        res.json({ 
+            message: 'Todas las geozonas del regador eliminadas con éxito',
+            sectores_eliminados: sectoresEliminados,
+            regador: {
+                id: regador.id,
+                nombre_dispositivo: regador.nombre_dispositivo
+            }
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Error al eliminar todas las geozonas del regador:', err);
+        res.status(500).json({ 
+            error: 'Error del servidor',
+            details: err.message 
+        });
+    } finally {
+        client.release();
+    }
+});
+
 // Eliminar configuración de geozonas (todas las geozonas de un lote y regador)
 router.delete('/lote/:loteId/regador/:regadorId', verifyToken, isAdmin, async (req, res) => {
     const client = await pool.connect();
