@@ -522,8 +522,32 @@ class VueltasRiegoService {
             const registro = resultRegistro.rows[0];
 
             // Calcular duración
-            const duracionMs = new Date(timestamp) - new Date(registro.fecha_entrada);
-            const duracionMinutos = Math.round(duracionMs / 60000);
+            // ✅ Calcular duración REAL basada en tiempo regando (con presión)
+            const queryDuracionReal = `
+                SELECT 
+                    COUNT(*) as registros_regando,
+                    -- Aproximar minutos: cada registro representa ~10 min (intervalo de guardado)
+                    COUNT(*) * 10 as minutos_regando_aproximado,
+                    -- Duración teórica (fin - inicio)
+                    EXTRACT(EPOCH FROM ($2::timestamp - $3::timestamp)) / 60 as minutos_totales
+                FROM datos_operacion_gps
+                WHERE regador_id = $1
+                AND timestamp BETWEEN $3 AND $2
+                AND regando = true
+            `;
+
+            const resultDuracion = await pool.query(queryDuracionReal, [
+                regadorId,
+                timestamp,
+                vueltaActiva.fecha_inicio
+            ]);
+
+            const duracionData = resultDuracion.rows[0];
+
+            // Usar tiempo real de riego (cuando tuvo presión)
+            const duracionMinutos = Math.round(duracionData.minutos_regando_aproximado || 0);
+
+            console.log(`⏱️ Duración vuelta ${vueltaActiva.numero_vuelta}: ${duracionMinutos}min regando (de ${Math.round(duracionData.minutos_totales)}min totales)`);
 
             // Obtener datos del regador y sector
             const queryDatos = `
@@ -714,7 +738,16 @@ class VueltasRiegoService {
                     COUNT(*) FILTER (WHERE completado = true) as sectores_completados,
                     SUM(agua_aplicada_litros) FILTER (WHERE completado = true) as agua_total,
                     SUM(duracion_minutos) FILTER (WHERE completado = true) as duracion_total,
-                    AVG(presion_promedio) FILTER (WHERE completado = true AND presion_promedio IS NOT NULL) as presion_promedio
+                    AVG(presion_promedio) FILTER (WHERE completado = true AND presion_promedio IS NOT NULL) as presion_promedio,
+                    -- ✅ Calcular duración real basada en datos GPS con regando=true
+                    (
+                        SELECT COUNT(*) * 10
+                        FROM datos_operacion_gps dog
+                        JOIN vueltas_riego vr2 ON dog.regador_id = vr2.regador_id
+                        WHERE vr2.id = $1
+                        AND dog.timestamp BETWEEN vr2.fecha_inicio AND COALESCE(vr2.fecha_fin, NOW())
+                        AND dog.regando = true
+                    ) as duracion_real_minutos
                 FROM sectores_por_vuelta
                 WHERE vuelta_id = $1
             `;
@@ -747,7 +780,7 @@ class VueltasRiegoService {
                 areaHectareas,
                 laminaPromedio,
                 totales.presion_promedio,
-                totales.duracion_total || 0,
+                totales.duracion_real_minutos || totales.duracion_total || 0,  // ✅ Priorizar duración real
                 vueltaId
             ]);
 
