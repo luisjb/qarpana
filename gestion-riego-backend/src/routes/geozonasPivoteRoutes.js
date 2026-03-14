@@ -223,10 +223,10 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
         // UPSERT: Actualizar o insertar cada sector
         for (const sector of sectores) {
             sectoresEnviados.add(sector.numero_sector);
-            console.log(`🔍 Intentando actualizar ID: ${existingId}, Lote: ${lote_id}, Sector: ${sector.numero_sector}`);
-            console.log(`🔍 ¿Existe sector ${sector.numero_sector}? ID: ${existingId}`);
-
+            
             const existingId = existingGeozonas.get(sector.numero_sector);
+            console.log(`🔍 ¿Existe sector ${sector.numero_sector}? ID: ${existingId}`);
+            console.log(`🔍 Intentando actualizar ID: ${existingId}, Lote: ${lote_id}, Sector: ${sector.numero_sector}`);
 
             if (existingId) {
                 // ACTUALIZAR sector existente (conserva ID y datos históricos)
