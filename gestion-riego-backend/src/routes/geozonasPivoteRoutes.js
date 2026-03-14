@@ -38,10 +38,11 @@ router.get('/lote/:loteId/regador/:regadorId', verifyToken, async (req, res) => 
         }
 
         // Retornar configuración completa
+        const primerGeozona = geozonas.rows[0];
         res.json({
-            id: geozonas.rows[0].id, // ID de la primera geozona para referencia
-            latitud_centro: regador.latitud_centro,
-            longitud_centro: regador.longitud_centro,
+            id: primerGeozona.id,
+            latitud_centro: primerGeozona.latitud_centro || regador.latitud_centro || '',
+            longitud_centro: primerGeozona.longitud_centro || regador.longitud_centro || '',
             radio_cobertura: regador.radio_cobertura,
             sectores: geozonas.rows
         });
@@ -77,7 +78,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
             });
         }
 
-        // ✅ Solo actualizar radio, NO el centro
+        // ✅ Solo actualizar el radio del regador, NO el centro
         await client.query(
             `UPDATE regadores 
             SET radio_cobertura = $1,
@@ -85,6 +86,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
             WHERE id = $2`,
             [radio_cobertura, regador_id]
         );
+        console.log(`📏 Radio actualizado para regador ${regador_id}: ${radio_cobertura}m`);
 
         // Verificar si ya existen geozonas para este lote y regador
         const existingQuery = await client.query(
@@ -110,8 +112,9 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
                 `INSERT INTO geozonas_pivote (
                     regador_id, lote_id, nombre_sector, numero_sector,
                     angulo_inicio, angulo_fin, radio_interno, radio_externo,
-                    activo, color_display, coeficiente_riego, prioridad
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                    activo, color_display, coeficiente_riego, prioridad,
+                    latitud_centro, longitud_centro
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                 RETURNING *`,
                 [
                     regador_id,
@@ -125,9 +128,12 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
                     sector.activo !== false,
                     sector.color_display,
                     sector.coeficiente_riego || 1.0,
-                    sector.prioridad || 1
+                    sector.prioridad || 1,
+                    sector.latitud_centro || latitud_centro,  // ✅ Centro de la geozona
+                    sector.longitud_centro || longitud_centro // ✅ Centro de la geozona
                 ]
             );
+            console.log(`➕ Geozona creada: ${sector.nombre_sector} - Centro: (${sector.latitud_centro || latitud_centro}, ${sector.longitud_centro || longitud_centro})`);
             insertedSectores.push(result.rows[0]);
 
             // Crear estado inicial
@@ -183,7 +189,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
             });
         }
 
-        // ✅ Solo actualizar radio, NO el centro
+        // ✅ Solo actualizar el radio del regador, NO el centro
         await client.query(
             `UPDATE regadores 
             SET radio_cobertura = $1,
@@ -191,6 +197,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
             WHERE id = $2`,
             [radio_cobertura, regador_id]
         );
+        console.log(`📏 Radio actualizado para regador ${regador_id}: ${radio_cobertura}m`);
 
         // Obtener geozonas existentes para este lote y regador
         const existingQuery = await client.query(
@@ -245,6 +252,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                         existingId
                     ]
                 );
+                console.log(`🔄 Geozona actualizada: ${sector.nombre_sector} - Centro: (${sector.latitud_centro || latitud_centro}, ${sector.longitud_centro || longitud_centro})`);
                 updatedSectores.push(result.rows[0]);
                 console.log(`🔄 Sector actualizado: ${sector.nombre_sector} (ID: ${existingId})`);
             } else {
@@ -273,6 +281,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                     sector.longitud_centro || longitud_centro // ✅ Centro de la geozona
                 ]
             );
+            console.log(`➕ Geozona creada en PUT: ${sector.nombre_sector} - Centro: (${sector.latitud_centro || latitud_centro}, ${sector.longitud_centro || longitud_centro})`);
                 updatedSectores.push(result.rows[0]);
                 console.log(`➕ Sector creado: ${sector.nombre_sector} (ID: ${result.rows[0].id})`);
 
