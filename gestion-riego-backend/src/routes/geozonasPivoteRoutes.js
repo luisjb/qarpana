@@ -253,8 +253,8 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
                         sector.color_display,
                         sector.coeficiente_riego || 1.0,
                         sector.prioridad || 1,
-                        sector.latitud_centro || latitud_centro,  // ✅ AGREGAR
-                        sector.longitud_centro || longitud_centro, // ✅ AGREGAR
+                        latitud_centro,  // ✅ USAR SIEMPRE el global
+                        longitud_centro, // ✅ USAR SIEMPRE el global
                         existingId
                     ]
                 );
