@@ -206,8 +206,8 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                     activo: sector.activo !== false,
                     mostrar_preview: true,
                     // ✅ AGREGAR ESTAS DOS LÍNEAS
-                    latitud_centro: sector.latitud_centro || data.latitud_centro || '',
-                    longitud_centro: sector.longitud_centro || data.longitud_centro || ''
+                    //latitud_centro: sector.latitud_centro || data.latitud_centro || '',
+                    //longitud_centro: sector.longitud_centro || data.longitud_centro || ''
                 }));
                 
                 setSectores(sectoresNormalizados);
