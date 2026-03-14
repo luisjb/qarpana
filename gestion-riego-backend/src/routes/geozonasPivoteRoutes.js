@@ -211,11 +211,11 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
              WHERE regador_id = $1 AND lote_id = $2`,
             [regador_id, lote_id]
         );
-        console.log(`🔍 Sectores existentes en lote ${lote_id}:`, Array.from(existingGeozonas.entries()));
-
+        
         const existingGeozonas = new Map(
             existingQuery.rows.map(row => [row.numero_sector, row.id])
         );
+        console.log(`🔍 Sectores existentes en lote ${lote_id}:`, Array.from(existingGeozonas.entries()));
 
         const updatedSectores = [];
         const sectoresEnviados = new Set();
