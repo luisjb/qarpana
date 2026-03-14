@@ -77,13 +77,13 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
             });
         }
 
-        // Actualizar coordenadas y radio del regador
+        // ✅ Solo actualizar radio, NO el centro
         await client.query(
             `UPDATE regadores 
-             SET latitud_centro = $1, longitud_centro = $2, radio_cobertura = $3,
-                 fecha_actualizacion = CURRENT_TIMESTAMP
-             WHERE id = $4`,
-            [latitud_centro, longitud_centro, radio_cobertura, regador_id]
+            SET radio_cobertura = $1,
+                fecha_actualizacion = CURRENT_TIMESTAMP
+            WHERE id = $2`,
+            [radio_cobertura, regador_id]
         );
 
         // Verificar si ya existen geozonas para este lote y regador
@@ -183,13 +183,13 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
             });
         }
 
-        // Actualizar coordenadas y radio del regador
+        // ✅ Solo actualizar radio, NO el centro
         await client.query(
             `UPDATE regadores 
-             SET latitud_centro = $1, longitud_centro = $2, radio_cobertura = $3,
-                 fecha_actualizacion = CURRENT_TIMESTAMP
-             WHERE id = $4`,
-            [latitud_centro, longitud_centro, radio_cobertura, regador_id]
+            SET radio_cobertura = $1,
+                fecha_actualizacion = CURRENT_TIMESTAMP
+            WHERE id = $2`,
+            [radio_cobertura, regador_id]
         );
 
         // Obtener geozonas existentes para este lote y regador
@@ -216,18 +216,20 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                 // ACTUALIZAR sector existente (conserva ID y datos históricos)
                 const result = await client.query(
                     `UPDATE geozonas_pivote 
-                     SET nombre_sector = $1, 
-                         angulo_inicio = $2, 
-                         angulo_fin = $3, 
-                         radio_interno = $4, 
-                         radio_externo = $5,
-                         activo = $6,
-                         color_display = $7,
-                         coeficiente_riego = $8,
-                         prioridad = $9,
-                         fecha_actualizacion = CURRENT_TIMESTAMP
-                     WHERE id = $10
-                     RETURNING *`,
+                    SET nombre_sector = $1,
+                        angulo_inicio = $2,
+                        angulo_fin = $3,
+                        radio_interno = $4,
+                        radio_externo = $5,
+                        activo = $6,
+                        color_display = $7,
+                        coeficiente_riego = $8,
+                        prioridad = $9,
+                        latitud_centro = $10,
+                        longitud_centro = $11,
+                        fecha_actualizacion = CURRENT_TIMESTAMP
+                    WHERE id = $12
+                    RETURNING *`,
                     [
                         sector.nombre_sector,
                         sector.angulo_inicio,
@@ -238,35 +240,39 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                         sector.color_display,
                         sector.coeficiente_riego || 1.0,
                         sector.prioridad || 1,
+                        sector.latitud_centro || latitud_centro,  // ✅ Centro de la geozona
+                        sector.longitud_centro || longitud_centro, // ✅ Centro de la geozona
                         existingId
                     ]
                 );
                 updatedSectores.push(result.rows[0]);
                 console.log(`🔄 Sector actualizado: ${sector.nombre_sector} (ID: ${existingId})`);
             } else {
-                // INSERTAR nuevo sector
-                const result = await client.query(
-                    `INSERT INTO geozonas_pivote (
-                        regador_id, lote_id, nombre_sector, numero_sector,
-                        angulo_inicio, angulo_fin, radio_interno, radio_externo,
-                        activo, color_display, coeficiente_riego, prioridad
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                    RETURNING *`,
-                    [
-                        regador_id,
-                        lote_id,
-                        sector.nombre_sector,
-                        sector.numero_sector,
-                        sector.angulo_inicio,
-                        sector.angulo_fin,
-                        sector.radio_interno || 0,
-                        sector.radio_externo,
-                        sector.activo !== false,
-                        sector.color_display,
-                        sector.coeficiente_riego || 1.0,
-                        sector.prioridad || 1
-                    ]
-                );
+               const result = await client.query(
+                `INSERT INTO geozonas_pivote (
+                    regador_id, lote_id, nombre_sector, numero_sector,
+                    angulo_inicio, angulo_fin, radio_interno, radio_externo,
+                    activo, color_display, coeficiente_riego, prioridad,
+                    latitud_centro, longitud_centro
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                RETURNING *`,
+                [
+                    regador_id,
+                    lote_id,
+                    sector.nombre_sector,
+                    sector.numero_sector,
+                    sector.angulo_inicio,
+                    sector.angulo_fin,
+                    sector.radio_interno || 0,
+                    sector.radio_externo,
+                    sector.activo !== false,
+                    sector.color_display,
+                    sector.coeficiente_riego || 1.0,
+                    sector.prioridad || 1,
+                    sector.latitud_centro || latitud_centro,  // ✅ Centro de la geozona
+                    sector.longitud_centro || longitud_centro // ✅ Centro de la geozona
+                ]
+            );
                 updatedSectores.push(result.rows[0]);
                 console.log(`➕ Sector creado: ${sector.nombre_sector} (ID: ${result.rows[0].id})`);
 
