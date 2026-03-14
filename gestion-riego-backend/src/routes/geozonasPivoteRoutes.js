@@ -211,6 +211,7 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
              WHERE regador_id = $1 AND lote_id = $2`,
             [regador_id, lote_id]
         );
+        console.log(`🔍 Sectores existentes en lote ${lote_id}:`, Array.from(existingGeozonas.entries()));
 
         const existingGeozonas = new Map(
             existingQuery.rows.map(row => [row.numero_sector, row.id])
@@ -222,6 +223,8 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
         // UPSERT: Actualizar o insertar cada sector
         for (const sector of sectores) {
             sectoresEnviados.add(sector.numero_sector);
+            console.log(`🔍 Intentando actualizar ID: ${existingId}, Lote: ${lote_id}, Sector: ${sector.numero_sector}`);
+            console.log(`🔍 ¿Existe sector ${sector.numero_sector}? ID: ${existingId}`);
 
             const existingId = existingGeozonas.get(sector.numero_sector);
 
