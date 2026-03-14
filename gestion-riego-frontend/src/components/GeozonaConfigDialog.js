@@ -204,7 +204,10 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                     coeficiente_riego: parseFloat(sector.coeficiente_riego || 1.0),
                     prioridad: parseInt(sector.prioridad || 1),
                     activo: sector.activo !== false,
-                    mostrar_preview: true
+                    mostrar_preview: true,
+                    // ✅ AGREGAR ESTAS DOS LÍNEAS
+                    latitud_centro: sector.latitud_centro || data.latitud_centro || '',
+                    longitud_centro: sector.longitud_centro || data.longitud_centro || ''
                 }));
                 
                 setSectores(sectoresNormalizados);
@@ -559,8 +562,9 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                 activo: sector.activo,
                 coeficiente_riego: sector.coeficiente_riego,
                 prioridad: sector.prioridad,
-                latitud_centro: parseFloat(centroPivote.latitud_centro),    // ✅ CRÍTICO
-                longitud_centro: parseFloat(centroPivote.longitud_centro)   // ✅ CRÍTICO
+                // ✅ CRÍTICO: Enviar los centros
+                latitud_centro: parseFloat(sector.latitud_centro || centroPivote.latitud_centro),
+                longitud_centro: parseFloat(sector.longitud_centro || centroPivote.longitud_centro)
             }))
         };
 
