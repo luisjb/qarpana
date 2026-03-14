@@ -894,3 +894,7 @@ ADD COLUMN IF NOT EXISTS historial_angulos JSONB DEFAULT '[]'::jsonb;
 -- Crear índice para búsquedas rápidas
 CREATE INDEX IF NOT EXISTS idx_vueltas_historial 
 ON vueltas_riego USING gin(historial_angulos);
+
+ALTER TABLE geozonas_pivote 
+ADD COLUMN latitud_centro NUMERIC,
+ADD COLUMN longitud_centro NUMERIC;

@@ -158,34 +158,73 @@ class GPSProcessingService {
             // Determinar estado del regador
             const estado = this.determinarEstadoRegador(position, presion, position.speed);
 
-            // Calcular Ã¡ngulo y distancia desde el centro (solo si hay coordenadas)
+            // ✅ Obtener todas las geozonas del regador
+            const queryGeozonas = `
+                SELECT * FROM geozonas_pivote 
+                WHERE regador_id = $1 AND activo = true
+                AND latitud_centro IS NOT NULL 
+                AND longitud_centro IS NOT NULL
+            `;
+            const resultGeozonas = await pool.query(queryGeozonas, [regador.id]);
+            const geozonas = resultGeozonas.rows;
+
             let angulo = null;
             let distancia = null;
             let geozona = null;
 
-            if (regador.latitud_centro && regador.longitud_centro) {
-                angulo = gpsCalc.calcularAngulo(
-                    regador.latitud_centro,
-                    regador.longitud_centro,
+            // Para cada geozona, calcular ángulo y distancia desde SU centro
+            for (const gz of geozonas) {
+                const anguloTemp = gpsCalc.calcularAngulo(
+                    gz.latitud_centro,
+                    gz.longitud_centro,
                     position.latitude,
                     position.longitude
                 );
 
-                distancia = gpsCalc.calcularDistancia(
-                    regador.latitud_centro,
-                    regador.longitud_centro,
+                const distanciaTemp = gpsCalc.calcularDistancia(
+                    gz.latitud_centro,
+                    gz.longitud_centro,
                     position.latitude,
                     position.longitude
                 );
 
-                // Buscar en quÃ© geozona estÃ¡
-                geozona = await this.buscarGeozonaActual(
-                    regador.id,
-                    position.latitude,
-                    position.longitude,
-                    angulo,
-                    distancia
+                // Verificar si está dentro de esta geozona
+                const TOLERANCIA_DISTANCIA = 50; // metros
+                
+                if (distanciaTemp >= (gz.radio_interno - TOLERANCIA_DISTANCIA) && 
+                    distanciaTemp <= (gz.radio_externo + TOLERANCIA_DISTANCIA)) {
+                    
+                    // Verificar ángulo
+                    let enSector = false;
+                    if (gz.angulo_fin > gz.angulo_inicio) {
+                        enSector = anguloTemp >= gz.angulo_inicio && anguloTemp <= gz.angulo_fin;
+                    } else {
+                        enSector = anguloTemp >= gz.angulo_inicio || anguloTemp <= gz.angulo_fin;
+                    }
+                    
+                    if (enSector) {
+                        // ✅ Encontrado! Guardar los valores de ESTA geozona
+                        angulo = anguloTemp;
+                        distancia = distanciaTemp;
+                        geozona = gz;
+                        break; // Salir del loop
+                    }
+                }
+            }
+
+            // Si encontró una geozona, actualizar el centro del regador temporalmente
+            if (geozona) {
+                // Actualizar el centro del regador para reflejar dónde está operando
+                await pool.query(
+                    `UPDATE regadores 
+                    SET latitud_centro = $1, longitud_centro = $2 
+                    WHERE id = $3`,
+                    [geozona.latitud_centro, geozona.longitud_centro, regador.id]
                 );
+                
+                // Actualizar variable local para que el resto del código funcione
+                regador.latitud_centro = geozona.latitud_centro;
+                regador.longitud_centro = geozona.longitud_centro;
             }
 
             // ========== INICIO: GESTIÓN DE VUELTAS ==========

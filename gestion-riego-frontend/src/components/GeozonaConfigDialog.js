@@ -559,8 +559,8 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                 activo: sector.activo,
                 coeficiente_riego: sector.coeficiente_riego,
                 prioridad: sector.prioridad,
-                latitud_centro: sector.latitud_centro || parseFloat(centroPivote.latitud_centro),  // ✅
-                longitud_centro: sector.longitud_centro || parseFloat(centroPivote.longitud_centro) // ✅
+                latitud_centro: parseFloat(centroPivote.latitud_centro),  // ✅
+                longitud_centro: parseFloat(centroPivote.longitud_centro) // ✅
             }))
         };
 
@@ -842,8 +842,9 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                                 style={{ height: '100%', width: '100%' }}
                             >
                                 <TileLayer
-                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                                    attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                                    maxZoom={19}
                                 />
                                 
                                 {/* Manejador de clics en el mapa */}
