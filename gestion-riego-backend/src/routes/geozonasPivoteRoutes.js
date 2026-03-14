@@ -181,6 +181,12 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
             sectores
         } = req.body;
 
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('📥 PUT recibido:');
+console.log('  latitud_centro:', latitud_centro);
+console.log('  longitud_centro:', longitud_centro);
+console.log('  sectores[0]:', sectores[0]);
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         // Validar datos requeridos
         if (!regador_id || !lote_id || !sectores || sectores.length === 0) {
             return res.status(400).json({
