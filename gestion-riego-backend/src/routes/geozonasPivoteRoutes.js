@@ -253,11 +253,13 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
                         sector.color_display,
                         sector.coeficiente_riego || 1.0,
                         sector.prioridad || 1,
-                        latitud_centro,  // ✅ USAR SIEMPRE el global
-                        longitud_centro, // ✅ USAR SIEMPRE el global
+                        parseFloat(latitud_centro),  // Forzar a número
+                        parseFloat(longitud_centro), // Forzar a número
                         existingId
                     ]
                 );
+                console.log(`🔍 RESULTADO UPDATE:`, result.rows[0]);
+
                 console.log(`🔄 Geozona actualizada: ${sector.nombre_sector} - Centro: (${sector.latitud_centro || latitud_centro}, ${sector.longitud_centro || longitud_centro})`);
                 updatedSectores.push(result.rows[0]);
                 console.log(`🔄 Sector actualizado: ${sector.nombre_sector} (ID: ${existingId})`);
