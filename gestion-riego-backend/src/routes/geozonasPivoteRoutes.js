@@ -129,8 +129,8 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
                     sector.color_display,
                     sector.coeficiente_riego || 1.0,
                     sector.prioridad || 1,
-                    sector.latitud_centro || latitud_centro,  // ✅ Centro de la geozona
-                    sector.longitud_centro || longitud_centro // ✅ Centro de la geozona
+                    sector.latitud_centro || latitud_centro,  // ✅ AGREGAR
+                    sector.longitud_centro || longitud_centro // ✅ AGREGAR
                 ]
             );
             console.log(`➕ Geozona creada: ${sector.nombre_sector} - Centro: (${sector.latitud_centro || latitud_centro}, ${sector.longitud_centro || longitud_centro})`);
@@ -247,8 +247,8 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                         sector.color_display,
                         sector.coeficiente_riego || 1.0,
                         sector.prioridad || 1,
-                        sector.latitud_centro || latitud_centro,  // ✅ Centro de la geozona
-                        sector.longitud_centro || longitud_centro, // ✅ Centro de la geozona
+                        sector.latitud_centro || latitud_centro,  // ✅ AGREGAR
+                        sector.longitud_centro || longitud_centro, // ✅ AGREGAR
                         existingId
                     ]
                 );
@@ -256,31 +256,31 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
                 updatedSectores.push(result.rows[0]);
                 console.log(`🔄 Sector actualizado: ${sector.nombre_sector} (ID: ${existingId})`);
             } else {
-               const result = await client.query(
-                `INSERT INTO geozonas_pivote (
-                    regador_id, lote_id, nombre_sector, numero_sector,
-                    angulo_inicio, angulo_fin, radio_interno, radio_externo,
-                    activo, color_display, coeficiente_riego, prioridad,
-                    latitud_centro, longitud_centro
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-                RETURNING *`,
-                [
-                    regador_id,
-                    lote_id,
-                    sector.nombre_sector,
-                    sector.numero_sector,
-                    sector.angulo_inicio,
-                    sector.angulo_fin,
-                    sector.radio_interno || 0,
-                    sector.radio_externo,
-                    sector.activo !== false,
-                    sector.color_display,
-                    sector.coeficiente_riego || 1.0,
-                    sector.prioridad || 1,
-                    sector.latitud_centro || latitud_centro,  // ✅ Centro de la geozona
-                    sector.longitud_centro || longitud_centro // ✅ Centro de la geozona
-                ]
-            );
+                const result = await client.query(
+                    `INSERT INTO geozonas_pivote (
+                        regador_id, lote_id, nombre_sector, numero_sector,
+                        angulo_inicio, angulo_fin, radio_interno, radio_externo,
+                        activo, color_display, coeficiente_riego, prioridad,
+                        latitud_centro, longitud_centro
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                    RETURNING *`,
+                    [
+                        regador_id,
+                        lote_id,
+                        sector.nombre_sector,
+                        sector.numero_sector,
+                        sector.angulo_inicio,
+                        sector.angulo_fin,
+                        sector.radio_interno || 0,
+                        sector.radio_externo,
+                        sector.activo !== false,
+                        sector.color_display,
+                        sector.coeficiente_riego || 1.0,
+                        sector.prioridad || 1,
+                        sector.latitud_centro || latitud_centro,  // ✅ AGREGAR
+                        sector.longitud_centro || longitud_centro // ✅ AGREGAR
+                    ]
+                );
             console.log(`➕ Geozona creada en PUT: ${sector.nombre_sector} - Centro: (${sector.latitud_centro || latitud_centro}, ${sector.longitud_centro || longitud_centro})`);
                 updatedSectores.push(result.rows[0]);
                 console.log(`➕ Sector creado: ${sector.nombre_sector} (ID: ${result.rows[0].id})`);
