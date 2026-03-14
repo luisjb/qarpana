@@ -328,7 +328,9 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
             console.log(`🚫 Sectores desactivados: ${sectoresAEliminar.length}`);
         }
 
+        console.log('🔍 A punto de hacer COMMIT...');
         await client.query('COMMIT');
+        console.log('✅ COMMIT completado!');
 
         console.log(`✅ Configuración actualizada - Regador: ${regador_id}, Lote: ${lote_id}`);
         console.log(`   📊 Actualizados: ${updatedSectores.filter(s => existingGeozonas.has(s.numero_sector)).length}`);
@@ -346,6 +348,8 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
         });
 
     } catch (err) {
+        console.log('❌ ERROR - Haciendo ROLLBACK:', err.message);
+
         await client.query('ROLLBACK');
         console.error('Error al actualizar geozonas:', err);
         res.status(500).json({
