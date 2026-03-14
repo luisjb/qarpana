@@ -559,8 +559,8 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                 activo: sector.activo,
                 coeficiente_riego: sector.coeficiente_riego,
                 prioridad: sector.prioridad,
-                latitud_centro: parseFloat(centroPivote.latitud_centro),  // ✅
-                longitud_centro: parseFloat(centroPivote.longitud_centro) // ✅
+                latitud_centro: parseFloat(centroPivote.latitud_centro),    // ← AGREGAR
+                longitud_centro: parseFloat(centroPivote.longitud_centro)   // ← AGREGAR
             }))
         };
 
