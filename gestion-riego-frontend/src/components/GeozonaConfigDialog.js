@@ -41,6 +41,16 @@ function MapClickHandler({ onMapClick }) {
     return null;
 }
 
+function MapUpdater({ center }) {
+    const map = useMap();
+    useEffect(() => {
+        if (center) {
+            map.setView(center, map.getZoom());
+        }
+    }, [center, map]);
+    return null;
+}
+
 // Componente personalizado para mostrar sectores en el mapa
 function SectorOverlay({ center, radius, sectores, selectedSector, onSectorClick }) {
     const map = useMap();
@@ -873,6 +883,9 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                                     attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
                                     maxZoom={19}
                                 />
+
+                                {/* Actualizador dinámico del centro del mapa */}
+                                <MapUpdater center={mapCenter} />
 
                                 {/* Manejador de clics en el mapa */}
                                 <MapClickHandler onMapClick={handleMapClick} />
