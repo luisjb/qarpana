@@ -182,11 +182,11 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
         } = req.body;
 
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('📥 PUT recibido:');
-console.log('  latitud_centro:', latitud_centro);
-console.log('  longitud_centro:', longitud_centro);
-console.log('  sectores[0]:', sectores[0]);
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📥 PUT recibido:');
+        console.log('  latitud_centro:', latitud_centro);
+        console.log('  longitud_centro:', longitud_centro);
+        console.log('  sectores[0]:', sectores[0]);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         // Validar datos requeridos
         if (!regador_id || !lote_id || !sectores || sectores.length === 0) {
             return res.status(400).json({
@@ -211,7 +211,7 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
              WHERE regador_id = $1 AND lote_id = $2`,
             [regador_id, lote_id]
         );
-        
+
         const existingGeozonas = new Map(
             existingQuery.rows.map(row => [row.numero_sector, row.id])
         );
@@ -223,7 +223,7 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
         // UPSERT: Actualizar o insertar cada sector
         for (const sector of sectores) {
             sectoresEnviados.add(sector.numero_sector);
-            
+
             const existingId = existingGeozonas.get(sector.numero_sector);
             console.log(`🔍 ¿Existe sector ${sector.numero_sector}? ID: ${existingId}`);
             console.log(`🔍 Intentando actualizar ID: ${existingId}, Lote: ${lote_id}, Sector: ${sector.numero_sector}`);
@@ -256,8 +256,8 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
                         sector.color_display,
                         sector.coeficiente_riego || 1.0,
                         sector.prioridad || 1,
-                        parseFloat(latitud_centro),  // Forzar a número
-                        parseFloat(longitud_centro), // Forzar a número
+                        sector.latitud_centro ? parseFloat(sector.latitud_centro) : parseFloat(latitud_centro),
+                        sector.longitud_centro ? parseFloat(sector.longitud_centro) : parseFloat(longitud_centro),
                         existingId
                     ]
                 );
@@ -292,7 +292,7 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
                         sector.longitud_centro || longitud_centro // ✅ AGREGAR
                     ]
                 );
-            console.log(`➕ Geozona creada en PUT: ${sector.nombre_sector} - Centro: (${sector.latitud_centro || latitud_centro}, ${sector.longitud_centro || longitud_centro})`);
+                console.log(`➕ Geozona creada en PUT: ${sector.nombre_sector} - Centro: (${sector.latitud_centro || latitud_centro}, ${sector.longitud_centro || longitud_centro})`);
                 updatedSectores.push(result.rows[0]);
                 console.log(`➕ Sector creado: ${sector.nombre_sector} (ID: ${result.rows[0].id})`);
 
@@ -465,7 +465,7 @@ router.delete('/regador/:regadorId/all', verifyToken, isAdmin, async (req, res) 
 
         if (result.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(404).json({ 
+            return res.status(404).json({
                 error: 'No se encontraron geozonas para eliminar',
                 message: 'Este regador no tiene geozonas configuradas'
             });
@@ -487,7 +487,7 @@ router.delete('/regador/:regadorId/all', verifyToken, isAdmin, async (req, res) 
         console.log(`   📊 Total sectores eliminados: ${sectoresEliminados}`);
         console.log(`   📍 Coordenadas del centro reseteadas`);
 
-        res.json({ 
+        res.json({
             message: 'Todas las geozonas del regador eliminadas con éxito',
             sectores_eliminados: sectoresEliminados,
             regador: {
@@ -499,9 +499,9 @@ router.delete('/regador/:regadorId/all', verifyToken, isAdmin, async (req, res) 
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error al eliminar todas las geozonas del regador:', err);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Error del servidor',
-            details: err.message 
+            details: err.message
         });
     } finally {
         client.release();

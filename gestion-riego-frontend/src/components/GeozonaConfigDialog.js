@@ -6,7 +6,7 @@ import {
     MenuItem, Alert, Chip, Divider, Switch, FormControlLabel,
     Paper, Accordion, AccordionSummary, AccordionDetails
 } from '@mui/material';
-import { 
+import {
     Add, Delete, Edit, Palette, Save, Refresh,
     PieChart, Settings, Visibility, VisibilityOff,
     MyLocation, ExpandMore, LocationOn
@@ -28,16 +28,16 @@ L.Icon.Default.mergeOptions({
 // Componente para manejar clics en el mapa
 function MapClickHandler({ onMapClick }) {
     const map = useMap();
-    
+
     useEffect(() => {
         const handleClick = (e) => {
             onMapClick(e.latlng);
         };
-        
+
         map.on('click', handleClick);
         return () => map.off('click', handleClick);
     }, [map, onMapClick]);
-    
+
     return null;
 }
 
@@ -72,21 +72,23 @@ function SectorOverlay({ center, radius, sectores, selectedSector, onSectorClick
             if (!sector.activo && !sector.mostrar_preview) return;
 
             const { angulo_inicio, angulo_fin, color_display, nombre_sector } = sector;
-            
-            // Crear geometría del sector (porción de pizza)
-            const centerLatLng = L.latLng(centerLat, centerLng);
-            
+
+            // Determinar centro específico para este sector si lo tiene, si no, usar el global
+            const sLat = sector.latitud_centro ? parseFloat(sector.latitud_centro) : centerLat;
+            const sLng = sector.longitud_centro ? parseFloat(sector.longitud_centro) : centerLng;
+            const centerLatLng = L.latLng(sLat, sLng);
+
             // Convertir ángulos a radianes
             const startAngle = (angulo_inicio * Math.PI) / 180;
             const endAngle = (angulo_fin * Math.PI) / 180;
-            
+
             // Crear puntos para el polígono del sector
             const points = [centerLatLng]; // Empezar desde el centro
-            
+
             // Calcular puntos del arco
             const numPoints = 30; // Resolución del arco
             let angleStep;
-            
+
             // Manejar sectores que cruzan el 0° (ej: 350° a 10°)
             if (angulo_fin < angulo_inicio) {
                 // Sector que cruza 0°
@@ -94,7 +96,7 @@ function SectorOverlay({ center, radius, sectores, selectedSector, onSectorClick
             } else {
                 angleStep = (endAngle - startAngle) / numPoints;
             }
-            
+
             for (let i = 0; i <= numPoints; i++) {
                 let angle;
                 if (angulo_fin < angulo_inicio) {
@@ -103,10 +105,10 @@ function SectorOverlay({ center, radius, sectores, selectedSector, onSectorClick
                 } else {
                     angle = startAngle + (i * angleStep);
                 }
-                
-                const lat = centerLat + (radiusMeters / 111000) * Math.cos(angle);
-                const lng = centerLng + (radiusMeters / (111000 * Math.cos(centerLat * Math.PI / 180))) * Math.sin(angle);
-                
+
+                const lat = sLat + (radiusMeters / 111000) * Math.cos(angle);
+                const lng = sLng + (radiusMeters / (111000 * Math.cos(sLat * Math.PI / 180))) * Math.sin(angle);
+
                 // Validar que las coordenadas sean números válidos
                 if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
                     // Limitar a 6 decimales para evitar precision issues
@@ -115,7 +117,7 @@ function SectorOverlay({ center, radius, sectores, selectedSector, onSectorClick
                     points.push(L.latLng(latFixed, lngFixed));
                 }
             }
-            
+
             points.push(centerLatLng); // Volver al centro
 
             // Crear el polígono solo si tenemos puntos válidos
@@ -159,7 +161,7 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
     const [numeroSectores, setNumeroSectores] = useState(8);
     const [previewMode, setPreviewMode] = useState(true);
     const [errors, setErrors] = useState({});
-    
+
     // Estados para configuración del centro del pivote
     const [centroPivote, setCentroPivote] = useState({
         latitud_centro: '',
@@ -171,7 +173,7 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
 
     // Colores predefinidos para los sectores
     const coloresDisponibles = [
-        '#FF5722', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', 
+        '#FF5722', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5',
         '#2196F3', '#03A9F4', '#00BCD4', '#009688', '#4CAF50',
         '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800',
         '#795548', '#607D8B', '#424242'
@@ -187,10 +189,10 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
         try {
             // Intentar cargar configuración existente del lote para este regador
             const response = await axios.get(`/geozonas-pivote/lote/${lote.id}/regador/${regador.id}`);
-            
+
             const data = response.data;
             setConfiguracionExistente(data);
-            
+
             // Si existe configuración, cargar los datos
             if (data.sectores && data.sectores.length > 0) {
                 // Convertir todos los valores numéricos a números
@@ -206,17 +208,17 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                     activo: sector.activo !== false,
                     mostrar_preview: true,
                     // ✅ AGREGAR ESTAS DOS LÍNEAS
-                    //latitud_centro: sector.latitud_centro || data.latitud_centro || '',
-                    //longitud_centro: sector.longitud_centro || data.longitud_centro || ''
+                    latitud_centro: sector.latitud_centro || data.latitud_centro || '',
+                    longitud_centro: sector.longitud_centro || data.longitud_centro || ''
                 }));
-                
+
                 setSectores(sectoresNormalizados);
                 setCentroPivote({
                     latitud_centro: data.latitud_centro || '',
                     longitud_centro: data.longitud_centro || '',
                     radio_cobertura: data.radio_cobertura || regador.radio_cobertura_default || ''
                 });
-                
+
                 // Actualizar centro del mapa si hay coordenadas válidas
                 if (data.latitud_centro && data.longitud_centro) {
                     setMapCenter([parseFloat(data.latitud_centro), parseFloat(data.longitud_centro)]);
@@ -262,12 +264,20 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
     };
 
     const handleMapClick = (latlng) => {
-        setCentroPivote(prev => ({
-            ...prev,
-            latitud_centro: latlng.lat.toFixed(6),
-            longitud_centro: latlng.lng.toFixed(6)
-        }));
-        setMapCenter([latlng.lat, latlng.lng]);
+        if (selectedSector !== null) {
+            const nuevosSectores = [...sectores];
+            nuevosSectores[selectedSector].latitud_centro = latlng.lat.toFixed(6);
+            nuevosSectores[selectedSector].longitud_centro = latlng.lng.toFixed(6);
+            setSectores(nuevosSectores);
+            setMapCenter([latlng.lat, latlng.lng]);
+        } else {
+            setCentroPivote(prev => ({
+                ...prev,
+                latitud_centro: latlng.lat.toFixed(6),
+                longitud_centro: latlng.lng.toFixed(6)
+            }));
+            setMapCenter([latlng.lat, latlng.lng]);
+        }
     };
 
     const handleCentroChange = (e) => {
@@ -281,7 +291,7 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
         if (name === 'latitud_centro' || name === 'longitud_centro') {
             const lat = name === 'latitud_centro' ? parseFloat(value) : parseFloat(centroPivote.latitud_centro);
             const lng = name === 'longitud_centro' ? parseFloat(value) : parseFloat(centroPivote.longitud_centro);
-            
+
             if (!isNaN(lat) && !isNaN(lng)) {
                 setMapCenter([lat, lng]);
             }
@@ -296,7 +306,7 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
         for (let i = 0; i < numeroSectores; i++) {
             const anguloInicio = i * angulosPorSector;
             let anguloFin = (i + 1) * angulosPorSector;
-            
+
             // Para el último sector, asegurarse de que termine exactamente en 360
             if (i === numeroSectores - 1) {
                 anguloFin = 360;
@@ -330,7 +340,7 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
             for (let i = 0; i < newValue; i++) {
                 const anguloInicio = i * angulosPorSector;
                 let anguloFin = (i + 1) * angulosPorSector;
-                
+
                 if (i === newValue - 1) {
                     anguloFin = 360;
                 }
@@ -382,7 +392,7 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
         }
 
         const sectorAEliminar = sectores[index];
-        
+
         // Confirmar eliminación
         const confirmacion = window.confirm(
             `¿Estás seguro de eliminar el sector "${sectorAEliminar.nombre_sector}"?\n\n` +
@@ -407,11 +417,11 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
 
         // Eliminar del estado local
         const nuevosSectores = sectores.filter((_, i) => i !== index);
-        
+
         // NO reordenar números de sector si tienen IDs (son geozonas existentes)
         // Solo reordenar si son nuevos sectores sin guardar
         const hayGeozonasSinGuardar = sectores.some(s => !s.id);
-        
+
         let sectoresActualizados;
         if (hayGeozonasSinGuardar) {
             // Si hay sectores sin guardar, mantener los números originales
@@ -420,9 +430,9 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
             // Si todos los sectores están guardados, mantener números originales
             sectoresActualizados = nuevosSectores;
         }
-        
+
         setSectores(sectoresActualizados);
-        
+
         if (selectedSector === index) {
             setSelectedSector(null);
         } else if (selectedSector > index) {
@@ -432,12 +442,12 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
         // Notificar éxito
         console.log(`🗑️ Sector eliminado: ${sectorAEliminar.nombre_sector}`);
     };
-;
+    ;
 
     const handleAddSector = () => {
         const ultimoSector = sectores[sectores.length - 1];
         const nuevoAngulo = ultimoSector ? ultimoSector.angulo_fin : 0;
-        
+
         const nuevoSector = {
             numero_sector: sectores.length + 1,
             nombre_sector: `Sector ${sectores.length + 1}`,
@@ -463,35 +473,35 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
 
     const validarConfiguracion = () => {
         const errores = [];
-        
+
         // Validar coordenadas del centro
         const lat = parseFloat(centroPivote.latitud_centro);
         const lng = parseFloat(centroPivote.longitud_centro);
         const radio = parseFloat(centroPivote.radio_cobertura);
-        
+
         if (isNaN(lat) || lat < -90 || lat > 90) {
             errores.push('La latitud del centro debe ser un número válido entre -90 y 90');
         }
-        
+
         if (isNaN(lng) || lng < -180 || lng > 180) {
             errores.push('La longitud del centro debe ser un número válido entre -180 y 180');
         }
-        
+
         if (isNaN(radio) || radio <= 0) {
             errores.push('El radio de cobertura debe ser un número mayor a 0');
         }
-        
+
         // Validar sectores
         if (sectores.length === 0) {
             errores.push('Debe haber al menos un sector');
         }
-        
+
         // Validar que no haya solapamientos entre sectores
         for (let i = 0; i < sectores.length; i++) {
             for (let j = i + 1; j < sectores.length; j++) {
                 const sector1 = sectores[i];
                 const sector2 = sectores[j];
-                
+
                 // Verificar solapamiento considerando sectores que cruzan 0°
                 const overlap = checkSectorOverlap(sector1, sector2);
                 if (overlap) {
@@ -521,7 +531,7 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
         const s1End = sector1.angulo_fin;
         const s2Start = sector2.angulo_inicio;
         const s2End = sector2.angulo_fin;
-        
+
         // Normalizar ángulos si cruzan 0°
         const normalize = (start, end) => {
             if (end < start) {
@@ -529,17 +539,17 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
             }
             return [start, end];
         };
-        
+
         const [s1NormStart, s1NormEnd] = normalize(s1Start, s1End);
         const [s2NormStart, s2NormEnd] = normalize(s2Start, s2End);
-        
+
         // Verificar solapamiento
         return (s1NormStart < s2NormEnd && s1NormEnd > s2NormStart);
     };
 
     const handleSaveGeozonas = async () => {
         const errores = validarConfiguracion();
-        
+
         if (errores.length > 0) {
             setErrors({ validacion: errores });
             return;
@@ -576,26 +586,26 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                 // Crear nueva configuración
                 await axios.post('/geozonas-pivote', datosGuardar);
             }
-            
+
             onSave(datosGuardar);
             onClose();
         } catch (error) {
             console.error('Error guardando configuración:', error);
-            setErrors({ 
-                general: error.response?.data?.error || 'Error al guardar la configuración' 
+            setErrors({
+                general: error.response?.data?.error || 'Error al guardar la configuración'
             });
         }
     };
     const calcularAreaSector = (sector) => {
         let anguloRadianes;
-        
+
         // Manejar sectores que cruzan 0°
         if (sector.angulo_fin < sector.angulo_inicio) {
             anguloRadianes = ((360 - sector.angulo_inicio) + sector.angulo_fin) * Math.PI / 180;
         } else {
             anguloRadianes = (sector.angulo_fin - sector.angulo_inicio) * Math.PI / 180;
         }
-        
+
         const areaM2 = (anguloRadianes / (2 * Math.PI)) * Math.PI * Math.pow(sector.radio_externo, 2);
         return (areaM2 / 10000).toFixed(3); // Convertir a hectáreas
     };
@@ -621,7 +631,7 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                             }
                             label="Modo Vista Previa"
                         />
-                        <Chip 
+                        <Chip
                             label={`Regador: ${regador.nombre_dispositivo}`}
                             color="primary"
                             size="small"
@@ -787,7 +797,7 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                                                 </IconButton>
                                             </Box>
                                             <Typography variant="caption" color="textSecondary">
-                                                {sector.angulo_inicio.toFixed(1)}° - {sector.angulo_fin.toFixed(1)}° 
+                                                {sector.angulo_inicio.toFixed(1)}° - {sector.angulo_fin.toFixed(1)}°
                                                 | {calcularAreaSector(sector)} ha
                                                 | Coef: {sector.coeficiente_riego}
                                                 | Prio: {sector.prioridad}
@@ -838,11 +848,11 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                             <PieChart sx={{ mr: 1 }} />
                             Vista de Sectores
                         </Typography>
-                        
+
                         <Box sx={{ height: 600, border: '1px solid #ccc', borderRadius: 1 }}>
-                            <MapContainer 
-                                center={mapCenter} 
-                                zoom={coordenadasValidas ? 16 : 12} 
+                            <MapContainer
+                                center={mapCenter}
+                                zoom={coordenadasValidas ? 16 : 12}
                                 style={{ height: '100%', width: '100%' }}
                             >
                                 <TileLayer
@@ -850,15 +860,15 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                                     attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
                                     maxZoom={19}
                                 />
-                                
+
                                 {/* Manejador de clics en el mapa */}
                                 <MapClickHandler onMapClick={handleMapClick} />
-                                
+
                                 {/* Marcador del centro del pivote */}
                                 {coordenadasValidas && (
                                     <Marker position={[parseFloat(centroPivote.latitud_centro), parseFloat(centroPivote.longitud_centro)]} />
                                 )}
-                                
+
                                 {/* Overlay de sectores */}
                                 {coordenadasValidas && centroPivote.radio_cobertura && (
                                     <SectorOverlay
@@ -912,8 +922,8 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                                         Área Total (aprox.)
                                     </Typography>
                                     <Typography variant="h6">
-                                        {centroPivote.radio_cobertura ? 
-                                            (Math.PI * Math.pow(parseFloat(centroPivote.radio_cobertura), 2) / 10000).toFixed(1) 
+                                        {centroPivote.radio_cobertura ?
+                                            (Math.PI * Math.pow(parseFloat(centroPivote.radio_cobertura), 2) / 10000).toFixed(1)
                                             : '0'} ha
                                     </Typography>
                                 </Grid>
@@ -935,9 +945,9 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                 <Button onClick={onClose}>
                     Cancelar
                 </Button>
-                <Button 
-                    onClick={handleSaveGeozonas} 
-                    variant="contained" 
+                <Button
+                    onClick={handleSaveGeozonas}
+                    variant="contained"
                     color="primary"
                     startIcon={<Save />}
                     disabled={!coordenadasValidas || !centroPivote.radio_cobertura || sectores.length === 0}
@@ -970,7 +980,7 @@ function SectorEditDialog({ sector, onSave, onClose, coloresDisponibles }) {
             ...prev,
             [name]: value
         }));
-        
+
         // Limpiar errores específicos
         if (errors[name]) {
             setErrors(prev => ({
@@ -982,36 +992,36 @@ function SectorEditDialog({ sector, onSave, onClose, coloresDisponibles }) {
 
     const validateSector = () => {
         const newErrors = {};
-        
+
         if (!sectorData.nombre_sector.trim()) {
             newErrors.nombre_sector = 'El nombre del sector es requerido';
         }
-        
+
         const anguloInicio = parseFloat(sectorData.angulo_inicio);
         const anguloFin = parseFloat(sectorData.angulo_fin);
-        
+
         if (isNaN(anguloInicio) || anguloInicio < 0 || anguloInicio >= 360) {
             newErrors.angulo_inicio = 'Debe estar entre 0 y 359.99';
         }
-        
+
         if (isNaN(anguloFin) || anguloFin <= 0 || anguloFin > 360) {
             newErrors.angulo_fin = 'Debe estar entre 0.01 y 360';
         }
-        
+
         if (!isNaN(anguloInicio) && !isNaN(anguloFin) && anguloInicio === anguloFin) {
             newErrors.angulo_fin = 'No puede ser igual al ángulo de inicio';
         }
-        
+
         const coeficiente = parseFloat(sectorData.coeficiente_riego);
         if (isNaN(coeficiente) || coeficiente <= 0 || coeficiente > 3) {
             newErrors.coeficiente_riego = 'Debe estar entre 0.1 y 3.0';
         }
-        
+
         const prioridad = parseInt(sectorData.prioridad);
         if (isNaN(prioridad) || prioridad < 1 || prioridad > 10) {
             newErrors.prioridad = 'Debe estar entre 1 y 10';
         }
-        
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -1038,7 +1048,7 @@ function SectorEditDialog({ sector, onSave, onClose, coloresDisponibles }) {
                             helperText={errors.nombre_sector}
                         />
                     </Grid>
-                    
+
                     <Grid item xs={6}>
                         <TextField
                             fullWidth
@@ -1052,7 +1062,7 @@ function SectorEditDialog({ sector, onSave, onClose, coloresDisponibles }) {
                             helperText={errors.angulo_inicio}
                         />
                     </Grid>
-                    
+
                     <Grid item xs={6}>
                         <TextField
                             fullWidth
@@ -1145,14 +1155,14 @@ function SectorEditDialog({ sector, onSave, onClose, coloresDisponibles }) {
                                         const anguloInicio = parseFloat(sectorData.angulo_inicio) || 0;
                                         const anguloFin = parseFloat(sectorData.angulo_fin) || 0;
                                         const radioExterno = parseFloat(sectorData.radio_externo) || 0;
-                                        
+
                                         let anguloRadianes;
                                         if (anguloFin < anguloInicio) {
                                             anguloRadianes = ((360 - anguloInicio) + anguloFin) * Math.PI / 180;
                                         } else {
                                             anguloRadianes = (anguloFin - anguloInicio) * Math.PI / 180;
                                         }
-                                        
+
                                         const areaM2 = (anguloRadianes / (2 * Math.PI)) * Math.PI * Math.pow(radioExterno, 2);
                                         return (areaM2 / 10000).toFixed(3);
                                     })()
@@ -1162,7 +1172,7 @@ function SectorEditDialog({ sector, onSave, onClose, coloresDisponibles }) {
                                     (() => {
                                         const anguloInicio = parseFloat(sectorData.angulo_inicio) || 0;
                                         const anguloFin = parseFloat(sectorData.angulo_fin) || 0;
-                                        
+
                                         if (anguloFin < anguloInicio) {
                                             return ((360 - anguloInicio) + anguloFin).toFixed(1);
                                         } else {
@@ -1173,14 +1183,14 @@ function SectorEditDialog({ sector, onSave, onClose, coloresDisponibles }) {
                                     (() => {
                                         const anguloInicio = parseFloat(sectorData.angulo_inicio) || 0;
                                         const anguloFin = parseFloat(sectorData.angulo_fin) || 0;
-                                        
+
                                         let cobertura;
                                         if (anguloFin < anguloInicio) {
                                             cobertura = ((360 - anguloInicio) + anguloFin);
                                         } else {
                                             cobertura = (anguloFin - anguloInicio);
                                         }
-                                        
+
                                         return ((cobertura / 360) * 100).toFixed(1);
                                     })()
                                 }% del círculo)
