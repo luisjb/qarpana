@@ -276,6 +276,14 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
                 latitud_centro: latlng.lat.toFixed(6),
                 longitud_centro: latlng.lng.toFixed(6)
             }));
+
+            // 🔥 CRITICO: Actualizar también los sectores para que se muevan con el centro principal
+            setSectores(prev => prev.map(s => ({
+                ...s,
+                latitud_centro: latlng.lat.toFixed(6),
+                longitud_centro: latlng.lng.toFixed(6)
+            })));
+
             setMapCenter([latlng.lat, latlng.lng]);
         }
     };
@@ -287,13 +295,18 @@ function GeozonaConfigDialog({ open, onClose, onSave, lote, regador }) {
             [name]: value
         }));
 
-        // Si se cambian las coordenadas manualmente, actualizar el mapa
+        // Si se cambian las coordenadas manualmente, actualizar el mapa y los sectores!
         if (name === 'latitud_centro' || name === 'longitud_centro') {
             const lat = name === 'latitud_centro' ? parseFloat(value) : parseFloat(centroPivote.latitud_centro);
             const lng = name === 'longitud_centro' ? parseFloat(value) : parseFloat(centroPivote.longitud_centro);
 
             if (!isNaN(lat) && !isNaN(lng)) {
                 setMapCenter([lat, lng]);
+                setSectores(prev => prev.map(s => ({
+                    ...s,
+                    latitud_centro: lat.toFixed(6),
+                    longitud_centro: lng.toFixed(6)
+                })));
             }
         }
     };

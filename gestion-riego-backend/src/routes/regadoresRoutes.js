@@ -10,7 +10,7 @@ router.get('/campo/:campoId', verifyToken, async (req, res) => {
     const client = await pool.connect();
     try {
         const { campoId } = req.params;
-        
+
         const query = `
             SELECT 
                 r.*,
@@ -22,7 +22,7 @@ router.get('/campo/:campoId', verifyToken, async (req, res) => {
             GROUP BY r.id
             ORDER BY r.fecha_creacion DESC
         `;
-        
+
         const { rows } = await client.query(query, [campoId]);
         res.json(rows);
     } catch (err) {
@@ -38,7 +38,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        
+
         const {
             campo_id,
             nombre_dispositivo,
@@ -53,8 +53,8 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
         // Validación: radio_cobertura_default es requerido
         if (!radio_cobertura_default || radio_cobertura_default <= 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ 
-                error: 'El radio de cobertura es requerido y debe ser mayor a 0' 
+            return res.status(400).json({
+                error: 'El radio de cobertura es requerido y debe ser mayor a 0'
             });
         }
 
@@ -66,8 +66,8 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
 
         if (existeRegador.rows.length > 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ 
-                error: 'Ya existe un regador con ese nombre en este campo' 
+            return res.status(400).json({
+                error: 'Ya existe un regador con ese nombre en este campo'
             });
         }
 
@@ -162,14 +162,14 @@ router.delete('/:regadorId', verifyToken, isAdmin, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        
+
         const { regadorId } = req.params;
 
         // Eliminar primero los sectores asociados
         await client.query('DELETE FROM estado_sectores_riego WHERE geozona_id IN (SELECT id FROM geozonas_pivote WHERE regador_id = $1)', [regadorId]);
         await client.query('DELETE FROM eventos_riego WHERE regador_id = $1', [regadorId]);
         await client.query('DELETE FROM geozonas_pivote WHERE regador_id = $1', [regadorId]);
-        
+
         // Eliminar el regador
         const result = await client.query('DELETE FROM regadores WHERE id = $1 RETURNING *', [regadorId]);
 
@@ -194,7 +194,7 @@ router.get('/:regadorId/geozonas', verifyToken, async (req, res) => {
     const client = await pool.connect();
     try {
         const { regadorId } = req.params;
-        
+
         // ✅ PASO 1: Obtener la posición actual del regador para saber en qué lote está
         const queryPosicionActual = `
             SELECT 
@@ -210,18 +210,18 @@ router.get('/:regadorId/geozonas', verifyToken, async (req, res) => {
             ORDER BY dog.timestamp DESC
             LIMIT 1
         `;
-        
+
         const resultPosicion = await client.query(queryPosicionActual, [regadorId]);
         const loteActual = resultPosicion.rows[0]?.lote_id || null;
-        
+
         console.log(`📍 Regador ${regadorId} - Lote actual detectado:`, loteActual || 'Ninguno');
-        
+
         // ✅ PASO 2: Si NO está en ningún lote, devolver TODOS los sectores
         // ✅ PASO 3: Si SÍ está en un lote, devolver SOLO los sectores de ese lote
-        
+
         let query;
         let params;
-        
+
         if (loteActual) {
             // ✅ Está en un lote específico - filtrar SOLO ese lote
             query = `
@@ -240,6 +240,8 @@ router.get('/:regadorId/geozonas', verifyToken, async (req, res) => {
                     gp.coeficiente_riego,
                     gp.prioridad,
                     gp.fecha_creacion,
+                    gp.latitud_centro,
+                    gp.longitud_centro,
                     l.nombre_lote,
                     esr.estado,
                     esr.progreso_porcentaje,
@@ -272,6 +274,8 @@ router.get('/:regadorId/geozonas', verifyToken, async (req, res) => {
                     gp.coeficiente_riego,
                     gp.prioridad,
                     gp.fecha_creacion,
+                    gp.latitud_centro,
+                    gp.longitud_centro,
                     l.nombre_lote,
                     esr.estado,
                     esr.progreso_porcentaje,
@@ -286,17 +290,17 @@ router.get('/:regadorId/geozonas', verifyToken, async (req, res) => {
             `;
             params = [regadorId];
         }
-        
+
         const { rows } = await client.query(query, params);
-        
+
         console.log(`📊 Sectores devueltos: ${rows.length}`);
-        
+
         res.json({
             lote_actual: loteActual,
             nombre_lote: resultPosicion.rows[0]?.nombre_lote || null,
             sectores: rows
         });
-        
+
     } catch (err) {
         console.error('Error al obtener geozonas:', err);
         res.status(500).json({ error: 'Error del servidor' });
@@ -311,7 +315,7 @@ router.post('/:regadorId/geozonas', verifyToken, isAdmin, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        
+
         const { regadorId } = req.params;
         const { lote_id, sectores } = req.body;
 
@@ -331,7 +335,7 @@ router.post('/:regadorId/geozonas', verifyToken, isAdmin, async (req, res) => {
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 RETURNING *
             `;
-            
+
             return client.query(insertQuery, [
                 regadorId,
                 lote_id,
@@ -349,7 +353,7 @@ router.post('/:regadorId/geozonas', verifyToken, isAdmin, async (req, res) => {
         });
 
         const results = await Promise.all(insertPromises);
-        
+
         // Crear estados iniciales para los nuevos sectores
         const estadoPromises = results.map(result => {
             return client.query(
@@ -360,8 +364,8 @@ router.post('/:regadorId/geozonas', verifyToken, isAdmin, async (req, res) => {
 
         await Promise.all(estadoPromises);
         await client.query('COMMIT');
-        
-        res.status(201).json({ 
+
+        res.status(201).json({
             message: 'Geozonas creadas con éxito',
             sectores: results.map(r => r.rows[0])
         });
@@ -379,7 +383,7 @@ router.get('/campo/:campoId/estado-riego', verifyToken, async (req, res) => {
     const client = await pool.connect();
     try {
         const { campoId } = req.params;
-        
+
         const query = `
             SELECT 
                 r.id as regador_id,
@@ -402,7 +406,7 @@ router.get('/campo/:campoId/estado-riego', verifyToken, async (req, res) => {
             GROUP BY r.id, r.nombre_dispositivo, r.tipo_regador, r.radio_cobertura, r.activo
             ORDER BY r.nombre_dispositivo
         `;
-        
+
         const { rows } = await client.query(query, [campoId]);
         res.json(rows);
     } catch (err) {
@@ -419,7 +423,7 @@ router.get('/:regadorId/eventos', verifyToken, async (req, res) => {
     try {
         const { regadorId } = req.params;
         const { limit = 50 } = req.query;
-        
+
         const query = `
             SELECT 
                 er.*,
@@ -432,7 +436,7 @@ router.get('/:regadorId/eventos', verifyToken, async (req, res) => {
             ORDER BY er.fecha_evento DESC
             LIMIT $2
         `;
-        
+
         const { rows } = await client.query(query, [regadorId, limit]);
         res.json(rows);
     } catch (err) {
@@ -449,7 +453,7 @@ router.get('/:regadorId/datos-operacion', verifyToken, async (req, res) => {
     try {
         const { regadorId } = req.params;
         const { desde, hasta, incluir_presion, incluir_altitud, limit = 1000 } = req.query;
-        
+
         // Construir query dinámicamente según parámetros
         let query = `
             SELECT 
@@ -476,25 +480,25 @@ router.get('/:regadorId/datos-operacion', verifyToken, async (req, res) => {
             LEFT JOIN lotes l ON gp.lote_id = l.id
             WHERE dog.regador_id = $1
         `;
-        
+
         const params = [regadorId];
         let paramIndex = 2;
-        
+
         if (desde) {
             query += ` AND dog.timestamp >= $${paramIndex}::timestamp`;
             params.push(desde);
             paramIndex++;
         }
-        
+
         if (hasta) {
             query += ` AND dog.timestamp <= $${paramIndex}::timestamp`;
             params.push(hasta);
             paramIndex++;
         }
-        
+
         query += ` ORDER BY dog.timestamp DESC LIMIT $${paramIndex}`;
         params.push(parseInt(limit));
-        
+
         const { rows } = await client.query(query, params);
         res.json(rows);
     } catch (err) {
@@ -510,7 +514,7 @@ router.get('/:regadorId/ultimo-estado', verifyToken, async (req, res) => {
     const client = await pool.connect();
     try {
         const { regadorId } = req.params;
-        
+
         const query = `
             SELECT 
                 dog.*,
@@ -524,13 +528,13 @@ router.get('/:regadorId/ultimo-estado', verifyToken, async (req, res) => {
             ORDER BY dog.timestamp DESC
             LIMIT 1
         `;
-        
+
         const { rows } = await client.query(query, [regadorId]);
-        
+
         if (rows.length === 0) {
             return res.status(404).json({ error: 'No hay datos de operación para este regador' });
         }
-        
+
         res.json(rows[0]);
     } catch (err) {
         console.error('Error al obtener último estado:', err);
@@ -546,7 +550,7 @@ router.get('/:regadorId/ciclos-riego', verifyToken, async (req, res) => {
     try {
         const { regadorId } = req.params;
         const { desde, hasta, limit = 50 } = req.query;
-        
+
         let query = `
             SELECT 
                 cr.*,
@@ -557,25 +561,25 @@ router.get('/:regadorId/ciclos-riego', verifyToken, async (req, res) => {
             LEFT JOIN lotes l ON gp.lote_id = l.id
             WHERE cr.regador_id = $1
         `;
-        
+
         const params = [regadorId];
         let paramIndex = 2;
-        
+
         if (desde) {
             query += ` AND cr.fecha_inicio >= $${paramIndex}::timestamp`;
             params.push(desde);
             paramIndex++;
         }
-        
+
         if (hasta) {
             query += ` AND cr.fecha_fin <= $${paramIndex}::timestamp`;
             params.push(hasta);
             paramIndex++;
         }
-        
+
         query += ` ORDER BY cr.fecha_inicio DESC LIMIT $${paramIndex}`;
         params.push(parseInt(limit));
-        
+
         const { rows } = await client.query(query, params);
         res.json(rows);
     } catch (err) {
@@ -592,7 +596,7 @@ router.get('/:regadorId/estadisticas', verifyToken, async (req, res) => {
     try {
         const { regadorId } = req.params;
         const { periodo = '7' } = req.query; // Días por defecto
-        
+
         const query = `
             SELECT 
                 COUNT(DISTINCT DATE(dog.timestamp)) as dias_operacion,
@@ -608,9 +612,9 @@ router.get('/:regadorId/estadisticas', verifyToken, async (req, res) => {
             WHERE dog.regador_id = $1
                 AND dog.timestamp >= NOW() - INTERVAL '${parseInt(periodo)} days'
         `;
-        
+
         const { rows } = await client.query(query, [regadorId]);
-        
+
         // Obtener agua aplicada en el período
         const aguaQuery = `
             SELECT 
@@ -622,9 +626,9 @@ router.get('/:regadorId/estadisticas', verifyToken, async (req, res) => {
                 AND fecha_inicio >= NOW() - INTERVAL '${parseInt(periodo)} days'
                 AND completado = true
         `;
-        
+
         const aguaResult = await client.query(aguaQuery, [regadorId]);
-        
+
         res.json({
             operacion: rows[0],
             riego: aguaResult.rows[0]
@@ -646,15 +650,15 @@ router.get('/:regadorId/vueltas', async (req, res) => {
     try {
         const { regadorId } = req.params;
         const { limite = 10 } = req.query;
-        
+
         const vueltas = await vueltasService.obtenerResumenVueltas(regadorId, limite);
-        
+
         res.json({
             success: true,
             count: vueltas.length,
             data: vueltas
         });
-        
+
     } catch (error) {
         console.error('Error obteniendo vueltas:', error);
         res.status(500).json({
@@ -671,15 +675,15 @@ router.get('/:regadorId/vueltas', async (req, res) => {
 router.get('/:regadorId/vueltas/:vueltaId/sectores', async (req, res) => {
     try {
         const { vueltaId } = req.params;
-        
+
         const sectores = await vueltasService.obtenerDetalleSectoresVuelta(vueltaId);
-        
+
         res.json({
             success: true,
             count: sectores.length,
             data: sectores
         });
-        
+
     } catch (error) {
         console.error('Error obteniendo sectores de vuelta:', error);
         res.status(500).json({
@@ -696,14 +700,14 @@ router.get('/:regadorId/vueltas/:vueltaId/sectores', async (req, res) => {
 router.get('/:regadorId/estadisticas-generales', async (req, res) => {
     try {
         const { regadorId } = req.params;
-        
+
         const estadisticas = await vueltasService.obtenerEstadisticasGenerales(regadorId);
-        
+
         res.json({
             success: true,
             data: estadisticas
         });
-        
+
     } catch (error) {
         console.error('Error obteniendo estadísticas:', error);
         res.status(500).json({
@@ -720,7 +724,7 @@ router.get('/:regadorId/estadisticas-generales', async (req, res) => {
 router.get('/:regadorId/vuelta-actual', async (req, res) => {
     try {
         const { regadorId } = req.params;
-        
+
         const query = `
             SELECT 
                 vr.*,
@@ -734,9 +738,9 @@ router.get('/:regadorId/vuelta-actual', async (req, res) => {
             ORDER BY vr.fecha_inicio DESC
             LIMIT 1
         `;
-        
+
         const result = await pool.query(query, [regadorId]);
-        
+
         if (result.rows.length === 0) {
             return res.json({
                 success: true,
@@ -744,10 +748,10 @@ router.get('/:regadorId/vuelta-actual', async (req, res) => {
                 message: 'No hay vuelta activa'
             });
         }
-        
+
         // Obtener sectores de la vuelta actual
         const sectores = await vueltasService.obtenerDetalleSectoresVuelta(result.rows[0].id);
-        
+
         res.json({
             success: true,
             data: {
@@ -755,7 +759,7 @@ router.get('/:regadorId/vuelta-actual', async (req, res) => {
                 sectores: sectores
             }
         });
-        
+
     } catch (error) {
         console.error('Error obteniendo vuelta actual:', error);
         res.status(500).json({
@@ -772,13 +776,13 @@ router.get('/:regadorId/vuelta-actual', async (req, res) => {
 router.get('/:regadorId/resumen-completo', async (req, res) => {
     try {
         const { regadorId } = req.params;
-        
+
         // Obtener estadísticas generales
         const estadisticas = await vueltasService.obtenerEstadisticasGenerales(regadorId);
-        
+
         // Obtener vueltas
         const vueltas = await vueltasService.obtenerResumenVueltas(regadorId, 20);
-        
+
         // Obtener vuelta actual si existe
         const queryVueltaActual = `
             SELECT * FROM vueltas_riego
@@ -788,14 +792,14 @@ router.get('/:regadorId/resumen-completo', async (req, res) => {
         `;
         const resultActual = await pool.query(queryVueltaActual, [regadorId]);
         const vueltaActual = resultActual.rows[0] || null;
-        
+
         // Obtener información del regador
         const queryRegador = `
             SELECT * FROM regadores WHERE id = $1
         `;
         const resultRegador = await pool.query(queryRegador, [regadorId]);
         const regador = resultRegador.rows[0];
-        
+
         res.json({
             success: true,
             data: {
@@ -821,7 +825,7 @@ router.get('/:regadorId/resumen-completo', async (req, res) => {
                 vueltas: vueltas
             }
         });
-        
+
     } catch (error) {
         console.error('Error obteniendo resumen completo:', error);
         res.status(500).json({
@@ -838,26 +842,26 @@ router.get('/:regadorId/resumen-completo', async (req, res) => {
 router.get('/:regadorId/vueltas/:vueltaId/detalles', async (req, res) => {
     try {
         const { vueltaId } = req.params;
-        
+
         // Obtener información de la vuelta
         const queryVuelta = `
             SELECT * FROM v_resumen_vueltas
             WHERE vuelta_id = $1
         `;
         const resultVuelta = await pool.query(queryVuelta, [vueltaId]);
-        
+
         if (resultVuelta.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: 'Vuelta no encontrada'
             });
         }
-        
+
         const vuelta = resultVuelta.rows[0];
-        
+
         // Obtener sectores
         const sectores = await vueltasService.obtenerDetalleSectoresVuelta(vueltaId);
-        
+
         res.json({
             success: true,
             data: {
@@ -865,7 +869,7 @@ router.get('/:regadorId/vueltas/:vueltaId/detalles', async (req, res) => {
                 sectores: sectores
             }
         });
-        
+
     } catch (error) {
         console.error('Error obteniendo detalles de vuelta:', error);
         res.status(500).json({
