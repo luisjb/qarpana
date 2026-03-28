@@ -1231,7 +1231,7 @@ function Simulations() {
                                 </Box>
                                 <Grid container spacing={2} justifyContent="center">
                                     <Grid item xs={6} sx={{ textAlign: 'center' }}>
-                                        <Typography variant="body1" color="text.secondary">1 Metro</Typography>
+                                        <Typography variant="body1" color="text.secondary">0-100 cm</Typography>
                                         <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
                                             <GaugeIndicator
                                                 percentage={formatNumber(simulationData.porcentajeAu1m)}
@@ -1243,7 +1243,7 @@ function Simulations() {
                                         </Typography>
                                     </Grid>
                                     <Grid item xs={6} sx={{ textAlign: 'center' }}>
-                                        <Typography variant="body1" color="text.secondary">2 Metros</Typography>
+                                        <Typography variant="body1" color="text.secondary">0-200 mm</Typography>
                                         <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
                                             <GaugeIndicator
                                                 percentage={formatNumber(simulationData.porcentajeAu2m)}
@@ -1267,7 +1267,7 @@ function Simulations() {
                                 </Box>
                                 <Grid container spacing={2} justifyContent="center">
                                     <Grid item xs={6} sx={{ textAlign: 'center' }}>
-                                        <Typography variant="body1" color="text.secondary">1 Metro</Typography>
+                                        <Typography variant="body1" color="text.secondary">0-100 cm</Typography>
                                         <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
                                             <GaugeIndicator
                                                 percentage={formatNumber(simulationData.porcentajeProyectado || 0)}
@@ -1279,7 +1279,7 @@ function Simulations() {
                                         </Typography>
                                     </Grid>
                                     <Grid item xs={6} sx={{ textAlign: 'center' }}>
-                                        <Typography variant="body1" color="text.secondary">2 Metros</Typography>
+                                        <Typography variant="body1" color="text.secondary">0-200 cm</Typography>
                                         <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
                                             <GaugeIndicator
                                                 percentage={formatNumber(simulationData.porcentajeProyectado2m || 0)}
