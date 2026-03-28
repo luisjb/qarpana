@@ -11,7 +11,7 @@ import Widget from './Widget';
 import CorreccionDiasDialog from './CorreccionDiasDialog';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import DownloadIcon from '@mui/icons-material/Download';
-import { WaterDrop } from '@mui/icons-material';
+import { WaterDrop, Cloud } from '@mui/icons-material';
 import { useLocation } from 'react-router-dom';
 import ObservacionesSection from './ObservacionesSection';
 
@@ -564,16 +564,8 @@ function Simulations() {
         const ultimoDiaDefinido = rangosEstadosFenologicos.length > 1 ?
             rangosEstadosFenologicos[rangosEstadosFenologicos.length - 2].fin : 50;
 
-
-        // Normalizar los días para que estén dentro del rango de estados fenológicos
-        const diasNormalizados = diasDesdeSiembra.map(dia => {
-            if (dia <= ultimoDiaDefinido) {
-                return dia; // Usar día directamente si está dentro del rango
-            } else {
-                // Normalizar al ciclo del cultivo usando módulo
-                return dia % ultimoDiaDefinido;
-            }
-        });
+        // Usamos los días reales sin ciclo repetitivo para que se mantenga el último estado
+        const diasNormalizados = diasDesdeSiembra;
 
 
         // Función para determinar estado fenológico basada en días normalizados
@@ -1159,23 +1151,39 @@ function Simulations() {
                                 </Box>
                                 <Grid container spacing={2}>
                                     <Grid item xs={6}>
-                                        <Typography variant="body1" color="text.secondary">1 Metro</Typography>
+                                        <Typography variant="body1" color="text.secondary">0-100 cm</Typography>
                                         <Typography variant="h5">{formatNumber(simulationData.auInicial1m)} mm</Typography>
                                     </Grid>
                                     <Grid item xs={6}>
-                                        <Typography variant="body1" color="text.secondary">2 Metros</Typography>
+                                        <Typography variant="body1" color="text.secondary">0-200 cm</Typography>
                                         <Typography variant="h5">{formatNumber(simulationData.auInicial2m)} mm</Typography>
                                     </Grid>
                                 </Grid>
                             </Paper>
                         </Grid>
                         <Grid item xs={12} md={4}>
-                            <Widget
-                                title=" Lluvias Efectiva Acumuladas"
-                                value={formatNumber(simulationData.lluviasEfectivasAcumuladas)}
-                                unit="mm"
-                                icon="cloud"
-                            />
+                            <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
+                                <Box display="flex" alignItems="center" mb={2}>
+                                    <Cloud style={{ color: '#3FA9F5' }} />
+                                    <Typography variant="h6" color="primary" style={{ marginLeft: '10px' }}>
+                                        Lluvias Acumuladas
+                                    </Typography>
+                                </Box>
+                                <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                        <Typography variant="body1" color="text.secondary">Reales</Typography>
+                                        <Typography variant="h5">
+                                            {formatNumber((simulationData.lluvias || []).reduce((sum, val) => sum + (parseFloat(val) || 0), 0))} mm
+                                        </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Typography variant="body1" color="text.secondary">Efectivas</Typography>
+                                        <Typography variant="h5">
+                                            {formatNumber(simulationData.lluviasEfectivasAcumuladas)} mm
+                                        </Typography>
+                                    </Grid>
+                                </Grid>
+                            </Paper>
                         </Grid>
                         <Grid item xs={12} md={4}>
                             <Widget

@@ -19,7 +19,9 @@ import LandscapeIcon from '@mui/icons-material/Landscape';
 import ChangeCircleIcon from '@mui/icons-material/ChangeCircle';
 import PeopleIcon from '@mui/icons-material/People';
 import WaterDrop from '@mui/icons-material/WaterDrop';
-
+import AgricultureIcon from '@mui/icons-material/Agriculture';
+import SettingsIcon from '@mui/icons-material/Settings';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 
 import logo from '../assets/logo.jpeg';
 
@@ -28,6 +30,7 @@ const Header = () => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [anchorEl, setAnchorEl] = useState(null);
+    const [adminAnchorEl, setAdminAnchorEl] = useState(null);
     const userRole = localStorage.getItem('role');
     const isAdmin = userRole && userRole.toLowerCase() === 'admin';
     const isDemo = userRole && userRole.toLowerCase() === 'demo';
@@ -40,6 +43,14 @@ const Header = () => {
         setAnchorEl(null);
     };
 
+    const handleAdminMenuOpen = (event) => {
+        setAdminAnchorEl(event.currentTarget);
+    };
+
+    const handleAdminMenuClose = () => {
+        setAdminAnchorEl(null);
+    };
+
     const handleLogout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('role');
@@ -49,12 +60,16 @@ const Header = () => {
     const menuItems = [
         { text: 'Panel', icon: <DashboardIcon />, link: '/simulations' },
         { text: 'Resumen de Círculos', icon: <WaterDrop />, link: '/resumen-circulos' },
+        { text: 'Riego', icon: <AgricultureIcon />, link: '/estado-riego' },
         ...(isDemo ? [] : [
-            ...(isAdmin ? [{ text: 'Campos', icon: <LandscapeIcon />, link: '/campos' }] : []),
             { text: 'Cambios Diarios', icon: <ChangeCircleIcon />, link: '/cambios-diarios' },
-            ...(isAdmin ? [{ text: 'Gestión de Usuarios', icon: <PeopleIcon />, link: '/admin/users' }] : []),
         ]),
     ];
+
+    const adminItems = (isAdmin && !isDemo) ? [
+        { text: 'Campos', icon: <LandscapeIcon />, link: '/campos' },
+        { text: 'Usuarios', icon: <PeopleIcon />, link: '/admin/users' },
+    ] : [];
 
     return (
         <AppBar position="static">
@@ -109,6 +124,14 @@ const Header = () => {
                     </Box>
                     </MenuItem>
                 ))}
+                {adminItems.map((item) => (
+                    <MenuItem key={item.text} onClick={() => { handleClose(); navigate(item.link); }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        {item.icon}
+                        <Typography sx={{ ml: 1, fontFamily: 'Poppins, Arial, sans-serif' }}>{item.text}</Typography>
+                    </Box>
+                    </MenuItem>
+                ))}
                 <MenuItem onClick={handleLogout}>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <LogoutIcon />
@@ -131,6 +154,41 @@ const Header = () => {
                     {item.text}
                 </Button>
                 ))}
+                {adminItems.length > 0 && (
+                    <>
+                        <Button 
+                            color="inherit" 
+                            onClick={handleAdminMenuOpen} 
+                            startIcon={<SettingsIcon />}
+                            endIcon={<ArrowDropDownIcon />}
+                            sx={{ mr: 1, fontFamily: 'Poppins, Arial, sans-serif' }}
+                        >
+                            Administración
+                        </Button>
+                        <Menu
+                            anchorEl={adminAnchorEl}
+                            open={Boolean(adminAnchorEl)}
+                            onClose={handleAdminMenuClose}
+                            anchorOrigin={{
+                                vertical: 'bottom',
+                                horizontal: 'right',
+                            }}
+                            transformOrigin={{
+                                vertical: 'top',
+                                horizontal: 'right',
+                            }}
+                        >
+                            {adminItems.map((item) => (
+                                <MenuItem key={item.text} onClick={() => { handleAdminMenuClose(); navigate(item.link); }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                        {item.icon}
+                                        <Typography sx={{ ml: 1, fontFamily: 'Poppins, Arial, sans-serif' }}>{item.text}</Typography>
+                                    </Box>
+                                </MenuItem>
+                            ))}
+                        </Menu>
+                    </>
+                )}
                 <Button 
                 color="inherit" 
                 onClick={handleLogout} 

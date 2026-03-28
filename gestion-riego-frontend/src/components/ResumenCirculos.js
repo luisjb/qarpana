@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Container, Grid, Typography, Paper, FormControl, InputLabel, 
+import {
+    Container, Grid, Typography, Paper, FormControl, InputLabel,
     Select, MenuItem, CircularProgress, useTheme, Box, Card, CardContent,
     CardActionArea, Divider, Button
 } from '@mui/material';
@@ -14,16 +14,16 @@ import RecomendacionesSection from './RecomendacionesSection';
 // Este valor es dinámico y se configura por lote
 const GaugeIndicator = ({ percentage, size = 60, umbral = 50 }) => {
     const safePercentage = percentage === null || percentage === undefined || isNaN(percentage) ? 0 : Math.round(Number(percentage));
-    
+
     const getColor = (value) => {
         value = Number(value) || 0;
         if (value <= umbral / 2) return '#ef4444';
         if (value <= umbral) return '#f97316';
         return '#22c55e';
     };
-    
+
     const color = getColor(safePercentage);
-    
+
     return (
         <div style={{
             position: 'relative',
@@ -53,7 +53,7 @@ const GaugeIndicator = ({ percentage, size = 60, umbral = 50 }) => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     transform: 'rotate(90deg)',
-                    fontSize: `${size/3}px`,
+                    fontSize: `${size / 3}px`,
                 }}>
                     {safePercentage}%
                 </div>
@@ -97,12 +97,12 @@ function ResumenCirculos() {
             const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
             const response = await axios.get(endpoint);
             setCampos(response.data);
-            
+
             if (response.data.length > 0) {
                 setSelectedCampo(response.data[0].id);
                 fetchLotesPorCampo(response.data[0].id);
             }
-            
+
             setLoading(false);
         } catch (error) {
             console.error('Error al obtener campos:', error);
@@ -116,11 +116,11 @@ function ResumenCirculos() {
         try {
             setLoading(true);
             const response = await axios.get(`/lotes/campo/${campoId}`);
-            
+
             const lotesActivos = response.data.lotes && response.data.lotes.length > 0
                 ? response.data.lotes.filter(lote => lote.activo)
                 : [];
-            
+
             if (lotesActivos.length > 0) {
                 // IMPORTANTE: El endpoint /simulations/summary/${lote.id} debe devolver
                 // el campo 'porcentajeAguaUtilUmbral' para que los colores de los indicadores
@@ -150,13 +150,13 @@ function ResumenCirculos() {
                         };
                     }
                 });
-                
+
                 const lotesConDatos = await Promise.all(lotesPromises);
                 setLotes(lotesConDatos);
             } else {
                 setLotes([]);
             }
-            
+
             setLoading(false);
         } catch (error) {
             console.error('Error al obtener lotes:', error);
@@ -170,7 +170,7 @@ function ResumenCirculos() {
         try {
             // Obtener solo la última recomendación del campo
             const response = await axios.get(`/recomendaciones/campo/${campoId}`);
-            
+
             if (response.data && response.data.length > 0) {
                 // Tomar solo la última recomendación (la más reciente)
                 const ultimaRecomendacion = response.data[response.data.length - 1];
@@ -205,14 +205,14 @@ function ResumenCirculos() {
         }
 
         setGeneratingPDF(true);
-        
+
         try {
             // Importación dinámica para evitar problemas de carga inicial
             const { default: PDFReportGenerator } = await import('./PDFReportGenerator');
-            
+
             // Obtener datos del campo seleccionado
             const campoSeleccionado = campos.find(c => c.id === selectedCampo);
-            
+
             if (!campoSeleccionado) {
                 throw new Error('Campo no encontrado');
             }
@@ -223,12 +223,12 @@ function ResumenCirculos() {
                     try {
                         // Intentar obtener datos de simulación completos
                         const simResponse = await axios.get(`/simulations/${lote.id}`, {
-                            params: { 
-                                campaña: lote.campaña, 
-                                cultivo: lote.especie 
+                            params: {
+                                campaña: lote.campaña,
+                                cultivo: lote.especie
                             }
                         });
-                        
+
                         return {
                             ...lote,
                             simulationData: simResponse.data
@@ -258,7 +258,7 @@ function ResumenCirculos() {
                 lotesDetallados,
                 recomendacionesParaPDF
             );
-            
+
         } catch (error) {
             console.error('Error al generar el informe PDF:', error);
             if (error.message.includes('Failed to resolve module')) {
@@ -283,7 +283,7 @@ function ResumenCirculos() {
             <Typography variant="h4" gutterBottom sx={{ my: 4, fontWeight: 'bold', color: theme.palette.primary.main }}>
                 Resumen de Círculos
             </Typography>
-            
+
             <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
                 <Grid container spacing={2} alignItems="center">
                     <Grid item xs={12} md={8}>
@@ -334,14 +334,14 @@ function ResumenCirculos() {
                 <Typography color="error" sx={{ my: 2 }}>{error}</Typography>
             )}
 
-            
+
 
             <Grid container spacing={3}>
                 {lotes.map((lote) => (
                     <Grid item xs={12} sm={6} md={4} key={lote.id}>
-                        <Card 
-                            elevation={3} 
-                            sx={{ 
+                        <Card
+                            elevation={3}
+                            sx={{
                                 height: '100%',
                                 transition: 'transform 0.2s',
                                 '&:hover': {
@@ -349,7 +349,7 @@ function ResumenCirculos() {
                                 }
                             }}
                         >
-                            <CardActionArea 
+                            <CardActionArea
                                 onClick={() => handleLoteClick(lote.id, lote.campaña)}
                                 sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
                             >
@@ -363,20 +363,55 @@ function ResumenCirculos() {
                                     <Typography variant="body2" color="text.secondary" gutterBottom>
                                         Campaña: {lote.campaña}
                                     </Typography>
-                                    
+                                    <Typography variant="body2" color="text.primary" fontWeight="bold" gutterBottom>
+                                        Estado Fenológico: {lote.waterData?.estadoFenologico || 'Desconocido'}
+                                    </Typography>
+
                                     <Divider sx={{ my: 2 }} />
-                                    
+
                                     <Box display="flex" flexDirection="column" alignItems="center" sx={{ mt: 2 }}>
                                         <Grid container spacing={2}>
                                             <Grid item xs={6}>
                                                 <Box display="flex" flexDirection="column" alignItems="center">
-                                                    <Box display="flex" alignItems="center" mb={1}>
-                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} />
-                                                        <Typography variant="body2">1 Metro</Typography>
+                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
+                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
+                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>AU Actual<br />(ZR)</Typography>
                                                     </Box>
-                                                    <GaugeIndicator 
-                                                        percentage={formatNumber(lote.waterData?.porcentajeAu1m || 0)} 
-                                                        size={80}
+                                                    <GaugeIndicator
+                                                        percentage={formatNumber(lote.waterData?.porcentajeAguaUtil || 0)}
+                                                        size={60}
+                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
+                                                    />
+                                                    <Typography variant="body2" sx={{ mt: 1 }}>
+                                                        {formatNumber(lote.waterData?.aguaUtilZonaRadicular || 0)} mm
+                                                    </Typography>
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={6}>
+                                                <Box display="flex" flexDirection="column" alignItems="center">
+                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
+                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
+                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>AU Proy.<br />(7 días)</Typography>
+                                                    </Box>
+                                                    <GaugeIndicator
+                                                        percentage={formatNumber(lote.waterData?.porcentajeProyectado || 0)}
+                                                        size={60}
+                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
+                                                    />
+                                                    <Typography variant="body2" sx={{ mt: 1 }}>
+                                                        {formatNumber(lote.waterData?.proyeccionAU10Dias || 0)} mm
+                                                    </Typography>
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={6}>
+                                                <Box display="flex" flexDirection="column" alignItems="center">
+                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px' }}>
+                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
+                                                        <Typography variant="caption">0-100 cm</Typography>
+                                                    </Box>
+                                                    <GaugeIndicator
+                                                        percentage={formatNumber(lote.waterData?.porcentajeAu1m || 0)}
+                                                        size={60}
                                                         umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
                                                     />
                                                     <Typography variant="body2" sx={{ mt: 1 }}>
@@ -386,13 +421,13 @@ function ResumenCirculos() {
                                             </Grid>
                                             <Grid item xs={6}>
                                                 <Box display="flex" flexDirection="column" alignItems="center">
-                                                    <Box display="flex" alignItems="center" mb={1}>
-                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} />
-                                                        <Typography variant="body2">2 Metros</Typography>
+                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px' }}>
+                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
+                                                        <Typography variant="caption">0-200 cm</Typography>
                                                     </Box>
-                                                    <GaugeIndicator 
-                                                        percentage={formatNumber(lote.waterData?.porcentajeAu2m || 0)} 
-                                                        size={80}
+                                                    <GaugeIndicator
+                                                        percentage={formatNumber(lote.waterData?.porcentajeAu2m || 0)}
+                                                        size={60}
                                                         umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
                                                     />
                                                     <Typography variant="body2" sx={{ mt: 1 }}>
@@ -408,7 +443,7 @@ function ResumenCirculos() {
                     </Grid>
                 ))}
             </Grid>
-            
+
             {isAdmin && selectedCampo && (
                 <Paper elevation={3} sx={{ p: 3, mb: 4, mt: 4 }}>
                     <RecomendacionesSection campoId={selectedCampo} />

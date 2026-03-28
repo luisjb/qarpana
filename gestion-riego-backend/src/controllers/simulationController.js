@@ -10,7 +10,7 @@ exports.getSimulationData = async (req, res) => {
 
     try {
         const { rows: [maxDays] } = await pool.query(`
-            SELECT MAX(GREATEST(cc.indice_dias, COALESCE(ccl.dias_correccion, cc.indice_dias))) as max_dias
+            SELECT MAX(COALESCE(ccl.dias_correccion, cc.indice_dias)) as max_dias
             FROM coeficiente_cultivo cc
             JOIN lotes l ON l.cultivo_id = cc.cultivo_id
             LEFT JOIN coeficiente_cultivo_lote ccl ON ccl.lote_id = l.id AND ccl.coeficiente_cultivo_id = cc.id
@@ -1210,7 +1210,10 @@ exports.getSummaryData = async (req, res) => {
             porcentajeAu1m: simulationData.porcentajeAu1m,
             porcentajeAu2m: simulationData.porcentajeAu2m,
             porcentajeAguaUtilUmbral: simulationData.porcentajeAguaUtilUmbral, // Campo necesario para los indicadores de color
-            ultimaFecha: simulationData.fechas[lastIndex]
+            ultimaFecha: simulationData.fechas[lastIndex],
+            estadoFenologico: simulationData.estadoFenologico,
+            porcentajeProyectado: simulationData.porcentajeProyectado,
+            proyeccionAU10Dias: simulationData.proyeccionAU10Dias
         };
 
         // Agregamos un log para verificar los valores

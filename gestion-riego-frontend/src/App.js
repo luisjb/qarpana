@@ -11,6 +11,7 @@ import UserManagement from './components/UserManagement';
 import CambiosDiarios from './components/CambiosDiarios';
 import Simulaciones from './components/Simulations';
 import ResumenCirculos from './components/ResumenCirculos';
+import EstadoRiegoPage from './components/EstadoRiegoPage';
 import LandingPage from './components/LandingPage'; // Importa la landing page
 
 
@@ -147,7 +148,10 @@ function App() {
             path="/resumen-circulos" 
             element={<PrivateRoute element={<ResumenCirculos />}/>}
           />
-
+          <Route 
+            path="/estado-riego" 
+            element={<PrivateRoute element={<EstadoRiegoPage />}/>}
+          />
 
         </Routes>
       </Router>

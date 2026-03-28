@@ -39,7 +39,12 @@ function LotesManagement() {
     const [selectedLote, setSelectedLote] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     
-
+    // Filtros
+    const [filtroNombre, setFiltroNombre] = useState('');
+    const [filtroCampaña, setFiltroCampaña] = useState('');
+    const [filtroCultivo, setFiltroCultivo] = useState('');
+    const [filtroActivo, setFiltroActivo] = useState('todos');
+    
     useEffect(() => {
         if (campoId) {
             fetchLotes();
@@ -250,6 +255,17 @@ function LotesManagement() {
         });
     };
 
+    const filteredLotes = lotes.filter(lote => {
+        const matchNombre = lote.nombre_lote.toLowerCase().includes(filtroNombre.toLowerCase());
+        const matchCampaña = (lote.campaña || '').toLowerCase().includes(filtroCampaña.toLowerCase());
+        const matchCultivo = filtroCultivo ? (lote.nombre_cultivo || '') === filtroCultivo : true;
+        const matchActivo = filtroActivo === 'todos' ? true :
+                            filtroActivo === 'activos' ? lote.activo === true :
+                            lote.activo === false;
+        
+        return matchNombre && matchCampaña && matchCultivo && matchActivo;
+    });
+
     return (
         <Container maxWidth="md">
             <Typography variant="h4" gutterBottom>Lotes del Campo: {nombreCampo}</Typography>
@@ -258,8 +274,59 @@ function LotesManagement() {
                     Agregar Nuevo Lote
                 </Button>
             )}
+
+            <Grid container spacing={2} style={{ marginTop: '20px', marginBottom: '20px' }}>
+                <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                        fullWidth
+                        label="Buscar por Nombre"
+                        value={filtroNombre}
+                        onChange={(e) => setFiltroNombre(e.target.value)}
+                    />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                        fullWidth
+                        label="Buscar por Campaña"
+                        value={filtroCampaña}
+                        onChange={(e) => setFiltroCampaña(e.target.value)}
+                    />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <FormControl fullWidth>
+                        <InputLabel id="filtro-cultivo-label">Cultivo</InputLabel>
+                        <Select
+                            labelId="filtro-cultivo-label"
+                            value={filtroCultivo}
+                            onChange={(e) => setFiltroCultivo(e.target.value)}
+                            label="Cultivo"
+                        >
+                            <MenuItem value=""><em>Todos</em></MenuItem>
+                            {cultivos.map(c => (
+                                <MenuItem key={c.id} value={c.nombre_cultivo}>{c.nombre_cultivo}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <FormControl fullWidth>
+                        <InputLabel id="filtro-activo-label">Estado</InputLabel>
+                        <Select
+                            labelId="filtro-activo-label"
+                            value={filtroActivo}
+                            onChange={(e) => setFiltroActivo(e.target.value)}
+                            label="Estado"
+                        >
+                            <MenuItem value="todos">Todos</MenuItem>
+                            <MenuItem value="activos">Activos</MenuItem>
+                            <MenuItem value="inactivos">Inactivos</MenuItem>
+                        </Select>
+                    </FormControl>
+                </Grid>
+            </Grid>
+
             <List>
-                {lotes.map((lote) => (
+                {filteredLotes.map((lote) => (
                     <ListItem key={lote.id}>
                         <ListItemText
                             primary={lote.nombre_lote}

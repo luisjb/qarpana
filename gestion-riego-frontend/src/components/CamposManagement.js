@@ -55,7 +55,8 @@ function CamposManagement() {
     const [openRegadoresDialog, setOpenRegadoresDialog] = useState(false);
     const [selectedCampoRegadores, setSelectedCampoRegadores] = useState(null);
 
-
+    // Filtros
+    const [filtroNombre, setFiltroNombre] = useState('');
 
     const navigate = useNavigate();
 
@@ -471,6 +472,10 @@ function CamposManagement() {
         checkAdminStatus();
     }, []);
     
+    const filteredCampos = campos.filter(campo => 
+        campo.nombre_campo.toLowerCase().includes(filtroNombre.toLowerCase())
+    );
+
     return (
     <Container maxWidth="md">
         <Typography variant="h4" gutterBottom>Gestión de Campos</Typography>
@@ -500,6 +505,18 @@ function CamposManagement() {
             )}
         </Box>
 
+        {/* Buscador de Campos */}
+        <Box sx={{ mb: 3 }}>
+            <TextField
+                fullWidth
+                label="Buscar Campo por Nombre"
+                variant="outlined"
+                value={filtroNombre}
+                onChange={(e) => setFiltroNombre(e.target.value)}
+                sx={{ backgroundColor: 'background.paper', borderRadius: 1 }}
+            />
+        </Box>
+
         {/* Lista de campos */}
         {isLoadingCampos ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
@@ -507,7 +524,7 @@ function CamposManagement() {
             </Box>
         ) : (
             <List>
-                {campos.map((campo) => {
+                {filteredCampos.map((campo) => {
                     const estacionAsociada = findEstacionAsociada(campo);
                     
                     return (
