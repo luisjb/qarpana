@@ -364,7 +364,7 @@ function ResumenCirculos() {
                                     <Typography variant="body2" color="text.secondary" gutterBottom>
                                         {lote.especie} - {lote.variedad}
                                     </Typography>
-                                    <Typography variant="body2" color="text.primary" gutterBottom>
+                                    <Typography variant="body2" color="text.secondary" gutterBottom>
                                         Estado Fenológico: {lote.waterData?.estadoFenologico || 'Desconocido'}
                                     </Typography>
 
