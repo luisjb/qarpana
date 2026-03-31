@@ -1195,7 +1195,6 @@ exports.getSummaryData = async (req, res) => {
         // Extraemos solo los datos que necesitamos para el resumen
         const lastIndex = simulationData.aguaUtil.length - 1;
 
-        // Creamos un objeto resumen con los datos relevantes
         const resumen = {
             loteId: lote.id,
             nombreLote: lote.nombre_lote,
@@ -1213,7 +1212,10 @@ exports.getSummaryData = async (req, res) => {
             ultimaFecha: simulationData.fechas[lastIndex],
             estadoFenologico: simulationData.estadoFenologico,
             porcentajeProyectado: simulationData.porcentajeProyectado,
-            proyeccionAU10Dias: simulationData.proyeccionAU10Dias
+            porcentajeProyectado2m: simulationData.porcentajeProyectado2m,
+            proyeccionAU10Dias: simulationData.proyeccionAU10Dias,
+            proyeccionAU1mDia8: simulationData.proyeccionAU1mDia8,
+            proyeccionAU2mDia8: simulationData.proyeccionAU2mDia8
         };
 
         // Agregamos un log para verificar los valores

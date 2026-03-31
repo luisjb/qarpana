@@ -145,6 +145,10 @@ function ResumenCirculos() {
                                 auInicial1m: 0,
                                 auInicial2m: 0,
                                 porcentajeAguaUtilUmbral: 50,
+                                porcentajeProyectado: 0,
+                                porcentajeProyectado2m: 0,
+                                proyeccionAU1mDia8: 0,
+                                proyeccionAU2mDia8: 0,
                                 error: true
                             }
                         };
@@ -370,44 +374,15 @@ function ResumenCirculos() {
                                     <Divider sx={{ my: 2 }} />
 
                                     <Box display="flex" flexDirection="column" alignItems="center" sx={{ mt: 2 }}>
-                                        <Grid container spacing={2}>
+                                        <Typography variant="subtitle2" color="text.secondary" align="left" sx={{ width: '100%', mb: 1, borderBottom: '1px solid #eee' }}>
+                                            Profundidad 0-100 cm
+                                        </Typography>
+                                        <Grid container spacing={2} sx={{ mb: 2 }}>
                                             <Grid item xs={6}>
                                                 <Box display="flex" flexDirection="column" alignItems="center">
                                                     <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
                                                         <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
-                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>AU Actual<br />(ZR)</Typography>
-                                                    </Box>
-                                                    <GaugeIndicator
-                                                        percentage={formatNumber(lote.waterData?.porcentajeAguaUtil || 0)}
-                                                        size={60}
-                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
-                                                    />
-                                                    <Typography variant="body2" sx={{ mt: 1 }}>
-                                                        {formatNumber(lote.waterData?.aguaUtilZonaRadicular || 0)} mm
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box display="flex" flexDirection="column" alignItems="center">
-                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
-                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
-                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>AU Proy.<br />(7 días)</Typography>
-                                                    </Box>
-                                                    <GaugeIndicator
-                                                        percentage={formatNumber(lote.waterData?.porcentajeProyectado || 0)}
-                                                        size={60}
-                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
-                                                    />
-                                                    <Typography variant="body2" sx={{ mt: 1 }}>
-                                                        {formatNumber(lote.waterData?.proyeccionAU10Dias || 0)} mm
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box display="flex" flexDirection="column" alignItems="center">
-                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px' }}>
-                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
-                                                        <Typography variant="caption">0-100 cm</Typography>
+                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Actual<br />(0-100)</Typography>
                                                     </Box>
                                                     <GaugeIndicator
                                                         percentage={formatNumber(lote.waterData?.porcentajeAu1m || 0)}
@@ -421,9 +396,31 @@ function ResumenCirculos() {
                                             </Grid>
                                             <Grid item xs={6}>
                                                 <Box display="flex" flexDirection="column" alignItems="center">
-                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px' }}>
+                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
                                                         <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
-                                                        <Typography variant="caption">0-200 cm</Typography>
+                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Proy. 7 días<br />(0-100)</Typography>
+                                                    </Box>
+                                                    <GaugeIndicator
+                                                        percentage={formatNumber(lote.waterData?.porcentajeProyectado || 0)}
+                                                        size={60}
+                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
+                                                    />
+                                                    <Typography variant="body2" sx={{ mt: 1 }}>
+                                                        {formatNumber(lote.waterData?.proyeccionAU1mDia8 || 0)} mm
+                                                    </Typography>
+                                                </Box>
+                                            </Grid>
+                                        </Grid>
+
+                                        <Typography variant="subtitle2" color="text.secondary" align="left" sx={{ width: '100%', mb: 1, borderBottom: '1px solid #eee' }}>
+                                            Profundidad 0-200 cm
+                                        </Typography>
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={6}>
+                                                <Box display="flex" flexDirection="column" alignItems="center">
+                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
+                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
+                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Actual<br />(0-200)</Typography>
                                                     </Box>
                                                     <GaugeIndicator
                                                         percentage={formatNumber(lote.waterData?.porcentajeAu2m || 0)}
@@ -432,6 +429,22 @@ function ResumenCirculos() {
                                                     />
                                                     <Typography variant="body2" sx={{ mt: 1 }}>
                                                         {formatNumber(lote.waterData?.aguaUtil2m || 0)} mm
+                                                    </Typography>
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={6}>
+                                                <Box display="flex" flexDirection="column" alignItems="center">
+                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
+                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
+                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Proy. 7 días<br />(0-200)</Typography>
+                                                    </Box>
+                                                    <GaugeIndicator
+                                                        percentage={formatNumber(lote.waterData?.porcentajeProyectado2m || 0)}
+                                                        size={60}
+                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
+                                                    />
+                                                    <Typography variant="body2" sx={{ mt: 1 }}>
+                                                        {formatNumber(lote.waterData?.proyeccionAU2mDia8 || 0)} mm
                                                     </Typography>
                                                 </Box>
                                             </Grid>
