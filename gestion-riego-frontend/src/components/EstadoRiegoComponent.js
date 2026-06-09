@@ -384,10 +384,18 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const [sectorActual, setSectorActual] = useState(null);
     const [estadoActual, setEstadoActual] = useState(null);
 
+    // ⭐ NUEVO - Estados para reinicio de regador
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [confirmReinicioDialog, setConfirmReinicioDialog] = useState(false);
+    const [reiniciandoRegador, setReiniciandoRegador] = useState(false);
+
     useEffect(() => {
         if (campoId) {
             fetchEstadoRiego();
         }
+        // Verificar si es admin
+        const userRole = localStorage.getItem('role');
+        setIsAdmin(userRole && userRole.toLowerCase() === 'admin');
     }, [campoId]);
 
     // Actualización automática cada 30 segundos
@@ -544,6 +552,26 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
         }
     };
 
+    // ⭐ NUEVA FUNCIÓN - Reiniciar regador
+    const handleReiniciarRegador = async () => {
+        try {
+            setReiniciandoRegador(true);
+            const response = await axios.post(`/regadores/${selectedRegador.regador_id}/reiniciar`);
+
+            if (response.data.success) {
+                // Actualizar datos después del reinicio
+                await handleRefresh(selectedRegador.regador_id);
+                setConfirmReinicioDialog(false);
+                console.log('✅ Regador reiniciado correctamente');
+            }
+        } catch (error) {
+            console.error('Error al reiniciar regador:', error);
+            alert('Error al reiniciar el regador: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setReiniciandoRegador(false);
+        }
+    };
+
     const handleCloseDialog = () => {
         setDetalleDialog(false);
         setSelectedRegador(null);
@@ -558,6 +586,8 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
         // ⭐ NUEVO - Limpiar sector y estado actual
         setSectorActual(null);
         setEstadoActual(null);
+        // Limpiar diálogo de reinicio
+        setConfirmReinicioDialog(false);
     };
 
     if (loading) {
@@ -639,11 +669,22 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                                 </Typography>
                                 {/* ⭐ NUEVO - Mostrar sector actual si existe */}
                                 {sectorActual && estadoActual && (
-                                    <Typography variant="body2" color="textSecondary">
-                                        {estadoActual.regando ? '💧 Regando en: ' : '📍 Ubicado en: '}
-                                        <strong>{sectorActual}</strong>
-                                        {estadoActual.nombre_lote && ` - ${estadoActual.nombre_lote}`}
-                                    </Typography>
+                                    <Box>
+                                        <Typography variant="body2" color="textSecondary">
+                                            {estadoActual.regando ? '💧 Regando en: ' : '📍 Ubicado en: '}
+                                            <strong>{sectorActual}</strong>
+                                            {estadoActual.nombre_lote && ` - ${estadoActual.nombre_lote}`}
+                                        </Typography>
+                                        {/* ⭐ NUEVO - Mostrar ángulo y sentido de giro detectado */}
+                                        <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                                            📐 Ángulo: {estadoActual.angulo_actual?.toFixed(1)}°
+                                            {estadoActual.sentido_giro && estadoActual.sentido_giro !== 'auto' && (
+                                                <span style={{ marginLeft: '8px' }}>
+                                                    {estadoActual.sentido_giro === 'horario' ? '🔄 Horario' : '↩️ Antihorario'}
+                                                </span>
+                                            )}
+                                        </Typography>
+                                    </Box>
                                 )}
                             </Box>
                         </Box>
@@ -1017,6 +1058,18 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                 </DialogContent>
 
                 <DialogActions>
+                    {/* ⭐ NUEVO - Botón para reiniciar (solo admins) */}
+                    {isAdmin && (
+                        <Button
+                            onClick={() => setConfirmReinicioDialog(true)}
+                            color="error"
+                            disabled={reiniciandoRegador}
+                            startIcon={<Refresh />}
+                        >
+                            Reiniciar Regador
+                        </Button>
+                    )}
+                    <Box sx={{ flexGrow: 1 }} />
                     <Button onClick={handleCloseDialog}>
                         Cerrar
                     </Button>
@@ -1026,6 +1079,51 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
                         disabled={refreshing}
                     >
                         Actualizar
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* ⭐ NUEVO - Diálogo de confirmación para reinicio */}
+            <Dialog
+                open={confirmReinicioDialog}
+                onClose={() => setConfirmReinicioDialog(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>
+                    ⚠️ Reiniciar Regador
+                </DialogTitle>
+                <DialogContent>
+                    <Typography sx={{ mt: 2 }}>
+                        Está a punto de reiniciar el regador <strong>{selectedRegador?.nombre_dispositivo}</strong>.
+                    </Typography>
+                    <Typography sx={{ mt: 2, mb: 2 }} color="warning.main">
+                        Esta acción eliminará:
+                    </Typography>
+                    <ul style={{ margin: '0 0 16px 0' }}>
+                        <li>Toda el agua aplicada</li>
+                        <li>Todas las vueltas registradas</li>
+                        <li>Todos los sectores completados</li>
+                        <li>El progreso actual</li>
+                    </ul>
+                    <Typography color="textSecondary">
+                        El regador quedará listo para comenzar de nuevo desde el inicio.
+                    </Typography>
+                    <Typography sx={{ mt: 2 }} color="error" variant="body2">
+                        <strong>⚠️ Esta acción no se puede deshacer</strong>
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setConfirmReinicioDialog(false)}>
+                        Cancelar
+                    </Button>
+                    <Button
+                        onClick={handleReiniciarRegador}
+                        color="error"
+                        variant="contained"
+                        disabled={reiniciandoRegador}
+                    >
+                        {reiniciandoRegador ? 'Reiniciando...' : 'Confirmar Reinicio'}
                     </Button>
                 </DialogActions>
             </Dialog>

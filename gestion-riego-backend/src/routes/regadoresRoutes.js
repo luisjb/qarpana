@@ -882,5 +882,58 @@ router.get('/:regadorId/vueltas/:vueltaId/detalles', async (req, res) => {
     }
 });
 
+// Reiniciar regador (solo admin)
+router.post('/:regadorId/reiniciar', verifyToken, isAdmin, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const { regadorId } = req.params;
+
+        // Verificar que el regador existe
+        const regadorCheck = await client.query('SELECT id FROM regadores WHERE id = $1', [regadorId]);
+        if (regadorCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Regador no encontrado' });
+        }
+
+        // Resetear estado de sectores
+        await client.query(`
+            UPDATE estado_sectores_riego
+            SET estado = 'pendiente',
+                progreso_porcentaje = 0,
+                agua_aplicada_litros = 0,
+                fecha_inicio_real = NULL,
+                fecha_fin_real = NULL
+            WHERE geozona_id IN (
+                SELECT id FROM geozonas_pivote WHERE regador_id = $1
+            )
+        `, [regadorId]);
+
+        // Eliminar vueltas de riego
+        await client.query(`
+            DELETE FROM vueltas_riego WHERE regador_id = $1
+        `, [regadorId]);
+
+        // Resetear datos operación GPS (limpiar agua y vueltas)
+        await client.query(`
+            UPDATE datos_operacion_gps
+            SET agua_acumulada = 0, numero_vuelta = 0
+            WHERE regador_id = $1
+        `, [regadorId]);
+
+        await client.query('COMMIT');
+        res.json({
+            success: true,
+            message: 'Regador reiniciado correctamente'
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Error al reiniciar regador:', err);
+        res.status(500).json({ error: 'Error del servidor' });
+    } finally {
+        client.release();
+    }
+});
 
 module.exports = router;

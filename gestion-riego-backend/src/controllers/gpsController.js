@@ -262,7 +262,7 @@ class GPSController {
             const { regadorId } = req.params;
 
             const query = `
-                SELECT 
+                SELECT
                     dog.timestamp,
                     dog.latitud,
                     dog.longitud,
@@ -296,9 +296,42 @@ class GPSController {
                 });
             }
 
+            const posicionActual = result.rows[0];
+
+            // ⭐ NUEVO - Detectar sentido de giro basándose en los últimos ángulos
+            let sentidoGiro = 'auto';
+            try {
+                const queryHistorial = `
+                    SELECT
+                        angulo_actual,
+                        timestamp
+                    FROM datos_operacion_gps
+                    WHERE regador_id = $1 AND angulo_actual IS NOT NULL
+                    ORDER BY timestamp DESC
+                    LIMIT 10
+                `;
+
+                const historialResult = await pool.query(queryHistorial, [regadorId]);
+
+                if (historialResult.rows.length >= 3) {
+                    // Invertir orden para obtener del más antiguo al más nuevo
+                    const historial = historialResult.rows.reverse().map(row => ({
+                        angulo: parseFloat(row.angulo_actual),
+                        timestamp: row.timestamp
+                    }));
+
+                    sentidoGiro = this.detectarSentidoReal(historial);
+                }
+            } catch (err) {
+                console.warn('Error detectando sentido de giro:', err.message);
+            }
+
+            // Incluir sentido de giro en la respuesta
+            posicionActual.sentido_giro = sentidoGiro;
+
             res.json({
                 success: true,
-                data: result.rows[0]
+                data: posicionActual
             });
 
         } catch (error) {
@@ -307,6 +340,65 @@ class GPSController {
                 success: false,
                 error: error.message
             });
+        }
+    }
+
+    /**
+     * Detecta el sentido de giro real basándose en el historial de ángulos
+     * @param {Array} historial - Array de {angulo, timestamp}
+     * @returns {string} - 'horario', 'antihorario', o 'auto'
+     */
+    detectarSentidoReal(historial) {
+        if (historial.length < 3) {
+            return 'auto';
+        }
+
+        let movimientosHorario = 0;
+        let movimientosAntihorario = 0;
+        let movimientosTotales = 0;
+
+        // Analizar los últimos N movimientos
+        for (let i = 1; i < historial.length; i++) {
+            const anguloAnterior = historial[i - 1].angulo;
+            const anguloActual = historial[i].angulo;
+
+            // Calcular diferencia angular
+            let diff = anguloActual - anguloAnterior;
+
+            // Normalizar a -180 a +180
+            if (diff > 180) {
+                diff -= 360;
+            } else if (diff < -180) {
+                diff += 360;
+            }
+
+            // Solo contar movimientos significativos (> 0.5°)
+            if (Math.abs(diff) > 0.5) {
+                movimientosTotales++;
+
+                if (diff > 0) {
+                    movimientosAntihorario++;  // Ángulo aumenta
+                } else {
+                    movimientosHorario++;  // Ángulo disminuye
+                }
+            }
+        }
+
+        // Decidir el sentido predominante
+        if (movimientosTotales === 0) {
+            return 'auto';  // No hay movimiento suficiente
+        }
+
+        const porcentajeAntihorario = (movimientosAntihorario / movimientosTotales) * 100;
+        const porcentajeHorario = (movimientosHorario / movimientosTotales) * 100;
+
+        // Requiere al menos 70% de consistencia para decidir
+        if (porcentajeAntihorario >= 70) {
+            return 'antihorario';
+        } else if (porcentajeHorario >= 70) {
+            return 'horario';
+        } else {
+            return 'auto';  // Movimiento inconsistente
         }
     }
 
