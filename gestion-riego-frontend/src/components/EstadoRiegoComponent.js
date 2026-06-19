@@ -363,7 +363,7 @@ function RegadorCard({ regador, onViewDetails, onRefresh }) {
 }
 
 // Componente principal
-function EstadoRiegoComponent({ campoId, nombreCampo }) {
+function EstadoRiegoComponent({ campoId, nombreCampo, campaña }) {
     const [regadores, setRegadores] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedRegador, setSelectedRegador] = useState(null);
@@ -396,7 +396,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
         // Verificar si es admin
         const userRole = localStorage.getItem('role');
         setIsAdmin(userRole && userRole.toLowerCase() === 'admin');
-    }, [campoId]);
+    }, [campoId, campaña]);
 
     // Actualización automática cada 30 segundos
     useEffect(() => {
@@ -418,7 +418,9 @@ function EstadoRiegoComponent({ campoId, nombreCampo }) {
     const fetchEstadoRiego = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(`/gps/campos/${campoId}/estado-riego`);
+            const response = await axios.get(`/gps/campos/${campoId}/estado-riego`, {
+                params: campaña ? { campaña } : {}
+            });
 
             // Asegurar que siempre sea un array
             const data = Array.isArray(response.data) ? response.data : [];

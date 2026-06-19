@@ -460,6 +460,7 @@ class GPSController {
     async obtenerEstadoCampo(req, res) {
         try {
             const { campoId } = req.params;
+            const { campaña } = req.query;
 
             const query = `
                 SELECT 
@@ -529,7 +530,11 @@ class GPSController {
                      LIMIT 1) as sector_actual
                     
                 FROM regadores r
-                LEFT JOIN geozonas_pivote gp ON r.id = gp.regador_id AND gp.activo = true
+                LEFT JOIN geozonas_pivote gp ON r.id = gp.regador_id
+                    AND gp.activo = true
+                    AND ($2::text IS NULL OR EXISTS (
+                        SELECT 1 FROM lotes l_camp WHERE l_camp.id = gp.lote_id AND l_camp.campaña = $2
+                    ))
                 LEFT JOIN estado_sectores_riego esr ON gp.id = esr.geozona_id
                 LEFT JOIN datos_operacion_gps dog ON r.id = dog.regador_id
                 WHERE r.campo_id = $1
@@ -546,7 +551,7 @@ class GPSController {
                 ORDER BY r.activo DESC, r.id
             `;
 
-            const result = await pool.query(query, [campoId]);
+            const result = await pool.query(query, [campoId, campaña || null]);
 
             console.log(`📊 Estado campo ${campoId}:`, result.rows.length, 'regadores encontrados');
 

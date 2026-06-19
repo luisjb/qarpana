@@ -24,7 +24,10 @@ ChartJS.register(
 
 function Simulations() {
     const [campos, setCampos] = useState([]);
+    const [todosLotes, setTodosLotes] = useState([]);
     const [lotes, setLotes] = useState([]);
+    const [campañasFiltro, setCampañasFiltro] = useState([]);
+    const [filtroCampaña, setFiltroCampaña] = useState('');
     const [campañas, setCampañas] = useState([]);
     const [cultivos, setCultivos] = useState([]);
     const [selectedCampo, setSelectedCampo] = useState('');
@@ -147,15 +150,22 @@ function Simulations() {
         }
     };
 
-    const fetchLotes = async (campoId) => {
+    const fetchLotes = async (campoId, campañaFiltroActual = '') => {
         try {
             const response = await axios.get(`/lotes/campo/${campoId}`);
-            setLotes(Array.isArray(response.data)
-                ? response.data.filter(lote => lote.activo)
-                : (response.data.lotes || []).filter(lote => lote.activo));
+            const all = Array.isArray(response.data)
+                ? response.data
+                : (response.data.lotes || []);
+            setTodosLotes(all);
+            const campañasUnicas = [...new Set(all.map(l => l.campaña).filter(Boolean))].sort();
+            setCampañasFiltro(campañasUnicas);
+            const filtro = campañaFiltroActual || (campañasUnicas.length === 1 ? campañasUnicas[0] : '');
+            if (filtro && !campañaFiltroActual) setFiltroCampaña(filtro);
+            setLotes(filtro ? all.filter(l => l.campaña === filtro) : all);
         } catch (error) {
             console.error('Error al obtener lotes:', error);
             setLotes([]);
+            setTodosLotes([]);
         }
     };
 
@@ -173,12 +183,14 @@ function Simulations() {
                 // Si solo hay una campaña, seleccionarla automáticamente
                 if (campañasLote.length === 1) {
                     setSelectedCampaña(campañasLote[0]);
+                    fetchCultivos(loteId, campañasLote[0]);
                     fetchSimulationData(loteId, campañasLote[0]);
                 } else if (campañasLote.length > 0) {
                     // Establecer la campaña actual del lote como seleccionada por defecto
                     const campañaActual = response.data.loteCampaña || '';
                     if (campañaActual && campañasLote.includes(campañaActual)) {
                         setSelectedCampaña(campañaActual);
+                        fetchCultivos(loteId, campañaActual);
                         fetchSimulationData(loteId, campañaActual);
                     } else {
                         setSelectedCampaña(''); // Ninguna seleccionada si no hay coincidencia
@@ -236,12 +248,25 @@ function Simulations() {
         setSelectedLote('');
         setSelectedCampaña('');
         setSelectedCultivo('');
+        setFiltroCampaña('');
+        setTodosLotes([]);
+        setCampañasFiltro([]);
         setSimulationData(null);
         if (campoId) {
             fetchLotes(campoId);
         } else {
             setLotes([]);
         }
+    };
+
+    const handleFiltroCampañaChange = (event) => {
+        const campaña = event.target.value;
+        setFiltroCampaña(campaña);
+        setSelectedLote('');
+        setSelectedCampaña('');
+        setSelectedCultivo('');
+        setSimulationData(null);
+        setLotes(campaña ? todosLotes.filter(l => l.campaña === campaña) : todosLotes);
     };
 
     const handleLoteChange = (event) => {
@@ -994,7 +1019,7 @@ function Simulations() {
 
             <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6} md={4} lg={4.5}>
+                    <Grid item xs={12} sm={6} md={3}>
                         <FormControl fullWidth>
                             <InputLabel label="Campo" variant="outlined">Campo</InputLabel>
                             <Select
@@ -1010,7 +1035,24 @@ function Simulations() {
                         </FormControl>
                     </Grid>
 
-                    <Grid item xs={12} sm={6} md={3} lg={3}>
+                    <Grid item xs={12} sm={6} md={2}>
+                        <FormControl fullWidth>
+                            <InputLabel>Campaña</InputLabel>
+                            <Select
+                                value={filtroCampaña}
+                                onChange={handleFiltroCampañaChange}
+                                disabled={!selectedCampo}
+                                label="Campaña"
+                            >
+                                <MenuItem value=""><em>Todas</em></MenuItem>
+                                {campañasFiltro.map(c => (
+                                    <MenuItem key={c} value={c}>{c}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6} md={4}>
                         <FormControl fullWidth>
                             <InputLabel>Lote</InputLabel>
                             <Select
@@ -1021,29 +1063,15 @@ function Simulations() {
                             >
                                 <MenuItem value=""><em>Seleccione un lote</em></MenuItem>
                                 {lotes.map(lote => (
-                                    <MenuItem key={lote.id} value={lote.id}>{lote.nombre_lote}</MenuItem>
+                                    <MenuItem key={lote.id} value={lote.id}>
+                                        {lote.nombre_lote}{!lote.activo ? ' (inactivo)' : ''}
+                                    </MenuItem>
                                 ))}
                             </Select>
                         </FormControl>
                     </Grid>
 
-                    <Grid item xs={12} sm={6} md={2} lg={1.5}>
-                        <FormControl fullWidth>
-                            <InputLabel>Campaña</InputLabel>
-                            <Select
-                                value={selectedCampaña}
-                                onChange={handleCampañaChange}
-                                disabled={!selectedLote}
-                                label="Campaña"
-                            >
-                                {campañas.map((campaña) => (
-                                    <MenuItem key={campaña} value={campaña}>{campaña}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </Grid>
-
-                    <Grid item xs={12} sm={6} md={3} lg={3}>
+                    <Grid item xs={12} sm={6} md={3}>
                         <FormControl fullWidth>
                             <InputLabel>Cultivo</InputLabel>
                             <Select

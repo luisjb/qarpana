@@ -65,7 +65,10 @@ const GaugeIndicator = ({ percentage, size = 60, umbral = 50 }) => {
 function ResumenCirculos() {
     const [campos, setCampos] = useState([]);
     const [selectedCampo, setSelectedCampo] = useState('');
+    const [todosLotes, setTodosLotes] = useState([]);
     const [lotes, setLotes] = useState([]);
+    const [campañasFiltro, setCampañasFiltro] = useState([]);
+    const [filtroCampaña, setFiltroCampaña] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
@@ -112,20 +115,29 @@ function ResumenCirculos() {
         }
     };
 
-    const fetchLotesPorCampo = async (campoId) => {
+    const fetchLotesPorCampo = async (campoId, campañaFiltro = '') => {
         try {
             setLoading(true);
             const response = await axios.get(`/lotes/campo/${campoId}`);
 
-            const lotesActivos = response.data.lotes && response.data.lotes.length > 0
-                ? response.data.lotes.filter(lote => lote.activo)
+            const all = response.data.lotes && response.data.lotes.length > 0
+                ? response.data.lotes
                 : [];
 
-            if (lotesActivos.length > 0) {
+            setTodosLotes(all);
+            const campañasUnicas = [...new Set(all.map(l => l.campaña).filter(Boolean))].sort();
+            setCampañasFiltro(campañasUnicas);
+
+            const filtro = campañaFiltro || (campañasUnicas.length === 1 ? campañasUnicas[0] : '');
+            if (filtro && !campañaFiltro) setFiltroCampaña(filtro);
+
+            const lotesVer = filtro ? all.filter(l => l.campaña === filtro) : all;
+
+            if (lotesVer.length > 0) {
                 // IMPORTANTE: El endpoint /simulations/summary/${lote.id} debe devolver
                 // el campo 'porcentajeAguaUtilUmbral' para que los colores de los indicadores
                 // se ajusten correctamente según la configuración de cada lote
-                const lotesPromises = lotesActivos.map(async (lote) => {
+                const lotesPromises = lotesVer.map(async (lote) => {
                     try {
                         const dataResponse = await axios.get(`/simulations/summary/${lote.id}`);
                         console.log(`Datos del lote ${lote.id}:`, dataResponse.data);
@@ -191,7 +203,33 @@ function ResumenCirculos() {
     const handleCampoChange = (event) => {
         const campoId = event.target.value;
         setSelectedCampo(campoId);
+        setFiltroCampaña('');
+        setTodosLotes([]);
+        setCampañasFiltro([]);
         fetchLotesPorCampo(campoId);
+    };
+
+    const handleFiltroCampañaChange = (event) => {
+        const campaña = event.target.value;
+        setFiltroCampaña(campaña);
+        const lotesVer = campaña ? todosLotes.filter(l => l.campaña === campaña) : todosLotes;
+        // Re-fetch waterData only for the filtered lots
+        if (lotesVer.length > 0) {
+            setLoading(true);
+            Promise.all(lotesVer.map(async (lote) => {
+                try {
+                    const dataResponse = await axios.get(`/simulations/summary/${lote.id}`);
+                    return { ...lote, waterData: dataResponse.data };
+                } catch {
+                    return { ...lote, waterData: { porcentajeAu1m: 0, porcentajeAu2m: 0, aguaUtil1m: 0, aguaUtil2m: 0, auInicial1m: 0, auInicial2m: 0, porcentajeAguaUtilUmbral: 50, porcentajeProyectado: 0, porcentajeProyectado2m: 0, proyeccionAU1mDia8: 0, proyeccionAU2mDia8: 0, error: true } };
+                }
+            })).then(result => {
+                setLotes(result);
+                setLoading(false);
+            });
+        } else {
+            setLotes([]);
+        }
     };
 
     const handleLoteClick = (loteId, campana) => {
@@ -290,7 +328,7 @@ function ResumenCirculos() {
 
             <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
                 <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} md={8}>
+                    <Grid item xs={12} sm={6} md={4}>
                         <FormControl fullWidth>
                             <InputLabel id="campo-label">Campo</InputLabel>
                             <Select
@@ -301,6 +339,22 @@ function ResumenCirculos() {
                             >
                                 {campos.map(campo => (
                                     <MenuItem key={campo.id} value={campo.id}>{campo.nombre_campo}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={4}>
+                        <FormControl fullWidth>
+                            <InputLabel>Campaña</InputLabel>
+                            <Select
+                                value={filtroCampaña}
+                                onChange={handleFiltroCampañaChange}
+                                disabled={!selectedCampo}
+                                label="Campaña"
+                            >
+                                <MenuItem value=""><em>Todas</em></MenuItem>
+                                {campañasFiltro.map(c => (
+                                    <MenuItem key={c} value={c}>{c}</MenuItem>
                                 ))}
                             </Select>
                         </FormControl>

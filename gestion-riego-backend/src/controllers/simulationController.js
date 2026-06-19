@@ -34,7 +34,6 @@ exports.getSimulationData = async (req, res) => {
                 JOIN cultivos c ON l.cultivo_id = c.id
                 LEFT JOIN cambios_diarios cd ON l.id = cd.lote_id
                 WHERE l.id = $1
-                AND l.activo = true
                 ${campaña ? 'AND l.campaña = $2' : ''}
                 AND (cd.fecha_cambio >= l.fecha_siembra OR cd.fecha_cambio IS NULL)
                 ORDER BY cd.dias ASC, cd.fecha_cambio ASC`,
@@ -107,7 +106,7 @@ exports.getSimulationData = async (req, res) => {
         console.log('agua util total:', aguaUtilTotal);
         console.log('agua util inicial 1m:', auInicial1m);
         console.log('agua util inicial 2m:', auInicial2m);*/
-
+        
         // Calcular acumulados
         let lluviasEfectivasAcumuladas = 0;
         let riegoAcumulado = 0;
@@ -266,6 +265,16 @@ exports.getSimulationData = async (req, res) => {
                 capacidadExtraccion
             );
             const gananciaAgua = parseFloat(lluvia_efectiva || 0) + parseFloat(riego_cantidad || 0) + parseFloat(correccion_agua || 0);
+
+            // ETR independiente para 1m (usa el agua útil a 1m del día anterior)
+            const au1mPrevValor = (!aguaUtil1mAnterior || aguaUtil1mAnterior <= 0) ? auInicial1m * 0.1 : aguaUtil1mAnterior;
+            const capacidadExtraccion1m = Math.max(0.8, (parseFloat(au1mPrevValor) * parseFloat(capacidad_extraccion)) / 100);
+            const etr1m = Math.min(etcCalculado, capacidadExtraccion1m);
+
+            // ETR independiente para 2m (usa el agua útil a 2m del día anterior)
+            const au2mPrevValor = (!aguaUtil2mAnterior || aguaUtil2mAnterior <= 0) ? auInicial2m * 0.1 : aguaUtil2mAnterior;
+            const capacidadExtraccion2m = Math.max(0.8, (parseFloat(au2mPrevValor) * parseFloat(capacidad_extraccion)) / 100);
+            const etr2m = Math.min(etcCalculado, capacidadExtraccion2m);
             const diaNumero = parseInt(dia || '0', 10);
             const esPrimerDiaReal = esPrimerDia || diaNumero === 1;
             //console.log('esPrimerDiaReal:', esPrimerDiaReal, 'dia:', dia);
@@ -322,20 +331,15 @@ exports.getSimulationData = async (req, res) => {
             //console.log('esPrimerDiaReal:', esPrimerDiaReal);
             // Calcular agua útil a 1m y 2m
             if (esPrimerDiaReal) {
-                // First day calculation - use initial values
-                aguaUtil1m = Math.max(0, valorAuInicial1m - etr + gananciaAgua);
-                aguaUtil2m = Math.max(0, valorAuInicial2m - etr + gananciaAgua);
-                //console.log('------------------------ primer dia aguaUtil1m:', aguaUtil1m);
+                // First day calculation - use initial values with independent ETR per depth
+                aguaUtil1m = Math.max(0, valorAuInicial1m - etr1m + gananciaAgua);
+                aguaUtil2m = Math.max(0, valorAuInicial2m - etr2m + gananciaAgua);
             } else {
-                // Subsequent days - start with previous day's values
-                // Si el valor anterior es 0 o muy bajo, usamos un valor mínimo
+                // Subsequent days - each depth uses its own previous value and independent ETR
                 const valorBase1m = aguaUtil1mAnterior <= 0 ? valorAuInicial1m * 0.1 : aguaUtil1mAnterior;
                 const valorBase2m = aguaUtil2mAnterior <= 0 ? valorAuInicial2m * 0.1 : aguaUtil2mAnterior;
-                //console.log('valores de la base, valor aguaUtil1mAnterior:', aguaUtil1mAnterior, ' valorBase1m:', valorBase1m, 'aguaUtil2mAnterior:', aguaUtil2mAnterior, 'valorBase2m:', valorBase2m);
-                aguaUtil1m = Math.max(0, valorBase1m - etr + gananciaAgua);
-                aguaUtil2m = Math.max(0, valorBase2m - etr + gananciaAgua);
-                //console.log('aguaUtil1m:', aguaUtil1m);
-
+                aguaUtil1m = Math.max(0, valorBase1m - etr1m + gananciaAgua);
+                aguaUtil2m = Math.max(0, valorBase2m - etr2m + gananciaAgua);
             }
 
 
