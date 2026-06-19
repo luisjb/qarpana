@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Container, Typography, Grid, Card, CardContent, CardHeader,
     Box, LinearProgress, Chip, IconButton, Button, List, ListItem,
@@ -388,6 +388,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo, campaña }) {
     const [isAdmin, setIsAdmin] = useState(false);
     const [confirmReinicioDialog, setConfirmReinicioDialog] = useState(false);
     const [reiniciandoRegador, setReiniciandoRegador] = useState(false);
+    const prevCampañaRef = useRef(undefined);
 
     useEffect(() => {
         if (campoId) {
@@ -396,7 +397,19 @@ function EstadoRiegoComponent({ campoId, nombreCampo, campaña }) {
         // Verificar si es admin
         const userRole = localStorage.getItem('role');
         setIsAdmin(userRole && userRole.toLowerCase() === 'admin');
-    }, [campoId, campaña]);
+    }, [campoId]);
+
+    // Re-fetch solo cuando la campaña cambia explícitamente (no en el mount inicial)
+    useEffect(() => {
+        if (prevCampañaRef.current === undefined) {
+            prevCampañaRef.current = campaña;
+            return;
+        }
+        if (prevCampañaRef.current !== campaña) {
+            prevCampañaRef.current = campaña;
+            if (campoId) fetchEstadoRiego();
+        }
+    }, [campaña]);
 
     // Actualización automática cada 30 segundos
     useEffect(() => {
@@ -679,7 +692,7 @@ function EstadoRiegoComponent({ campoId, nombreCampo, campaña }) {
                                         </Typography>
                                         {/* ⭐ NUEVO - Mostrar ángulo y sentido de giro detectado */}
                                         <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
-                                            📐 Ángulo: {estadoActual.angulo_actual?.toFixed(1)}°
+                                            📐 Ángulo: {estadoActual.angulo_actual != null ? parseFloat(estadoActual.angulo_actual).toFixed(1) : '—'}°
                                             {estadoActual.sentido_giro && estadoActual.sentido_giro !== 'auto' && (
                                                 <span style={{ marginLeft: '8px' }}>
                                                     {estadoActual.sentido_giro === 'horario' ? '🔄 Horario' : '↩️ Antihorario'}

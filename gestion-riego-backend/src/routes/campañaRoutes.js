@@ -3,6 +3,42 @@ const router = express.Router();
 const { verifyToken } = require('../middleware/auth');
 const pool = require('../db');
 
+// Todas las campañas accesibles por el usuario, con los campo_ids que las tienen
+router.get('/', verifyToken, async (req, res) => {
+    try {
+        let query, params;
+        if (req.user.role === 'Admin') {
+            query = `
+                SELECT l.campaña, array_agg(DISTINCT l.campo_id) AS campo_ids
+                FROM lotes l
+                WHERE l.campaña IS NOT NULL
+                GROUP BY l.campaña
+                ORDER BY l.campaña
+            `;
+            params = [];
+        } else {
+            query = `
+                SELECT l.campaña, array_agg(DISTINCT l.campo_id) AS campo_ids
+                FROM lotes l
+                JOIN campos c ON l.campo_id = c.id
+                WHERE l.campaña IS NOT NULL
+                  AND (c.usuario_id = $1 OR $1 = ANY(c.usuarios_ids))
+                GROUP BY l.campaña
+                ORDER BY l.campaña
+            `;
+            params = [req.user.userId];
+        }
+        const result = await pool.query(query, params);
+        res.json(result.rows.map(r => ({
+            campaña: r.campaña,
+            campo_ids: r.campo_ids.map(Number)
+        })));
+    } catch (error) {
+        console.error('Error al obtener campañas:', error);
+        res.status(500).json({ error: 'Error del servidor' });
+    }
+});
+
 router.get('/lote/:loteId', verifyToken, async (req, res) => {
     const { loteId } = req.params;
     //console.log('Solicitud de campañas para lote:', loteId);

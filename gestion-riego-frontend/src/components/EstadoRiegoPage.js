@@ -16,7 +16,6 @@ function EstadoRiegoPage() {
             const lotes = response.data.lotes || (Array.isArray(response.data) ? response.data : []);
             const unicas = [...new Set(lotes.map(l => l.campaña).filter(Boolean))].sort();
             setCampañas(unicas);
-            if (unicas.length === 1) setSelectedCampaña(unicas[0]);
         } catch (error) {
             console.error('Error al obtener campañas:', error);
             setCampañas([]);

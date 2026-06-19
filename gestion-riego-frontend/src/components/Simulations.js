@@ -24,16 +24,15 @@ ChartJS.register(
 
 function Simulations() {
     const [campos, setCampos] = useState([]);
-    const [todosLotes, setTodosLotes] = useState([]);
-    const [lotes, setLotes] = useState([]);
-    const [campañasFiltro, setCampañasFiltro] = useState([]);
-    const [filtroCampaña, setFiltroCampaña] = useState('');
-    const [campañas, setCampañas] = useState([]);
+    const [campañas, setCampañas] = useState([]);       // todas las campañas del usuario
+    const [campañaMap, setCampañaMap] = useState({});   // campaña → [campo_id, ...]
+    const [todosLotes, setTodosLotes] = useState([]);   // lotes del campo+campaña seleccionados
+    const [lotes, setLotes] = useState([]);             // lotes filtrados por cultivo
     const [cultivos, setCultivos] = useState([]);
-    const [selectedCampo, setSelectedCampo] = useState('');
-    const [selectedLote, setSelectedLote] = useState('');
     const [selectedCampaña, setSelectedCampaña] = useState('');
+    const [selectedCampo, setSelectedCampo] = useState('');
     const [selectedCultivo, setSelectedCultivo] = useState('');
+    const [selectedLote, setSelectedLote] = useState('');
     const [simulationData, setSimulationData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -96,36 +95,33 @@ function Simulations() {
 
     useEffect(() => {
         fetchCampos();
+        fetchAllCampañas();
         checkAdminStatus();
 
         // Procesar parámetros de URL, si existen
         const params = new URLSearchParams(window.location.search);
         const loteId = params.get('lote');
         const campana = params.get('campana');
-        console.log("Parámetros URL detectados:", { loteId, campana });
 
         if (loteId) {
-            // Primero necesitamos encontrar a qué campo pertenece este lote
             const findCampoForLote = async () => {
                 try {
                     const response = await axios.get(`/lotes/${loteId}`);
                     if (response.data && response.data.campo_id) {
-                        setSelectedCampo(response.data.campo_id);
-                        await fetchLotes(response.data.campo_id);
+                        const loteData = response.data;
+                        const campaña = campana || loteData.campaña || '';
+                        setSelectedCampaña(campaña);
+                        setSelectedCampo(loteData.campo_id);
+                        await fetchLotesYCultivos(loteData.campo_id, campaña);
+                        const especie = loteData.especie || '';
+                        setSelectedCultivo(especie);
                         setSelectedLote(loteId);
-
-                        if (campana) {
-                            setSelectedCampaña(campana);
-                            await fetchCultivos(loteId, campana);
-                        } else {
-                            await fetchCampañas(loteId);
-                        }
+                        fetchSimulationData(loteId, campaña, especie);
                     }
                 } catch (error) {
                     console.error('Error al obtener información del lote:', error);
                 }
             };
-
             findCampoForLote();
         }
     }, [location.search]);
@@ -139,10 +135,8 @@ function Simulations() {
     const fetchCampos = async () => {
         try {
             const userRole = localStorage.getItem('role');
-            // Si es Admin, obtener todos los campos, si no, solo los asociados al usuario
             const endpoint = userRole === 'Admin' ? '/campos/all' : '/campos';
             const response = await axios.get(endpoint);
-            console.log('Campos fetched:', response.data);
             setCampos(response.data);
         } catch (error) {
             console.error('Error al obtener campos:', error);
@@ -150,157 +144,80 @@ function Simulations() {
         }
     };
 
-    const fetchLotes = async (campoId, campañaFiltroActual = '') => {
+    const fetchAllCampañas = async () => {
         try {
-            const response = await axios.get(`/lotes/campo/${campoId}`);
-            const all = Array.isArray(response.data)
-                ? response.data
-                : (response.data.lotes || []);
-            setTodosLotes(all);
-            const campañasUnicas = [...new Set(all.map(l => l.campaña).filter(Boolean))].sort();
-            setCampañasFiltro(campañasUnicas);
-            const filtro = campañaFiltroActual || (campañasUnicas.length === 1 ? campañasUnicas[0] : '');
-            if (filtro && !campañaFiltroActual) setFiltroCampaña(filtro);
-            setLotes(filtro ? all.filter(l => l.campaña === filtro) : all);
-        } catch (error) {
-            console.error('Error al obtener lotes:', error);
-            setLotes([]);
-            setTodosLotes([]);
-        }
-    };
-
-    const fetchCampañas = async (loteId) => {
-        try {
-            const response = await axios.get(`/campanas/lote/${loteId}`);
-            if (response.data && Array.isArray(response.data.todasLasCampañas)) {
-                // Filtrar para mostrar solo las campañas que pertenecen a este lote específico
-                const campañasLote = response.data.todasLasCampañas.filter(campaña => {
-                    return response.data.campañasDelLote && response.data.campañasDelLote.includes(campaña);
+            const response = await axios.get('/campanas');
+            if (Array.isArray(response.data)) {
+                const map = {};
+                const list = response.data.map(({ campaña, campo_ids }) => {
+                    map[campaña] = campo_ids;
+                    return campaña;
                 });
-
-                setCampañas(campañasLote);
-
-                // Si solo hay una campaña, seleccionarla automáticamente
-                if (campañasLote.length === 1) {
-                    setSelectedCampaña(campañasLote[0]);
-                    fetchCultivos(loteId, campañasLote[0]);
-                    fetchSimulationData(loteId, campañasLote[0]);
-                } else if (campañasLote.length > 0) {
-                    // Establecer la campaña actual del lote como seleccionada por defecto
-                    const campañaActual = response.data.loteCampaña || '';
-                    if (campañaActual && campañasLote.includes(campañaActual)) {
-                        setSelectedCampaña(campañaActual);
-                        fetchCultivos(loteId, campañaActual);
-                        fetchSimulationData(loteId, campañaActual);
-                    } else {
-                        setSelectedCampaña(''); // Ninguna seleccionada si no hay coincidencia
-                    }
-                } else {
-                    setCampañas([]);
-                    setSelectedCampaña('');
-                }
-            } else {
-                setCampañas([]);
-                setSelectedCampaña('');
+                setCampañas(list);
+                setCampañaMap(map);
+                if (list.length === 1) setSelectedCampaña(list[0]);
             }
         } catch (error) {
             console.error('Error al obtener campañas:', error);
-            setCampañas([]);
-            setSelectedCampaña('');
         }
     };
 
-    const fetchCultivos = async (loteId, campaña) => {
+    const fetchLotesYCultivos = async (campoId, campaña) => {
         try {
-            const response = await axios.get(`/cultivos/lote/${loteId}`, {
-                params: { campaña: campaña }
-            });
-            if (Array.isArray(response.data)) {
-                setCultivos(response.data);
-                if (response.data.length === 1) {
-                    setSelectedCultivo(response.data[0].especie);
-                    fetchSimulationData(loteId, campaña, response.data[0].especie);
-                } else if (response.data.length > 0) {
-                    // Si venimos de una URL con parámetros, seleccionamos el primer cultivo
-                    const urlParams = new URLSearchParams(location.search);
-                    if (urlParams.get('lote') && urlParams.get('campana')) {
-                        setSelectedCultivo(response.data[0].especie);
-                        fetchSimulationData(loteId, campaña, response.data[0].especie);
-                    } else {
-                        setSelectedCultivo('');
-                    }
-                } else {
-                    setSelectedCultivo('');
-                }
-            } else {
-                console.error('La respuesta no es un array:', response.data);
-                setCultivos([]);
-            }
+            const response = await axios.get(`/lotes/campo/${campoId}`);
+            const all = Array.isArray(response.data) ? response.data : (response.data.lotes || []);
+            const filtrados = campaña ? all.filter(l => l.campaña === campaña) : all;
+            setTodosLotes(filtrados);
+            const cultivosUnicos = [...new Set(filtrados.map(l => l.especie).filter(Boolean))];
+            setCultivos(cultivosUnicos);
+            if (cultivosUnicos.length === 1) setSelectedCultivo(cultivosUnicos[0]);
+            setLotes(filtrados);
         } catch (error) {
-            console.error('Error al obtener cultivos:', error);
+            console.error('Error al obtener lotes:', error);
+            setTodosLotes([]);
             setCultivos([]);
-        }
-    };
-
-    const handleCampoChange = (event) => {
-        const campoId = event.target.value;
-        setSelectedCampo(campoId);
-        setSelectedLote('');
-        setSelectedCampaña('');
-        setSelectedCultivo('');
-        setFiltroCampaña('');
-        setTodosLotes([]);
-        setCampañasFiltro([]);
-        setSimulationData(null);
-        if (campoId) {
-            fetchLotes(campoId);
-        } else {
             setLotes([]);
-        }
-    };
-
-    const handleFiltroCampañaChange = (event) => {
-        const campaña = event.target.value;
-        setFiltroCampaña(campaña);
-        setSelectedLote('');
-        setSelectedCampaña('');
-        setSelectedCultivo('');
-        setSimulationData(null);
-        setLotes(campaña ? todosLotes.filter(l => l.campaña === campaña) : todosLotes);
-    };
-
-    const handleLoteChange = (event) => {
-        const loteId = event.target.value;
-        setSelectedLote(loteId);
-        setSelectedCampaña('');
-        setSelectedCultivo('');
-        setSimulationData(null);
-        if (loteId) {
-            fetchCampañas(loteId);
-        } else {
-            setCampañas([]);
         }
     };
 
     const handleCampañaChange = (event) => {
         const campaña = event.target.value;
         setSelectedCampaña(campaña);
+        setSelectedCampo('');
         setSelectedCultivo('');
+        setSelectedLote('');
+        setTodosLotes([]);
+        setCultivos([]);
+        setLotes([]);
         setSimulationData(null);
-        if (selectedLote && campaña) {
-            fetchCultivos(selectedLote, campaña);
-        } else {
-            setCultivos([]);
-        }
+    };
+
+    const handleCampoChange = (event) => {
+        const campoId = event.target.value;
+        setSelectedCampo(campoId);
+        setSelectedCultivo('');
+        setSelectedLote('');
+        setTodosLotes([]);
+        setCultivos([]);
+        setLotes([]);
+        setSimulationData(null);
+        if (campoId) fetchLotesYCultivos(campoId, selectedCampaña);
     };
 
     const handleCultivoChange = (event) => {
         const cultivo = event.target.value;
         setSelectedCultivo(cultivo);
-        if (selectedLote && selectedCampaña && cultivo) {
-            fetchSimulationData(selectedLote, selectedCampaña, cultivo);
-        } else {
-            setSimulationData(null);
+        setSelectedLote('');
+        setSimulationData(null);
+        setLotes(cultivo ? todosLotes.filter(l => l.especie === cultivo) : todosLotes);
+    };
+
+    const handleLoteChange = (event) => {
+        const loteId = event.target.value;
+        setSelectedLote(loteId);
+        setSimulationData(null);
+        if (loteId && selectedCampaña) {
+            fetchSimulationData(loteId, selectedCampaña, selectedCultivo || undefined);
         }
     };
 
@@ -1019,33 +936,16 @@ function Simulations() {
 
             <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6} md={3}>
-                        <FormControl fullWidth>
-                            <InputLabel label="Campo" variant="outlined">Campo</InputLabel>
-                            <Select
-                                value={selectedCampo}
-                                onChange={handleCampoChange}
-                                label="Campo"
-                            >
-                                <MenuItem value=""><em>Seleccione un campo</em></MenuItem>
-                                {campos.map(campo => (
-                                    <MenuItem key={campo.id} value={campo.id}>{campo.nombre_campo}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </Grid>
-
                     <Grid item xs={12} sm={6} md={2}>
                         <FormControl fullWidth>
                             <InputLabel>Campaña</InputLabel>
                             <Select
-                                value={filtroCampaña}
-                                onChange={handleFiltroCampañaChange}
-                                disabled={!selectedCampo}
+                                value={selectedCampaña}
+                                onChange={handleCampañaChange}
                                 label="Campaña"
                             >
                                 <MenuItem value=""><em>Todas</em></MenuItem>
-                                {campañasFiltro.map(c => (
+                                {campañas.map(c => (
                                     <MenuItem key={c} value={c}>{c}</MenuItem>
                                 ))}
                             </Select>
@@ -1053,6 +953,42 @@ function Simulations() {
                     </Grid>
 
                     <Grid item xs={12} sm={6} md={4}>
+                        <FormControl fullWidth>
+                            <InputLabel>Campo</InputLabel>
+                            <Select
+                                value={selectedCampo}
+                                onChange={handleCampoChange}
+                                label="Campo"
+                            >
+                                <MenuItem value=""><em>Seleccione un campo</em></MenuItem>
+                                {(selectedCampaña && campañaMap[selectedCampaña]
+                                    ? campos.filter(c => campañaMap[selectedCampaña].includes(Number(c.id)))
+                                    : campos
+                                ).map(campo => (
+                                    <MenuItem key={campo.id} value={campo.id}>{campo.nombre_campo}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6} md={3}>
+                        <FormControl fullWidth>
+                            <InputLabel>Cultivo</InputLabel>
+                            <Select
+                                value={selectedCultivo}
+                                onChange={handleCultivoChange}
+                                disabled={!selectedCampo}
+                                label="Cultivo"
+                            >
+                                <MenuItem value=""><em>Todos</em></MenuItem>
+                                {cultivos.map(esp => (
+                                    <MenuItem key={esp} value={esp}>{esp}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6} md={3}>
                         <FormControl fullWidth>
                             <InputLabel>Lote</InputLabel>
                             <Select
@@ -1066,23 +1002,6 @@ function Simulations() {
                                     <MenuItem key={lote.id} value={lote.id}>
                                         {lote.nombre_lote}{!lote.activo ? ' (inactivo)' : ''}
                                     </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </Grid>
-
-                    <Grid item xs={12} sm={6} md={3}>
-                        <FormControl fullWidth>
-                            <InputLabel>Cultivo</InputLabel>
-                            <Select
-                                value={selectedCultivo}
-                                onChange={handleCultivoChange}
-                                disabled={!selectedCampaña}
-                                label="Cultivo"
-                            >
-                                <MenuItem value=""><em>Seleccione un cultivo</em></MenuItem>
-                                {cultivos.map((cultivo) => (
-                                    <MenuItem key={cultivo.id} value={cultivo.especie}>{cultivo.especie}</MenuItem>
                                 ))}
                             </Select>
                         </FormControl>
