@@ -174,7 +174,9 @@ exports.getSimulationData = async (req, res) => {
                     porcentajeAguaUtil: 0,
                     profundidadRaices: 0,
                     aguaUtil1m: aguaUtil1mAnterior || 17,
-                    aguaUtil2m: aguaUtil2mAnterior || 17
+                    aguaUtil2m: aguaUtil2mAnterior || 17,
+                    etcCalculado: 0,
+                    kcCalculado: 0
                 };
             }
 
@@ -227,7 +229,9 @@ exports.getSimulationData = async (req, res) => {
                         porcentajeAguaUtil: 0,
                         profundidadRaices: 0,
                         aguaUtil1m: aguaUtil1mAnterior || 0,
-                        aguaUtil2m: aguaUtil2mAnterior || 0
+                        aguaUtil2m: aguaUtil2mAnterior || 0,
+                        etcCalculado: 0,
+                        kcCalculado: 0
                     };
                 }
                 etcCalculado = Math.max(0, (parseFloat(evapotranspiracion || 0) * kcCalculado) || 0);
@@ -242,7 +246,9 @@ exports.getSimulationData = async (req, res) => {
                     porcentajeAguaUtil: 0,
                     profundidadRaices: 0,
                     aguaUtil1m: aguaUtil1mAnterior || 0,
-                    aguaUtil2m: aguaUtil2mAnterior || 0
+                    aguaUtil2m: aguaUtil2mAnterior || 0,
+                    etcCalculado: 0,
+                    kcCalculado: 0
                 };
             } finally {
                 client.release();
@@ -350,7 +356,9 @@ exports.getSimulationData = async (req, res) => {
                 porcentajeAguaUtil,
                 profundidadRaices,
                 aguaUtil1m,
-                aguaUtil2m
+                aguaUtil2m,
+                etcCalculado,
+                kcCalculado
             };
 
         };
@@ -494,15 +502,11 @@ exports.getSimulationData = async (req, res) => {
                 return [...umbralesHistoricos, ...umbralesProyectados];
             })(),
             etc: [
-                // Para datos históricos
-                ...cambiosFiltrados.map(c => {
-                    const etcValor = parseFloat(c.evapotranspiracion || 0) * parseFloat(c.kc || 0);
-                    return etcValor;
-                }),
+                // Usa etcCalculado del loop principal (KC recalculado, no el almacenado en cambios_diarios)
+                ...datosSimulacion.map(d => d.etcCalculado || 0),
                 // Para proyección
                 ...proyeccion.proyeccionCompleta.map(p => {
-                    const etcValor = parseFloat(p.evapotranspiracion || 0) * parseFloat(p.kc || 0);
-                    return etcValor;
+                    return parseFloat(p.evapotranspiracion || 0) * parseFloat(p.kc || 0);
                 })
             ],
             capacidadExtraccion: [
@@ -519,38 +523,11 @@ exports.getSimulationData = async (req, res) => {
                     return (aguaUtilAnterior * parseFloat(lote.capacidad_extraccion)) / 100;
                 })
             ],
-            kc: await (async () => {
-                const kcHistoricos = [];
-                const erroresKCHistoricos = [];
-
-                // Calcular KC para datos históricos secuencialmente
-                for (const c of cambiosFiltrados) {
-                    const client = await pool.connect();
-                    try {
-                        const kcCalculado = await calcularKCUnificado(client, loteId, c.dias);
-
-                        if (kcCalculado === null) {
-                            console.error(`KC no disponible para día ${c.dias}`);
-                            kcHistoricos.push(0); // Usar 0 para indicar que no hay KC
-                            erroresKCHistoricos.push(c.dias);
-                        } else {
-                            kcHistoricos.push(kcCalculado);
-                        }
-                    } finally {
-                        client.release();
-                    }
-                }
-
-                if (erroresKCHistoricos.length > 0) {
-                    console.error(`Días sin KC configurado: ${erroresKCHistoricos.join(', ')}`);
-                }
-
-                // Combinar históricos con proyección
-                return [
-                    ...kcHistoricos,
-                    ...proyeccion.proyeccionCompleta.map(p => p.kc || 0)
-                ];
-            })(),
+            // KC histórico viene del loop principal (mismo calcularKCUnificado, sin tercer recorrido)
+            kc: [
+                ...datosSimulacion.map(d => d.kcCalculado || 0),
+                ...proyeccion.proyeccionCompleta.map(p => p.kc || 0)
+            ],
             evapotranspiracion: [
                 ...cambiosFiltrados.map(c => c.evapotranspiracion || 0),
                 ...proyeccion.proyeccionCompleta.map(p => p.evapotranspiracion || 0)

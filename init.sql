@@ -406,6 +406,9 @@ CREATE TABLE coeficiente_cultivo_lote (
 CREATE INDEX idx_coeficiente_cultivo_lote_lote_id ON coeficiente_cultivo_lote(lote_id);
 CREATE INDEX idx_coeficiente_cultivo_lote_coef_id ON coeficiente_cultivo_lote(coeficiente_cultivo_id);
 
+-- Migration: add per-lote KC override column (run manually on server if table already exists)
+ALTER TABLE coeficiente_cultivo_lote ADD COLUMN IF NOT EXISTS kc_correccion NUMERIC;
+
 
 CREATE TABLE regadores (
     id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,

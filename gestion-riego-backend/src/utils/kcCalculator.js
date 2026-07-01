@@ -22,8 +22,8 @@ async function calcularKCUnificado(client, loteId, diasDesdeSiembra) {
 
         // 2. Obtener los coeficientes del cultivo, considerando días de corrección
         const { rows: coeficientes } = await client.query(`
-            SELECT 
-                coef.indice_kc,
+            SELECT
+                COALESCE(ccl.kc_correccion, coef.indice_kc) as indice_kc,
                 COALESCE(ccl.dias_correccion, coef.indice_dias) as dias_efectivos,
                 coef.indice_dias as dias_originales,
                 coef.id as coeficiente_id
@@ -144,8 +144,8 @@ async function validarConfiguracionKC(client, loteId) {
         }
 
         const { rows: coeficientes } = await client.query(`
-            SELECT 
-                coef.indice_kc,
+            SELECT
+                COALESCE(ccl.kc_correccion, coef.indice_kc) as indice_kc,
                 COALESCE(ccl.dias_correccion, coef.indice_dias) as dias_efectivos,
                 coef.indice_dias as dias_originales
             FROM coeficiente_cultivo coef

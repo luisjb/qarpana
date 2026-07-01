@@ -19,7 +19,7 @@ import {
     Tooltip,
     IconButton
 } from '@mui/material';
-import RestoreIcon from '@mui/icons-material/Restore';  
+import RestoreIcon from '@mui/icons-material/Restore';
 import axios from '../axiosConfig';
 
 function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña }) {
@@ -28,7 +28,6 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [cambiosRealizados, setCambiosRealizados] = useState(false);
-
 
     useEffect(() => {
         if (open && selectedLote && selectedCampaña) {
@@ -72,23 +71,27 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
     };
 
     const handleDiasCorreccionChange = (index, value) => {
-        const updatedCoeficientes = [...coeficientes];
-        updatedCoeficientes[index].dias_correccion_lote = value === '' ? null : parseInt(value);
-        setCoeficientes(updatedCoeficientes);
+        const updated = [...coeficientes];
+        updated[index].dias_correccion_lote = value === '' ? null : parseInt(value);
+        setCoeficientes(updated);
         setCambiosRealizados(true);
+    };
 
+    const handleKcCorreccionChange = (index, value) => {
+        const updated = [...coeficientes];
+        updated[index].kc_correccion_lote = value === '' ? null : parseFloat(value);
+        setCoeficientes(updated);
+        setCambiosRealizados(true);
     };
 
     const handleRestoreAll = async () => {
         try {
             await axios.delete(`/coeficiente-cultivo/lote/${selectedLote}/restore-all`);
-            
-            // Actualizar el estado local
-            const updatedCoeficientes = coeficientes.map(coef => ({
+            setCoeficientes(coeficientes.map(coef => ({
                 ...coef,
-                dias_correccion_lote: null
-            }));
-            setCoeficientes(updatedCoeficientes);
+                dias_correccion_lote: null,
+                kc_correccion_lote: null
+            })));
             setCambiosRealizados(true);
         } catch (error) {
             console.error('Error al restablecer todos los coeficientes:', error);
@@ -100,11 +103,10 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
         const coeficiente = coeficientes[index];
         try {
             await axios.delete(`/coeficiente-cultivo/lote/${selectedLote}/coeficiente/${coeficiente.id}`);
-            
-            // Actualizar el estado local
-            const updatedCoeficientes = [...coeficientes];
-            updatedCoeficientes[index].dias_correccion_lote = null;
-            setCoeficientes(updatedCoeficientes);
+            const updated = [...coeficientes];
+            updated[index].dias_correccion_lote = null;
+            updated[index].kc_correccion_lote = null;
+            setCoeficientes(updated);
             setCambiosRealizados(true);
         } catch (error) {
             console.error('Error al restablecer coeficiente:', error);
@@ -122,10 +124,11 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
             await axios.post(`/coeficiente-cultivo/lote/${selectedLote}/update-dias-correccion`, {
                 coeficientes: coeficientes.map(coef => ({
                     id: coef.id,
-                    dias_correccion: coef.dias_correccion_lote
+                    dias_correccion: coef.dias_correccion_lote,
+                    kc_correccion: coef.kc_correccion_lote
                 }))
             });
-            
+
             setCambiosRealizados(false);
             onClose();
         } catch (error) {
@@ -135,10 +138,14 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
     };
 
     const getDiasEfectivos = (coef) => {
-        return coef.dias_correccion_lote !== null && coef.dias_correccion_lote !== undefined 
-            ? coef.dias_correccion_lote 
+        return coef.dias_correccion_lote !== null && coef.dias_correccion_lote !== undefined
+            ? coef.dias_correccion_lote
             : coef.indice_dias;
     };
+
+    const tieneCorreccion = (coef) =>
+        (coef.dias_correccion_lote !== null && coef.dias_correccion_lote !== undefined) ||
+        (coef.kc_correccion_lote !== null && coef.kc_correccion_lote !== undefined);
 
     if (!selectedLote || !selectedCampaña) {
         return (
@@ -155,9 +162,9 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
     }
 
     return (
-        <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+        <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth>
             <DialogTitle>
-                Corrección de Días - Lote {selectedLote}
+                Corrección de Días y KC - Lote {selectedLote}
                 {cultivo && (
                     <Typography variant="subtitle1" color="textSecondary">
                         {cultivo.nombre_cultivo || cultivo.especie} - Campaña {selectedCampaña}
@@ -174,14 +181,14 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
                         <Typography variant="body2" color="textSecondary" gutterBottom>
                             Las correcciones realizadas aquí solo afectarán a este lote específico.
                         </Typography>
-                        
+
                         {coeficientes.length > 0 ? (
                             <>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                     <Typography variant="h6">
                                         Coeficientes Kc por Etapa
                                     </Typography>
-                                    <Button 
+                                    <Button
                                         startIcon={<RestoreIcon />}
                                         onClick={handleRestoreAll}
                                         variant="outlined"
@@ -190,13 +197,14 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
                                         Restablecer Todo
                                     </Button>
                                 </div>
-                                
+
                                 <TableContainer component={Paper}>
                                     <Table>
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell>Etapa</TableCell>
-                                                <TableCell>Kc</TableCell>
+                                                <TableCell>KC Original</TableCell>
+                                                <TableCell>KC Corrección</TableCell>
                                                 <TableCell>Días Originales</TableCell>
                                                 <TableCell>Días Corrección</TableCell>
                                                 <TableCell>Días Efectivos</TableCell>
@@ -209,13 +217,24 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
                                                 <TableRow key={coef.id}>
                                                     <TableCell>{`Etapa ${index + 1}`}</TableCell>
                                                     <TableCell>{coef.indice_kc}</TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            type="number"
+                                                            value={coef.kc_correccion_lote ?? ''}
+                                                            onChange={(e) => handleKcCorreccionChange(index, e.target.value)}
+                                                            placeholder={String(coef.indice_kc)}
+                                                            size="small"
+                                                            inputProps={{ step: 0.01, min: 0 }}
+                                                            sx={{ width: 100 }}
+                                                        />
+                                                    </TableCell>
                                                     <TableCell>{coef.indice_dias}</TableCell>
                                                     <TableCell>
                                                         <TextField
                                                             type="number"
-                                                            value={coef.dias_correccion_lote || ''}
+                                                            value={coef.dias_correccion_lote ?? ''}
                                                             onChange={(e) => handleDiasCorreccionChange(index, e.target.value)}
-                                                            placeholder={coef.indice_dias.toString()}
+                                                            placeholder={String(coef.indice_dias)}
                                                             size="small"
                                                             fullWidth
                                                         />
@@ -224,24 +243,16 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
                                                         <strong>{getDiasEfectivos(coef)}</strong>
                                                     </TableCell>
                                                     <TableCell>
-                                                        {coef.dias_correccion_lote !== null && coef.dias_correccion_lote !== undefined ? (
-                                                            <Chip 
-                                                                label="Modificado" 
-                                                                color="warning" 
-                                                                size="small" 
-                                                            />
+                                                        {tieneCorreccion(coef) ? (
+                                                            <Chip label="Modificado" color="warning" size="small" />
                                                         ) : (
-                                                            <Chip 
-                                                                label="Original" 
-                                                                color="default" 
-                                                                size="small" 
-                                                            />
+                                                            <Chip label="Original" color="default" size="small" />
                                                         )}
                                                     </TableCell>
                                                     <TableCell>
-                                                        {coef.dias_correccion_lote !== null && coef.dias_correccion_lote !== undefined && (
+                                                        {tieneCorreccion(coef) && (
                                                             <Tooltip title="Restablecer a valor original">
-                                                                <IconButton 
+                                                                <IconButton
                                                                     size="small"
                                                                     onClick={() => handleRestoreIndividual(index)}
                                                                 >
@@ -266,9 +277,9 @@ function CorreccionDiasDialog({ open, onClose, selectedLote, selectedCampaña })
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose}>Cancelar</Button>
-                <Button 
-                    onClick={handleSave} 
-                    color="primary" 
+                <Button
+                    onClick={handleSave}
+                    color="primary"
                     disabled={!cultivo || coeficientes.length === 0 || !cambiosRealizados}
                     variant="contained"
                 >
