@@ -336,15 +336,23 @@ class VueltasRiegoService {
             const resultSectores = await pool.query(querySectores, [vueltaActiva.id]);
             const sectores = resultSectores.rows;
 
-            // Calcular totales
+            // Obtener área del pivote desde radio_cobertura (evita acumulación por re-entradas de GPS)
+            const queryRadio = `SELECT radio_cobertura FROM regadores WHERE id = $1`;
+            const resultRadio = await pool.query(queryRadio, [regadorId]);
+            const radioMetros = parseFloat(resultRadio.rows[0]?.radio_cobertura || 0);
+            const areaTotalHa = radioMetros > 0
+                ? (Math.PI * Math.pow(radioMetros, 2)) / 10000
+                : 0;
+
+            // Calcular totales — solo sectores completados para evitar duplicados por ruido GPS
             let aguaTotalLitros = 0;
-            let areaTotalHa = 0;
             let presionPromedio = 0;
             let countPresion = 0;
 
             for (const sector of sectores) {
-                aguaTotalLitros += parseFloat(sector.agua_aplicada_litros || 0);
-                areaTotalHa += parseFloat(sector.area_sector_ha || 0);
+                if (sector.completado) {
+                    aguaTotalLitros += parseFloat(sector.agua_aplicada_litros || 0);
+                }
                 if (sector.presion_promedio) {
                     presionPromedio += parseFloat(sector.presion_promedio);
                     countPresion++;
@@ -354,7 +362,7 @@ class VueltasRiegoService {
             presionPromedio = countPresion > 0 ? presionPromedio / countPresion : null;
 
             // Calcular lámina promedio
-            const laminaPromedioMM = areaTotalHa > 0 
+            const laminaPromedioMM = areaTotalHa > 0
                 ? gpsCalc.calcularLaminaPorHectarea(aguaTotalLitros, areaTotalHa)
                 : 0;
 

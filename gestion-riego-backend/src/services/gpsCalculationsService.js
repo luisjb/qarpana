@@ -103,8 +103,8 @@ class GPSCalculationsService {
     calcularLaminaAplicada(aguaLitros, areaM2) {
         if (!aguaLitros || !areaM2 || areaM2 <= 0) return 0;
 
-        // 1 litro = 0.001 mÂ³
-        // LÃ¡mina (mm) = (volumen mÂ³ / Ã¡rea mÂ²) * 1000
+        // 1 hectárea = 10,000 m²
+        // Lámina (mm) = litros / m² (porque 1 L/m² = 1 mm de lámina)
         const laminaMM = (aguaLitros * 0.001 / areaM2) / 10;
 
         return laminaMM;
@@ -288,12 +288,9 @@ class GPSCalculationsService {
     calcularLaminaPorHectarea(aguaLitros, areaHectareas) {
         if (!aguaLitros || !areaHectareas || areaHectareas <= 0) return 0;
 
-        // 1 hectárea = 10,000 m²
-        // Lámina (mm) = litros / m² (porque 1 L/m² = 1 mm de lámina)
+        // 1 L/m² = 1 mm → Lámina(mm) = Litros / m²
         const areaM2 = areaHectareas * 10000;
-        const laminaMM = (aguaLitros * 0.001 / areaM2) / 10; 
-
-        return laminaMM;
+        return aguaLitros / areaM2;
     }
 
     /**
