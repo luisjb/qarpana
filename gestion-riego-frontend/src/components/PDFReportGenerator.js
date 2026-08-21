@@ -223,18 +223,18 @@ class PDFReportGenerator {
         try {
             console.log('📄 Cargando plantilla embebida...');
 
-            // Convertir base64 a ArrayBuffer sin ningún fetch HTTP
             const binaryStr = atob(templateBase64);
             const bytes = new Uint8Array(binaryStr.length);
             for (let i = 0; i < binaryStr.length; i++) {
                 bytes[i] = binaryStr.charCodeAt(i);
             }
 
-            const templateDoc = await PDFDocument.load(bytes.buffer);
-            const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
+            // embedPdf devuelve PDFEmbeddedPage[], el tipo correcto para drawPage()
+            const [embeddedTemplate] = await this.pdfDoc.embedPdf(bytes.buffer, [0]);
+            this.embeddedTemplate = embeddedTemplate;
 
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
-            this.currentPage.drawPage(templatePage, {
+            this.currentPage.drawPage(embeddedTemplate, {
                 x: 0,
                 y: 0,
                 width: this.pageWidth,
@@ -242,7 +242,6 @@ class PDFReportGenerator {
             });
 
             this.usingTemplate = true;
-            this.templateBytes = bytes.buffer; // Guardar para páginas adicionales
             console.log('✅ Plantilla embebida cargada correctamente');
 
         } catch (error) {
@@ -308,12 +307,9 @@ class PDFReportGenerator {
 
     async addNewPage() {
         try {
-            if (this.usingTemplate && this.templateBytes) {
-                const templateDoc = await PDFDocument.load(this.templateBytes);
-                const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
-
+            if (this.usingTemplate && this.embeddedTemplate) {
                 this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
-                this.currentPage.drawPage(templatePage, {
+                this.currentPage.drawPage(this.embeddedTemplate, {
                     x: 0,
                     y: 0,
                     width: this.pageWidth,
