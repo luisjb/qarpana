@@ -1,6 +1,7 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
+import templateBase64 from '../assets/hoja_membretada_template';
 
 class PDFReportGenerator {
     constructor() {
@@ -220,82 +221,32 @@ class PDFReportGenerator {
 
     async loadTemplate() {
         try {
-            console.log('📄 Intentando cargar plantilla desde múltiples rutas...');
-            
-            // Probar cada ruta hasta encontrar una que funcione
-            for (const templatePath of this.templatePaths) {
-                console.log(`🔍 Probando ruta: ${templatePath}`);
-                
-                const verification = await this.verifyTemplateAtPath(templatePath);
-                
-                if (verification) {
-                    console.log(`✅ Plantilla encontrada en: ${templatePath}`);
-                    
-                    try {
-                        const templateDoc = await PDFDocument.load(verification.arrayBuffer);
-                        const templatePages = templateDoc.getPages();
-                        
-                        if (templatePages.length === 0) {
-                            console.warn('❌ Template has no pages');
-                            continue;
-                        }
-                        
-                        // Verificar que la primera página sea válida
-                        const firstPage = templatePages[0];
-                        if (!firstPage) {
-                            console.warn('❌ First page is invalid');
-                            continue;
-                        }
-                        
-                        // Copiar la primera página de la plantilla
-                        const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
-                        
-                        // Verificar que la página copiada sea válida
-                        if (!templatePage) {
-                            console.warn('❌ Failed to copy template page');
-                            continue;
-                        }
-                        
-                        this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
-                        
-                        // Dibujar la plantilla en la página actual
-                        this.currentPage.drawPage(templatePage, {
-                            x: 0,
-                            y: 0,
-                            width: this.pageWidth,
-                            height: this.pageHeight,
-                        });
-                        
-                        this.usingTemplate = true;
-                        this.templatePath = templatePath; // Guardar la ruta que funcionó
-                        console.log('✅ Template loaded successfully');
-                        return;
-                        
-                    } catch (templateError) {
-                        console.warn(`❌ Error processing template: ${templateError.message}`);
-                        console.log('📄 Template file seems corrupted or incompatible, trying next path...');
-                        continue; // Intentar siguiente ruta
-                    }
-                }
+            console.log('📄 Cargando plantilla embebida...');
+
+            // Convertir base64 a ArrayBuffer sin ningún fetch HTTP
+            const binaryStr = atob(templateBase64);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
             }
-            
-            // Si llegamos aquí, ninguna ruta funcionó
-            console.error('❌ No se pudo cargar la plantilla desde ninguna ruta');
-            console.log('📋 Rutas probadas:', this.templatePaths);
-            console.log('🔧 Diagnóstico:');
-            console.log('   ✅ El archivo PDF existe en el contenedor');
-            console.log('   ✅ Serve está funcionando correctamente');
-            console.log('   ❌ Hay un proxy/nginx intermedio que interfiere');
-            console.log('💡 Soluciones:');
-            console.log('   1. Configurar nginx para servir PDFs correctamente');
-            console.log('   2. Agregar reglas de proxy para /assets/*');
-            console.log('   3. Usar el fallback (recomendado por ahora)');
-            
-            throw new Error('Proxy/nginx impide acceso al PDF');
-            
+
+            const templateDoc = await PDFDocument.load(bytes.buffer);
+            const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
+
+            this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+            this.currentPage.drawPage(templatePage, {
+                x: 0,
+                y: 0,
+                width: this.pageWidth,
+                height: this.pageHeight,
+            });
+
+            this.usingTemplate = true;
+            this.templateBytes = bytes.buffer; // Guardar para páginas adicionales
+            console.log('✅ Plantilla embebida cargada correctamente');
+
         } catch (error) {
-            console.warn('❌ Failed to load template, using fallback:', error.message);
-            console.log('🎨 Usando header de respaldo QARPANA (funciona perfectamente)');
+            console.warn('❌ Failed to load embedded template, using fallback:', error.message);
             this.usingTemplate = false;
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
             await this.addFallbackHeader();
@@ -357,23 +308,17 @@ class PDFReportGenerator {
 
     async addNewPage() {
         try {
-            if (this.usingTemplate && this.templatePath) {
-                const verification = await this.verifyTemplateAtPath(this.templatePath);
-                if (verification) {
-                    const templateDoc = await PDFDocument.load(verification.arrayBuffer);
-                    const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
-                    
-                    this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
-                    this.currentPage.drawPage(templatePage, {
-                        x: 0,
-                        y: 0,
-                        width: this.pageWidth,
-                        height: this.pageHeight,
-                    });
-                } else {
-                    this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
-                    await this.addFallbackHeader();
-                }
+            if (this.usingTemplate && this.templateBytes) {
+                const templateDoc = await PDFDocument.load(this.templateBytes);
+                const [templatePage] = await this.pdfDoc.copyPages(templateDoc, [0]);
+
+                this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
+                this.currentPage.drawPage(templatePage, {
+                    x: 0,
+                    y: 0,
+                    width: this.pageWidth,
+                    height: this.pageHeight,
+                });
             } else {
                 this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
                 await this.addFallbackHeader();
@@ -383,7 +328,7 @@ class PDFReportGenerator {
             this.currentPage = this.pdfDoc.addPage([this.pageWidth, this.pageHeight]);
             await this.addFallbackHeader();
         }
-        
+
         this.currentY = this.usingTemplate ? 600 : 650;
     }
 

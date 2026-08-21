@@ -365,7 +365,7 @@ function ResumenCirculos() {
                             color="primary"
                             startIcon={<PictureAsPdf />}
                             onClick={handleGenerarInforme}
-                            disabled={!selectedCampo || lotes.length === 0 || generatingPDF}
+                            disabled={!isAdmin || !selectedCampo || lotes.length === 0 || generatingPDF}
                             fullWidth
                             sx={{ height: '56px' }}
                         >
