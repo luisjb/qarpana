@@ -394,113 +394,144 @@ function ResumenCirculos() {
 
 
 
-            <Grid container spacing={3}>
-                {lotes.map((lote) => (
-                    <Grid item xs={12} sm={6} md={4} key={lote.id}>
-                        <Card
-                            elevation={3}
-                            sx={{
-                                height: '100%',
-                                transition: 'transform 0.2s',
-                                '&:hover': {
-                                    transform: 'scale(1.02)',
-                                }
-                            }}
-                        >
-                            <CardActionArea
-                                onClick={() => handleLoteClick(lote.id, lote.campaña)}
-                                sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
-                            >
-                                <CardContent>
-                                    <Typography variant="h6" gutterBottom>
-                                        {lote.nombre_lote}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                                        {lote.especie} - {lote.variedad}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                                        Estado Fenológico: {lote.waterData?.estadoFenologico || 'Desconocido'}
-                                    </Typography>
+            {(() => {
+                // Agrupar lotes por especie (cultivo), ordenados alfabéticamente
+                const grupos = lotes.reduce((acc, lote) => {
+                    const especie = lote.especie || 'Sin cultivo';
+                    if (!acc[especie]) acc[especie] = [];
+                    acc[especie].push(lote);
+                    return acc;
+                }, {});
+                const especiesOrdenadas = Object.keys(grupos).sort();
 
-                                    <Divider sx={{ my: 2 }} />
-
-                                    <Box display="flex" flexDirection="column" alignItems="center" sx={{ mt: 2 }}>
-                                        <Typography variant="subtitle2" color="text.secondary" align="left" sx={{ width: '100%', mb: 1, borderBottom: '1px solid #eee' }}>
-                                            Profundidad 0-100 cm
+                return (
+                    <>
+                        {especiesOrdenadas.map((especie, grupoIdx) => (
+                            <React.Fragment key={especie}>
+                                {grupoIdx > 0 && (
+                                    <Divider sx={{ my: 3, borderColor: 'rgba(0,0,0,0.1)' }} />
+                                )}
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography
+                                        variant="overline"
+                                        sx={{ fontWeight: 700, fontSize: '0.78rem', letterSpacing: 1.2, color: 'text.secondary' }}
+                                    >
+                                        {especie}
+                                        <Typography component="span" variant="caption" color="text.disabled" sx={{ ml: 1, fontWeight: 400 }}>
+                                            ({grupos[especie].length} lote{grupos[especie].length !== 1 ? 's' : ''})
                                         </Typography>
-                                        <Grid container spacing={2} sx={{ mb: 2 }}>
-                                            <Grid item xs={6}>
-                                                <Box display="flex" flexDirection="column" alignItems="center">
-                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
-                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
-                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Actual</Typography>
-                                                    </Box>
-                                                    <GaugeIndicator
-                                                        percentage={formatNumber(lote.waterData?.porcentajeAu1m || 0)}
-                                                        size={60}
-                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
-                                                    />
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box display="flex" flexDirection="column" alignItems="center">
-                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
-                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
-                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Proy. 7 días</Typography>
-                                                    </Box>
-                                                    <GaugeIndicator
-                                                        percentage={formatNumber(lote.waterData?.porcentajeProyectado || 0)}
-                                                        size={60}
-                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
-                                                    />
-                                                </Box>
-                                            </Grid>
-                                        </Grid>
+                                    </Typography>
+                                </Box>
+                                <Grid container spacing={3}>
+                                    {grupos[especie].map((lote) => (
+                                        <Grid item xs={12} sm={6} md={4} key={lote.id}>
+                                            <Card
+                                                elevation={3}
+                                                sx={{
+                                                    height: '100%',
+                                                    transition: 'transform 0.2s',
+                                                    '&:hover': { transform: 'scale(1.02)' }
+                                                }}
+                                            >
+                                                <CardActionArea
+                                                    onClick={() => handleLoteClick(lote.id, lote.campaña)}
+                                                    sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
+                                                >
+                                                    <CardContent>
+                                                        <Typography variant="h6" gutterBottom>
+                                                            {lote.nombre_lote}
+                                                        </Typography>
+                                                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                                                            {lote.especie} - {lote.variedad}
+                                                        </Typography>
+                                                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                                                            Estado Fenológico: {lote.waterData?.estadoFenologico || 'Desconocido'}
+                                                        </Typography>
 
-                                        <Typography variant="subtitle2" color="text.secondary" align="left" sx={{ width: '100%', mb: 1, borderBottom: '1px solid #eee' }}>
-                                            Profundidad 0-200 cm
-                                        </Typography>
-                                        <Grid container spacing={2}>
-                                            <Grid item xs={6}>
-                                                <Box display="flex" flexDirection="column" alignItems="center">
-                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
-                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
-                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Actual</Typography>
-                                                    </Box>
-                                                    <GaugeIndicator
-                                                        percentage={formatNumber(lote.waterData?.porcentajeAu2m || 0)}
-                                                        size={60}
-                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
-                                                    />
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box display="flex" flexDirection="column" alignItems="center">
-                                                    <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
-                                                        <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
-                                                        <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Proy. 7 días</Typography>
-                                                    </Box>
-                                                    <GaugeIndicator
-                                                        percentage={formatNumber(lote.waterData?.porcentajeProyectado2m || 0)}
-                                                        size={60}
-                                                        umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
-                                                    />
-                                                </Box>
-                                            </Grid>
-                                        </Grid>
-                                    </Box>
-                                </CardContent>
-                            </CardActionArea>
-                        </Card>
-                    </Grid>
-                ))}
-            </Grid>
+                                                        <Divider sx={{ my: 2 }} />
 
-            {isAdmin && selectedCampo && (
-                <Paper elevation={3} sx={{ p: 3, mb: 4, mt: 4 }}>
-                    <RecomendacionesSection campoId={selectedCampo} />
-                </Paper>
-            )}
+                                                        <Box display="flex" flexDirection="column" alignItems="center" sx={{ mt: 2 }}>
+                                                            <Typography variant="subtitle2" color="text.secondary" align="left" sx={{ width: '100%', mb: 1, borderBottom: '1px solid #eee' }}>
+                                                                Profundidad 0-100 cm
+                                                            </Typography>
+                                                            <Grid container spacing={2} sx={{ mb: 2 }}>
+                                                                <Grid item xs={6}>
+                                                                    <Box display="flex" flexDirection="column" alignItems="center">
+                                                                        <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
+                                                                            <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
+                                                                            <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Actual</Typography>
+                                                                        </Box>
+                                                                        <GaugeIndicator
+                                                                            percentage={formatNumber(lote.waterData?.porcentajeAu1m || 0)}
+                                                                            size={60}
+                                                                            umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
+                                                                        />
+                                                                    </Box>
+                                                                </Grid>
+                                                                <Grid item xs={6}>
+                                                                    <Box display="flex" flexDirection="column" alignItems="center">
+                                                                        <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
+                                                                            <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
+                                                                            <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Proy. 7 días</Typography>
+                                                                        </Box>
+                                                                        <GaugeIndicator
+                                                                            percentage={formatNumber(lote.waterData?.porcentajeProyectado || 0)}
+                                                                            size={60}
+                                                                            umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
+                                                                        />
+                                                                    </Box>
+                                                                </Grid>
+                                                            </Grid>
+
+                                                            <Typography variant="subtitle2" color="text.secondary" align="left" sx={{ width: '100%', mb: 1, borderBottom: '1px solid #eee' }}>
+                                                                Profundidad 0-200 cm
+                                                            </Typography>
+                                                            <Grid container spacing={2}>
+                                                                <Grid item xs={6}>
+                                                                    <Box display="flex" flexDirection="column" alignItems="center">
+                                                                        <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
+                                                                            <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
+                                                                            <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Actual</Typography>
+                                                                        </Box>
+                                                                        <GaugeIndicator
+                                                                            percentage={formatNumber(lote.waterData?.porcentajeAu2m || 0)}
+                                                                            size={60}
+                                                                            umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
+                                                                        />
+                                                                    </Box>
+                                                                </Grid>
+                                                                <Grid item xs={6}>
+                                                                    <Box display="flex" flexDirection="column" alignItems="center">
+                                                                        <Box display="flex" alignItems="center" mb={1} sx={{ minHeight: '36px', textAlign: 'center' }}>
+                                                                            <WaterDrop style={{ color: '#3FA9F5', marginRight: '4px' }} fontSize="small" />
+                                                                            <Typography variant="caption" sx={{ lineHeight: 1.1 }}>Proy. 7 días</Typography>
+                                                                        </Box>
+                                                                        <GaugeIndicator
+                                                                            percentage={formatNumber(lote.waterData?.porcentajeProyectado2m || 0)}
+                                                                            size={60}
+                                                                            umbral={lote.waterData?.porcentajeAguaUtilUmbral || 50}
+                                                                        />
+                                                                    </Box>
+                                                                </Grid>
+                                                            </Grid>
+                                                        </Box>
+                                                    </CardContent>
+                                                </CardActionArea>
+                                            </Card>
+                                        </Grid>
+                                    ))}
+                                </Grid>
+                            </React.Fragment>
+                        ))}
+
+                        {isAdmin && selectedCampo && (
+                            <Paper elevation={3} sx={{ p: 3, mb: 4, mt: 4 }}>
+                                <RecomendacionesSection campoId={selectedCampo} especies={especiesOrdenadas} />
+                            </Paper>
+                        )}
+                    </>
+                );
+            })()}
         </Container>
     );
 }

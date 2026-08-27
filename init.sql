@@ -351,6 +351,9 @@ CREATE TABLE recomendaciones_campo (
 CREATE INDEX idx_recomendaciones_campo_id ON recomendaciones_campo(campo_id);
 CREATE INDEX idx_recomendaciones_fecha ON recomendaciones_campo(fecha);
 
+-- Migración: columna cultivo en recomendaciones_campo (ejecutar manualmente en servidor)
+ALTER TABLE recomendaciones_campo ADD COLUMN IF NOT EXISTS cultivo VARCHAR(100);
+
 -- Tabla para almacenar estaciones meteorológicas
 CREATE TABLE estaciones_meteorologicas (
     id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
