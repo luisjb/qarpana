@@ -9,25 +9,30 @@ import {
     Delete, Edit, Add, Save, Cancel, Announcement,
     FormatBold, FormatItalic, FormatListBulleted
 } from '@mui/icons-material';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import axios from '../axiosConfig';
 
 // Renderiza texto con formato markdown básico: **negrita**, *cursiva*, líneas con • o -
 const MarkdownText = ({ text }) => {
     if (!text) return null;
 
-    const parseBold = (line) => {
-        const parts = [];
-        const regex = /\*\*(.*?)\*\*/g;
+    const parseLine = (line) => {
+        const result = [];
+        // **bold** tiene prioridad sobre *italic* gracias al orden del alternation
+        const regex = /\*\*([^*]+)\*\*|\*([^*]+)\*/g;
         let last = 0;
         let m;
         while ((m = regex.exec(line)) !== null) {
-            if (m.index > last) parts.push(line.slice(last, m.index));
-            parts.push(<strong key={m.index}>{m[1]}</strong>);
+            if (m.index > last) result.push(line.slice(last, m.index));
+            if (m[1] !== undefined) {
+                result.push(<strong key={m.index}>{m[1]}</strong>);
+            } else {
+                result.push(<em key={m.index}>{m[2]}</em>);
+            }
             last = m.index + m[0].length;
         }
-        if (last < line.length) parts.push(line.slice(last));
-        return parts.length > 0 ? parts : [line];
+        if (last < line.length) result.push(line.slice(last));
+        return result.length > 0 ? result : [line];
     };
 
     return (
@@ -35,7 +40,7 @@ const MarkdownText = ({ text }) => {
             {text.split('\n').map((line, idx) => {
                 const isBullet = line.startsWith('• ') || line.startsWith('- ');
                 const content = isBullet ? line.slice(2) : line;
-                const parsed = parseBold(content);
+                const parsed = parseLine(content);
 
                 if (isBullet) {
                     return (
@@ -177,7 +182,9 @@ function RecomendacionesSection({ campoId, especies = [] }) {
     const handleEditClick = (rec) => {
         setEditando({
             id: rec.id,
-            fecha: format(parseISO(rec.fecha), 'yyyy-MM-dd'),
+            // substring(0,10) evita la conversión de timezone de parseISO
+            // que en UTC-3 convierte el midnight UTC al día anterior
+            fecha: rec.fecha.substring(0, 10),
             cultivo: rec.cultivo || '',
             texto: rec.texto
         });
@@ -206,8 +213,11 @@ function RecomendacionesSection({ campoId, especies = [] }) {
     };
 
     const formatDate = (dateString) => {
-        try { return format(parseISO(dateString), 'dd/MM/yyyy'); }
-        catch { return dateString; }
+        try {
+            // Tomar solo la parte YYYY-MM-DD antes de parsear, evita desfase de timezone
+            const [year, month, day] = dateString.substring(0, 10).split('-');
+            return `${day}/${month}/${year}`;
+        } catch { return dateString; }
     };
 
     const currentCultivo = editando ? editando.cultivo : nuevaRecomendacion.cultivo;
@@ -230,26 +240,28 @@ function RecomendacionesSection({ campoId, especies = [] }) {
             {mostrarFormulario && (
                 <Box component="form" onSubmit={handleSubmit} sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                     <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6} md={3}>
-                            <TextField
-                                fullWidth label="Fecha" type="date" name="fecha"
-                                value={editando ? editando.fecha : nuevaRecomendacion.fecha}
-                                onChange={handleInputChange}
-                                InputLabelProps={{ shrink: true }} required
-                            />
+                        {/* Columna izquierda: Fecha encima de Cultivo */}
+                        <Grid item xs={12} md={4}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <TextField
+                                    fullWidth label="Fecha" type="date" name="fecha"
+                                    value={editando ? editando.fecha : nuevaRecomendacion.fecha}
+                                    onChange={handleInputChange}
+                                    InputLabelProps={{ shrink: true }} required
+                                />
+                                <FormControl fullWidth>
+                                    <InputLabel>Cultivo</InputLabel>
+                                    <Select name="cultivo" value={currentCultivo} onChange={handleInputChange} label="Cultivo">
+                                        <MenuItem value=""><em>General (todos los cultivos)</em></MenuItem>
+                                        {especies.map(esp => (
+                                            <MenuItem key={esp} value={esp}>{esp}</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Box>
                         </Grid>
-                        <Grid item xs={12} sm={6} md={3}>
-                            <FormControl fullWidth>
-                                <InputLabel>Cultivo</InputLabel>
-                                <Select name="cultivo" value={currentCultivo} onChange={handleInputChange} label="Cultivo">
-                                    <MenuItem value=""><em>General (todos los cultivos)</em></MenuItem>
-                                    {especies.map(esp => (
-                                        <MenuItem key={esp} value={esp}>{esp}</MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        {/* Columna derecha: toolbar + textarea */}
+                        <Grid item xs={12} md={8}>
                             {/* Barra de formato */}
                             <Box sx={{ display: 'flex', gap: 0.5, mb: 0.5 }}>
                                 <Tooltip title="Negrita — seleccioná texto y hacé clic">
