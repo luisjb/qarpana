@@ -1,5 +1,4 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
 import templateBase64 from '../assets/hoja_membretada_template';
 
@@ -329,349 +328,334 @@ class PDFReportGenerator {
     }
 
     async addReportTitle(nombreCampo) {
-        this.currentPage.drawText('INFORME DE BALANCE HIDRICO', {
+        // Colored header band
+        this.currentPage.drawRectangle({
             x: this.margin,
-            y: this.currentY,
-            size: 18,
-            font: this.boldFont,
-            color: rgb(0.26, 0.63, 0.28),
+            y: this.currentY - 6,
+            width: this.contentWidth,
+            height: 24,
+            color: rgb(0.18, 0.55, 0.22),
         });
-        
-        this.currentY -= 30;
-        
-        this.currentPage.drawText(`Campo: ${nombreCampo}`, {
-            x: this.margin,
+        this.currentPage.drawText('INFORME DE BALANCE HIDRICO', {
+            x: this.margin + 12,
             y: this.currentY,
             size: 14,
             font: this.boldFont,
-            color: rgb(0, 0, 0),
+            color: rgb(1, 1, 1),
         });
-        
-        this.currentY -= 20;
-        
-        this.currentPage.drawText(`Fecha: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, {
+        this.currentY -= 34;
+
+        this.currentPage.drawText(`Campo: ${nombreCampo}`, {
             x: this.margin,
             y: this.currentY,
-            size: 10,
-            font: this.font,
-            color: rgb(0.4, 0.4, 0.4),
+            size: 13,
+            font: this.boldFont,
+            color: rgb(0.1, 0.1, 0.1),
         });
-        
-        this.currentY -= 40;
+        this.currentY -= 18;
+
+        this.currentPage.drawText(`Fecha de generacion: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, {
+            x: this.margin,
+            y: this.currentY,
+            size: 9,
+            font: this.font,
+            color: rgb(0.5, 0.5, 0.5),
+        });
+        this.currentY -= 16;
+
+        // Thin separator
+        this.currentPage.drawRectangle({
+            x: this.margin,
+            y: this.currentY,
+            width: this.contentWidth,
+            height: 1,
+            color: rgb(0.75, 0.75, 0.75),
+        });
+        this.currentY -= 20;
+    }
+
+    drawSectionHeader(title) {
+        // Green left accent + title
+        this.currentPage.drawRectangle({
+            x: this.margin,
+            y: this.currentY - 5,
+            width: 4,
+            height: 20,
+            color: rgb(0.18, 0.55, 0.22),
+        });
+        this.currentPage.drawText(title, {
+            x: this.margin + 10,
+            y: this.currentY,
+            size: 13,
+            font: this.boldFont,
+            color: rgb(0.18, 0.55, 0.22),
+        });
+        this.currentY -= 24;
     }
 
     async addResumenCirculosFromPage(lotesData) {
-        // Verificar si necesitamos nueva página
-        if (this.currentY < 300) {
+        if (this.currentY < 250) {
             await this.addNewPage();
         }
-        
-        // Título sección
-        this.currentPage.drawText('RESUMEN DE CIRCULOS', {
-            x: this.margin,
-            y: this.currentY,
-            size: 16,
-            font: this.boldFont,
-            color: rgb(0.26, 0.63, 0.28),
-        });
-        
-        this.currentY -= 30;
-        
-        // Capturar SOLO las cards, no el selector
-        await this.captureOnlyLotesCards(lotesData);
-    }
 
-    async captureOnlyLotesCards(lotesData) {
-        try {
-            // Buscar específicamente el grid de cards, evitando el selector
-            const selectors = [
-                '.MuiGrid-container > .MuiGrid-item', // Los items individuales
-                '[data-testid="lotes-container"] > .MuiGrid-item',
-                '.MuiCard-root' // Las cards directamente
-            ];
-            
-            let lotesCards = null;
-            
-            for (const selector of selectors) {
-                const elements = document.querySelectorAll(selector);
-                if (elements.length > 0 && elements.length === lotesData.length) {
-                    // Crear un contenedor temporal solo con las cards
-                    const tempContainer = document.createElement('div');
-                    tempContainer.style.display = 'flex';
-                    tempContainer.style.flexWrap = 'wrap';
-                    tempContainer.style.gap = '16px';
-                    tempContainer.style.backgroundColor = '#ffffff';
-                    tempContainer.style.padding = '20px';
-                    
-                    // Clonar y agregar las cards al contenedor temporal
-                    elements.forEach(card => {
-                        const clone = card.cloneNode(true);
-                        clone.style.flex = '0 0 300px'; // Tamaño fijo para las cards
-                        tempContainer.appendChild(clone);
-                    });
-                    
-                    // Agregar temporalmente al DOM
-                    document.body.appendChild(tempContainer);
-                    
-                    try {
-                        console.log('Capturando cards de lotes...');
-                        
-                        const canvas = await html2canvas(tempContainer, {
-                            backgroundColor: '#ffffff',
-                            scale: 1.5,
-                            useCORS: true,
-                            allowTaint: true,
-                            logging: false,
-                            width: tempContainer.scrollWidth,
-                            height: tempContainer.scrollHeight,
-                        });
-                        
-                        // Remover el contenedor temporal
-                        document.body.removeChild(tempContainer);
-                        
-                        // Convertir y agregar al PDF
-                        const imgData = canvas.toDataURL('image/png');
-                        const imgBytes = this.dataURLtoUint8Array(imgData);
-                        
-                        const image = await this.pdfDoc.embedPng(imgBytes);
-                        const imageDims = image.scale(0.35); // Escalar para que entre bien
-                        
-                        // Verificar que la imagen entre en la página
-                        if (this.currentY - imageDims.height < 100) {
-                            await this.addNewPage();
-                        }
-                        
-                        // Dibujar imagen en el PDF
-                        this.currentPage.drawImage(image, {
-                            x: this.margin,
-                            y: this.currentY - imageDims.height,
-                            width: imageDims.width,
-                            height: imageDims.height,
-                        });
-                        
-                        this.currentY -= imageDims.height + 20;
-                        console.log('✅ Cards de lotes capturadas exitosamente');
-                        return;
-                        
-                    } catch (error) {
-                        // Remover el contenedor temporal si hay error
-                        if (document.body.contains(tempContainer)) {
-                            document.body.removeChild(tempContainer);
-                        }
-                        throw error;
-                    }
-                }
+        this.drawSectionHeader('RESUMEN DE CIRCULOS');
+        this.currentY -= 6;
+
+        // Sort by especie then render grouped
+        const sorted = [...lotesData].sort((a, b) =>
+            (a.especie || '').localeCompare(b.especie || '')
+        );
+
+        const grupos = sorted.reduce((acc, lote) => {
+            const esp = lote.especie || 'Sin cultivo';
+            if (!acc[esp]) acc[esp] = [];
+            acc[esp].push(lote);
+            return acc;
+        }, {});
+
+        const especiesOrdenadas = Object.keys(grupos).sort();
+
+        for (let gi = 0; gi < especiesOrdenadas.length; gi++) {
+            const especie = especiesOrdenadas[gi];
+            const grupo = grupos[especie];
+
+            if (gi > 0) {
+                this.currentPage.drawRectangle({
+                    x: this.margin,
+                    y: this.currentY - 2,
+                    width: this.contentWidth,
+                    height: 0.5,
+                    color: rgb(0.8, 0.8, 0.8),
+                });
+                this.currentY -= 14;
             }
-            
-            // Si no se pudieron capturar, usar fallback visual mejorado
-            console.log('No se pudieron capturar las cards, usando fallback visual');
-            await this.createVisualLotesCards(lotesData);
-            
-        } catch (error) {
-            console.error('Error capturando cards de lotes:', error);
-            await this.createVisualLotesCards(lotesData);
+
+            // Group header
+            this.currentPage.drawText(especie.toUpperCase(), {
+                x: this.margin,
+                y: this.currentY,
+                size: 9,
+                font: this.boldFont,
+                color: rgb(0.3, 0.3, 0.3),
+            });
+            this.currentPage.drawText(`(${grupo.length} lote${grupo.length !== 1 ? 's' : ''})`, {
+                x: this.margin + this.boldFont.widthOfTextAtSize(especie.toUpperCase(), 9) + 5,
+                y: this.currentY,
+                size: 8,
+                font: this.font,
+                color: rgb(0.6, 0.6, 0.6),
+            });
+            this.currentY -= 14;
+
+            await this.createLotesCardsProgrammatic(grupo);
+            this.currentY -= 8;
         }
     }
 
-    async createVisualLotesCards(lotesData) {
-        // Crear cards visuales similares a las de la página
-        const cardWidth = 160;
-        const cardHeight = 120;
-        const spacing = 15;
+    async createLotesCardsProgrammatic(lotesData) {
+        const cardWidth = 158;
+        const cardHeight = 180;
+        const gapH = 12;
+        const gapV = 14;
         const cardsPerRow = 3;
-        
-        let currentRow = 0;
-        let currentCol = 0;
-        
+        const outerR = 16;
+        const innerR = 10;
+
+        let col = 0;
+        let rowTop = this.currentY;
+
         for (let i = 0; i < lotesData.length; i++) {
             const lote = lotesData[i];
-            
-            // Calcular posición
-            const x = this.margin + (currentCol * (cardWidth + spacing));
-            const y = this.currentY - (currentRow * (cardHeight + spacing));
-            
-            // Verificar si necesitamos nueva página
-            if (y - cardHeight < 100) {
+
+            if (rowTop - cardHeight < 70) {
                 await this.addNewPage();
-                currentRow = 0;
-                currentCol = 0;
-                continue;
+                rowTop = this.currentY;
+                col = 0;
             }
-            
-            // Dibujar card estilo Material-UI
-            await this.drawMaterialCard(lote, x, y - cardHeight, cardWidth, cardHeight);
-            
-            // Actualizar posición
-            currentCol++;
-            if (currentCol >= cardsPerRow) {
-                currentCol = 0;
-                currentRow++;
+
+            const cardLeft = this.margin + col * (cardWidth + gapH);
+            const cardBottom = rowTop - cardHeight;
+
+            this.drawCard(lote, cardLeft, cardBottom, cardWidth, cardHeight, outerR, innerR);
+
+            col++;
+            if (col >= cardsPerRow) {
+                col = 0;
+                rowTop = rowTop - cardHeight - gapV;
             }
         }
-        
-        // Actualizar currentY
-        const totalRows = Math.ceil(lotesData.length / cardsPerRow);
-        this.currentY -= (totalRows * (cardHeight + spacing)) + 20;
-    }
 
-    async drawMaterialCard(lote, x, y, width, height) {
-        // Fondo de la card con sombra simulada
-        this.currentPage.drawRectangle({
-            x: x + 2,
-            y: y - 2,
-            width: width,
-            height: height,
-            color: rgb(0.9, 0.9, 0.9), // Sombra
-        });
-        
-        this.currentPage.drawRectangle({
-            x: x,
-            y: y,
-            width: width,
-            height: height,
-            color: rgb(1, 1, 1), // Fondo blanco
-            borderColor: rgb(0.85, 0.85, 0.85),
-            borderWidth: 1,
-        });
-        
-        // Título del lote
-        this.currentPage.drawText(lote.nombre_lote, {
-            x: x + 10,
-            y: y + height - 20,
-            size: 12,
-            font: this.boldFont,
-            color: rgb(0, 0, 0),
-        });
-        
-        // Subtítulo (cultivo - variedad)
-        const subtitulo = `${lote.especie} - ${lote.variedad}`.substring(0, 25);
-        this.currentPage.drawText(subtitulo, {
-            x: x + 10,
-            y: y + height - 35,
-            size: 8,
-            font: this.font,
-            color: rgb(0.4, 0.4, 0.4),
-        });
-        
-        // Campaña
-        this.currentPage.drawText(`Campana: ${lote.campaña}`, {
-            x: x + 10,
-            y: y + height - 48,
-            size: 8,
-            font: this.font,
-            color: rgb(0.4, 0.4, 0.4),
-        });
-        
-        // Línea separadora
-        this.currentPage.drawRectangle({
-            x: x + 10,
-            y: y + height - 55,
-            width: width - 20,
-            height: 1,
-            color: rgb(0.9, 0.9, 0.9),
-        });
-        
-        // Gauges visuales
-        const gauge1X = x + 25;
-        const gauge1Y = y + 35;
-        const gauge2X = x + 95;
-        const gauge2Y = y + 35;
-        
-        // Gauge 1 Metro
-        this.drawVisualGauge(
-            gauge1X, gauge1Y, 20,
-            lote.waterData?.porcentajeAu1m || 0,
-            '1 Metro'
-        );
-        
-        // Gauge 2 Metros  
-        this.drawVisualGauge(
-            gauge2X, gauge2Y, 20,
-            lote.waterData?.porcentajeAu2m || 0,
-            '2 Metros'
-        );
-        
-        // Valores en mm
-        this.currentPage.drawText(`${Math.round(lote.waterData?.aguaUtil1m || 0)} mm`, {
-            x: gauge1X - 8,
-            y: y + 10,
-            size: 7,
-            font: this.font,
-            color: rgb(0, 0, 0),
-        });
-        
-        this.currentPage.drawText(`${Math.round(lote.waterData?.aguaUtil2m || 0)} mm`, {
-            x: gauge2X - 8,
-            y: y + 10,
-            size: 7,
-            font: this.font,
-            color: rgb(0, 0, 0),
-        });
-    }
-
-    drawVisualGauge(centerX, centerY, radius, percentage, label) {
-        // Fondo del gauge
-        this.currentPage.drawCircle({
-            x: centerX,
-            y: centerY,
-            size: radius,
-            color: rgb(0.9, 0.9, 0.9),
-        });
-        
-        // Color según porcentaje
-        const color = this.getColorByPercentage(percentage);
-        
-        // Círculo de progreso (simplificado)
-        const progressRadius = radius * (percentage / 100);
-        if (percentage > 0) {
-            this.currentPage.drawCircle({
-                x: centerX,
-                y: centerY,
-                size: Math.max(2, progressRadius),
-                color: rgb(...color.map(c => c / 255)),
-            });
+        if (col > 0) {
+            this.currentY = rowTop - cardHeight - gapV;
+        } else {
+            this.currentY = rowTop;
         }
-        
-        // Texto del porcentaje
-        this.currentPage.drawText(`${Math.round(percentage)}%`, {
-            x: centerX - 8,
-            y: centerY - 3,
-            size: 8,
-            font: this.boldFont,
+    }
+
+    drawCard(lote, cardLeft, cardBottom, cardWidth, cardHeight, outerR, innerR) {
+        const cardTop = cardBottom + cardHeight;
+        const wd = lote.waterData || {};
+        const umbral = wd.porcentajeAguaUtilUmbral || 50;
+        const pad = 8;
+        const innerLeft = cardLeft + pad + 3;
+
+        // Shadow + card background
+        this.currentPage.drawRectangle({
+            x: cardLeft + 2, y: cardBottom - 2,
+            width: cardWidth, height: cardHeight,
+            color: rgb(0.82, 0.82, 0.82),
+        });
+        this.currentPage.drawRectangle({
+            x: cardLeft, y: cardBottom,
+            width: cardWidth, height: cardHeight,
             color: rgb(1, 1, 1),
+            borderColor: rgb(0.87, 0.87, 0.87),
+            borderWidth: 0.5,
         });
-        
-        // Label
-        this.currentPage.drawText(label, {
-            x: centerX - 15,
-            y: centerY + radius + 5,
-            size: 7,
-            font: this.font,
-            color: rgb(0.25, 0.66, 0.96),
+        // Left accent
+        this.currentPage.drawRectangle({
+            x: cardLeft, y: cardBottom,
+            width: 3, height: cardHeight,
+            color: rgb(0.18, 0.55, 0.22),
+        });
+
+        // Lote name
+        const nombre = (lote.nombre_lote || '').substring(0, 22);
+        this.currentPage.drawText(nombre, {
+            x: innerLeft, y: cardTop - 16,
+            size: 10, font: this.boldFont, color: rgb(0.1, 0.1, 0.1),
+        });
+
+        // Especie - variedad
+        this.currentPage.drawText(`${lote.especie || ''} - ${lote.variedad || ''}`.substring(0, 27), {
+            x: innerLeft, y: cardTop - 27,
+            size: 7, font: this.font, color: rgb(0.5, 0.5, 0.5),
+        });
+
+        // Campaña
+        this.currentPage.drawText(`Campana: ${lote.campaña || ''}`, {
+            x: innerLeft, y: cardTop - 37,
+            size: 7, font: this.font, color: rgb(0.5, 0.5, 0.5),
+        });
+
+        // Separator
+        this.currentPage.drawRectangle({
+            x: cardLeft + pad, y: cardTop - 44,
+            width: cardWidth - pad * 2, height: 0.5,
+            color: rgb(0.87, 0.87, 0.87),
+        });
+
+        // Gauge centers (2 gauges per depth section, side by side)
+        const g1x = cardLeft + 43;
+        const g2x = cardLeft + 115;
+
+        // --- 0-100 cm ---
+        const sec1Y = cardTop - 51;
+        this.currentPage.drawText('0-100 cm', {
+            x: innerLeft, y: sec1Y,
+            size: 7, font: this.boldFont, color: rgb(0.25, 0.53, 0.96),
+        });
+        this.currentPage.drawText('Actual', {
+            x: g1x - 9, y: sec1Y - 10,
+            size: 6, font: this.font, color: rgb(0.45, 0.45, 0.45),
+        });
+        this.currentPage.drawText('Proy 7d', {
+            x: g2x - 12, y: sec1Y - 10,
+            size: 6, font: this.font, color: rgb(0.45, 0.45, 0.45),
+        });
+
+        const gy1 = sec1Y - 30;
+        this.drawGaugeArc(g1x, gy1, outerR, innerR, wd.porcentajeAu1m || 0, umbral);
+        this.drawGaugeArc(g2x, gy1, outerR, innerR, wd.porcentajeProyectado || 0, umbral);
+
+        this.currentPage.drawText(`${Math.round(wd.aguaUtil1m || 0)} mm`, {
+            x: g1x - 9, y: gy1 - outerR - 8,
+            size: 6, font: this.font, color: rgb(0.3, 0.3, 0.3),
+        });
+
+        // Separator between depth sections
+        const midY = gy1 - outerR - 18;
+        this.currentPage.drawRectangle({
+            x: cardLeft + pad, y: midY,
+            width: cardWidth - pad * 2, height: 0.5,
+            color: rgb(0.87, 0.87, 0.87),
+        });
+
+        // --- 0-200 cm ---
+        const sec2Y = midY - 9;
+        this.currentPage.drawText('0-200 cm', {
+            x: innerLeft, y: sec2Y,
+            size: 7, font: this.boldFont, color: rgb(0.25, 0.53, 0.96),
+        });
+        this.currentPage.drawText('Actual', {
+            x: g1x - 9, y: sec2Y - 10,
+            size: 6, font: this.font, color: rgb(0.45, 0.45, 0.45),
+        });
+        this.currentPage.drawText('Proy 7d', {
+            x: g2x - 12, y: sec2Y - 10,
+            size: 6, font: this.font, color: rgb(0.45, 0.45, 0.45),
+        });
+
+        const gy2 = sec2Y - 30;
+        this.drawGaugeArc(g1x, gy2, outerR, innerR, wd.porcentajeAu2m || 0, umbral);
+        this.drawGaugeArc(g2x, gy2, outerR, innerR, wd.porcentajeProyectado2m || 0, umbral);
+
+        this.currentPage.drawText(`${Math.round(wd.aguaUtil2m || 0)} mm`, {
+            x: g1x - 9, y: gy2 - outerR - 8,
+            size: 6, font: this.font, color: rgb(0.3, 0.3, 0.3),
         });
     }
 
-    getColorByPercentage(percentage) {
-        if (percentage <= 25) return [239, 68, 68]; // Rojo
-        if (percentage <= 50) return [249, 115, 22]; // Naranja
-        if (percentage <= 75) return [255, 193, 7]; // Amarillo
-        return [34, 197, 94]; // Verde
+    drawGaugeArc(cx, cy, outerR, innerR, percentage, umbral = 50) {
+        const p = Math.min(Math.max(Number(percentage) || 0, 0), 100);
+
+        // Gray background
+        this.currentPage.drawCircle({ x: cx, y: cy, size: outerR, color: rgb(0.88, 0.88, 0.88) });
+
+        if (p > 0) {
+            const [r, g, b] = this.getColorByUmbral(p, umbral);
+            const fillColor = rgb(r / 255, g / 255, b / 255);
+
+            if (p >= 99.5) {
+                this.currentPage.drawCircle({ x: cx, y: cy, size: outerR, color: fillColor });
+            } else {
+                const θ = (p / 100) * 2 * Math.PI;
+                const endX = +(outerR * Math.sin(θ)).toFixed(4);
+                const endY = +(-outerR * Math.cos(θ)).toFixed(4);
+                const largeArc = θ > Math.PI ? 1 : 0;
+                const path = `M 0 0 L 0 ${-outerR} A ${outerR} ${outerR} 0 ${largeArc} 1 ${endX} ${endY} Z`;
+                this.currentPage.drawSvgPath(path, { x: cx, y: cy, color: fillColor });
+            }
+        }
+
+        // White donut hole
+        this.currentPage.drawCircle({ x: cx, y: cy, size: innerR, color: rgb(1, 1, 1) });
+
+        // Percentage text
+        const text = `${Math.round(p)}%`;
+        const tSize = 6;
+        this.currentPage.drawText(text, {
+            x: cx - text.length * tSize * 0.28,
+            y: cy - tSize / 2,
+            size: tSize,
+            font: this.boldFont,
+            color: rgb(0.15, 0.15, 0.15),
+        });
+    }
+
+    getColorByUmbral(percentage, umbral = 50) {
+        if (percentage <= umbral / 2) return [239, 68, 68];  // Red
+        if (percentage <= umbral) return [249, 115, 22];       // Orange
+        return [34, 197, 94];                                  // Green
     }
 
     async addRecomendaciones(recomendaciones) {
         if (this.currentY < 150) {
             await this.addNewPage();
         }
-        
-        this.currentPage.drawText('RECOMENDACIONES', {
-            x: this.margin,
-            y: this.currentY,
-            size: 16,
-            font: this.boldFont,
-            color: rgb(0.26, 0.63, 0.28),
-        });
-        
-        this.currentY -= 25;
+
+        this.drawSectionHeader('RECOMENDACIONES');
+        this.currentY -= 4;
         
         if (recomendaciones && recomendaciones.length > 0) {
             const recomendacion = recomendaciones[0];
@@ -708,7 +692,8 @@ class PDFReportGenerator {
             // Fecha si está disponible
             if (recomendacion.fecha_creacion || recomendacion.fecha) {
                 const fecha = recomendacion.fecha_creacion || recomendacion.fecha;
-                const fechaFormateada = new Date(fecha).toLocaleDateString('es-ES');
+                const [fy, fm, fd] = (fecha || '').substring(0, 10).split('-');
+                const fechaFormateada = fd ? `${fd}/${fm}/${fy}` : String(fecha);
                 
                 this.currentPage.drawText(`Fecha: ${fechaFormateada}`, {
                     x: this.margin,

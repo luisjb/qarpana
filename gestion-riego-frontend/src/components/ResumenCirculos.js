@@ -131,7 +131,8 @@ function ResumenCirculos() {
             const filtro = campañaFiltro || (campañasUnicas.length === 1 ? campañasUnicas[0] : '');
             if (filtro && !campañaFiltro) setFiltroCampaña(filtro);
 
-            const lotesVer = filtro ? all.filter(l => l.campaña === filtro) : all;
+            // No mostrar lotes hasta que el usuario elija una campaña explícitamente
+            const lotesVer = filtro ? all.filter(l => l.campaña === filtro) : [];
 
             if (lotesVer.length > 0) {
                 // IMPORTANTE: El endpoint /simulations/summary/${lote.id} debe devolver
@@ -392,7 +393,13 @@ function ResumenCirculos() {
                 <Typography color="error" sx={{ my: 2 }}>{error}</Typography>
             )}
 
-
+            {!loading && selectedCampo && campañasFiltro.length > 1 && !filtroCampaña && (
+                <Box display="flex" justifyContent="center" alignItems="center" my={6}>
+                    <Typography variant="body1" color="text.secondary">
+                        Seleccione una campaña para ver los lotes del campo
+                    </Typography>
+                </Box>
+            )}
 
             {(() => {
                 // Agrupar lotes por especie (cultivo), ordenados alfabéticamente

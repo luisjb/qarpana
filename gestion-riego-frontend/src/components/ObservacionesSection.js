@@ -5,7 +5,7 @@ import {
     DialogContent, DialogActions, Tooltip
 } from '@mui/material';
 import { Delete, Edit, Add, Save, Cancel } from '@mui/icons-material';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import axios from '../axiosConfig';
 
 function ObservacionesSection({ loteId, campaña }) {
@@ -97,7 +97,7 @@ function ObservacionesSection({ loteId, campaña }) {
     const handleEditClick = (observacion) => {
         setEditando({
             id: observacion.id,
-            fecha: format(parseISO(observacion.fecha), 'yyyy-MM-dd'),
+            fecha: observacion.fecha.substring(0, 10),
             texto: observacion.texto
         });
         setMostrarFormulario(true);
@@ -133,9 +133,9 @@ function ObservacionesSection({ loteId, campaña }) {
 
     const formatDate = (dateString) => {
         try {
-            return format(parseISO(dateString), 'dd/MM/yyyy');
-        } catch (error) {
-            console.error('Error al formatear fecha:', error);
+            const [year, month, day] = dateString.substring(0, 10).split('-');
+            return `${day}/${month}/${year}`;
+        } catch {
             return dateString;
         }
     };
