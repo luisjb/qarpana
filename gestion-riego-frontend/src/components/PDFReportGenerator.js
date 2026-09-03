@@ -7,10 +7,12 @@ class PDFReportGenerator {
         this.pdfDoc = null;
         this.currentPage = null;
         this.currentY = 0;
-        this.pageHeight = 792; // A4 height in points (72 DPI)
-        this.pageWidth = 612; // A4 width in points
-        this.margin = 57; // 20mm en points
-        this.contentWidth = 498; // A4 width minus margins
+        this.pageHeight = 842; // A4 — matches hoja_membretada_2.pdf (841.92pt)
+        this.pageWidth = 595;  // A4 — matches template (595.32pt)
+        this.margin = 50;      // ~18mm left/right
+        this.contentWidth = 495;
+        this.contentTop = 730; // start below letterhead header (~112pt from top)
+        this.contentBottom = 75; // stop above letterhead footer
         
         // Rutas alternativas para acceder al PDF
         this.templatePaths = [
@@ -44,7 +46,7 @@ class PDFReportGenerator {
             await this.loadTemplate();
             
             // Empezar después del header de la plantilla
-            this.currentY = this.usingTemplate ? 600 : 650;
+            this.currentY = this.usingTemplate ? this.contentTop : this.pageHeight - 60;
             
             // Agregar título del informe
             await this.addReportTitle(campoData.nombre_campo);
@@ -394,7 +396,7 @@ class PDFReportGenerator {
     }
 
     async addResumenCirculosFromPage(lotesData) {
-        if (this.currentY < 250) {
+        if (this.currentY < this.contentBottom + 180) {
             await this.addNewPage();
         }
 
@@ -459,7 +461,7 @@ class PDFReportGenerator {
         const gapV = 14;
         const cardsPerRow = 3;
         const outerR = 16;
-        const innerR = 10;
+        const innerR = 12;
 
         let col = 0;
         let rowTop = this.currentY;
@@ -467,7 +469,7 @@ class PDFReportGenerator {
         for (let i = 0; i < lotesData.length; i++) {
             const lote = lotesData[i];
 
-            if (rowTop - cardHeight < 70) {
+            if (rowTop - cardHeight < this.contentBottom) {
                 await this.addNewPage();
                 rowTop = this.currentY;
                 col = 0;
@@ -650,7 +652,7 @@ class PDFReportGenerator {
     }
 
     async addRecomendaciones(recomendaciones) {
-        if (this.currentY < 150) {
+        if (this.currentY < this.contentBottom + 80) {
             await this.addNewPage();
         }
 
@@ -718,22 +720,14 @@ class PDFReportGenerator {
     }
 
     async addLoteDetalleCompleto(lote) {
-        // Nueva página para cada lote
         await this.addNewPage();
-        
-        // Título del lote
-        this.currentPage.drawText(`DETALLE: ${lote.nombre_lote}`, {
-            x: this.margin,
-            y: this.currentY,
-            size: 16,
-            font: this.boldFont,
-            color: rgb(0.26, 0.63, 0.28),
-        });
-        
-        this.currentY -= 40;
-        
-        // Cards de información del lote con mejor formato
-        await this.addEnhancedLoteCards(lote);
+
+        // Section header
+        this.drawSectionHeader(`DETALLE: ${lote.nombre_lote}`);
+        this.currentY -= 8;
+
+        // Info block + gauges
+        this.addLoteInfoBlock(lote);
         
         // NUEVO: Intentar capturar gráfico con método mejorado
         console.log(`📊 Intentando capturar gráfico del lote: ${lote.nombre_lote}`);
@@ -858,7 +852,7 @@ class PDFReportGenerator {
             console.log('📊 Creando gráfico desde datos de simulación');
             
             // Verificar si necesitamos nueva página
-            if (this.currentY - 250 < 100) {
+            if (this.currentY - 250 < this.contentBottom) {
                 await this.addNewPage();
             }
             
@@ -1133,91 +1127,159 @@ class PDFReportGenerator {
         }
     }
 
-    async addEnhancedLoteCards(lote) {
-        // Primera fila - Información básica
-        const basicCards = [
-            { title: 'Cultivo', value: lote.especie || 'N/A', color: rgb(0.26, 0.63, 0.28) },
-            { title: 'Variedad', value: lote.variedad || 'N/A', color: rgb(0.26, 0.63, 0.28) },
-            { title: 'Campana', value: lote.campaña || 'N/A', color: rgb(0.26, 0.63, 0.28) },
-            { title: 'Estado Fenologico', value: lote.simulationData?.estadoFenologico || 'N/A', color: rgb(0.26, 0.63, 0.28) }
-        ];
-        
-        this.drawCardRow(basicCards, this.currentY, 110, 50);
-        this.currentY -= 70;
-        
-        // Segunda fila - Datos hídricos con estilo mejorado
-        const waterCards = [
-            { 
-                title: 'Agua Util Inicial', 
-                value: `1m: ${Math.round(lote.simulationData?.auInicial1m || 0)}mm\n2m: ${Math.round(lote.simulationData?.auInicial2m || 0)}mm`,
-                color: rgb(0.25, 0.66, 0.96)
-            },
-            { 
-                title: '% Agua Util Actual', 
-                value: `1m: ${Math.round(lote.waterData?.porcentajeAu1m || 0)}%\n2m: ${Math.round(lote.waterData?.porcentajeAu2m || 0)}%`,
-                color: rgb(0.25, 0.66, 0.96)
-            },
-            { 
-                title: 'Proyeccion 7 dias', 
-                value: `1m: ${Math.round(lote.simulationData?.proyeccionAU1mDia8 || 0)}mm\n2m: ${Math.round(lote.simulationData?.proyeccionAU2mDia8 || 0)}mm`,
-                color: rgb(0.25, 0.66, 0.96)
-            }
-        ];
-        
-        this.drawCardRow(waterCards, this.currentY, 150, 60);
-        this.currentY -= 80;
-    }
+    addLoteInfoBlock(lote) {
+        const wd = lote.waterData || {};
+        const sd = lote.simulationData || {};
+        const umbral = wd.porcentajeAguaUtilUmbral || 50;
+        const outerR = 18;
+        const innerR = 14;
 
-    drawCardRow(cards, startY, cardWidth, cardHeight) {
-        const spacing = 15;
-        
-        cards.forEach((card, index) => {
-            const x = this.margin + (index * (cardWidth + spacing));
-            
-            // Sombra
-            this.currentPage.drawRectangle({
-                x: x + 2,
-                y: startY - cardHeight - 2,
-                width: cardWidth,
-                height: cardHeight,
-                color: rgb(0.9, 0.9, 0.9),
+        // ── Info table ────────────────────────────────────────────────
+        const tableH = 56;
+        this.currentPage.drawRectangle({
+            x: this.margin, y: this.currentY - tableH,
+            width: this.contentWidth, height: tableH,
+            color: rgb(0.97, 0.97, 0.97),
+            borderColor: rgb(0.87, 0.87, 0.87), borderWidth: 0.5,
+        });
+        // Left accent
+        this.currentPage.drawRectangle({
+            x: this.margin, y: this.currentY - tableH,
+            width: 3, height: tableH,
+            color: rgb(0.18, 0.55, 0.22),
+        });
+
+        const col1 = this.margin + 12;
+        const col2 = this.margin + this.contentWidth / 2 + 6;
+        const row1 = this.currentY - 16;
+        const row2 = this.currentY - 36;
+
+        const kv = (label, val, x, y) => {
+            this.currentPage.drawText(label, {
+                x, y, size: 8, font: this.boldFont, color: rgb(0.45, 0.45, 0.45),
             });
-            
-            // Fondo de la card
-            this.currentPage.drawRectangle({
-                x: x,
-                y: startY - cardHeight,
-                width: cardWidth,
-                height: cardHeight,
-                color: rgb(0.98, 0.98, 0.98),
-                borderColor: card.color,
-                borderWidth: 2,
+            this.currentPage.drawText(String(val || 'N/A'), {
+                x: x + this.boldFont.widthOfTextAtSize(label, 8) + 4, y,
+                size: 8, font: this.font, color: rgb(0.1, 0.1, 0.1),
             });
-            
-            // Título con color
-            this.currentPage.drawText(card.title, {
-                x: x + 8,
-                y: startY - 18,
-                size: 9,
-                font: this.boldFont,
-                color: card.color,
-            });
-            
-            // Valor con líneas múltiples
-            const lines = card.value.split('\n');
-            lines.forEach((line, lineIndex) => {
-                this.currentPage.drawText(line, {
-                    x: x + 8,
-                    y: startY - 35 - (lineIndex * 12),
-                    size: 10,
-                    font: this.font,
-                    color: rgb(0, 0, 0),
+        };
+
+        kv('Cultivo:', lote.especie, col1, row1);
+        kv('Variedad:', lote.variedad, col2, row1);
+        kv('Campaña:', lote.campaña, col1, row2);
+        kv('Est. Fenológico:', sd.estadoFenologico, col2, row2);
+
+        this.currentY -= tableH + 16;
+
+        // ── Gauges row ────────────────────────────────────────────────
+        // Separator label
+        this.currentPage.drawText('Balance hídrico actual y proyección 7 días', {
+            x: this.margin, y: this.currentY,
+            size: 9, font: this.boldFont, color: rgb(0.3, 0.3, 0.3),
+        });
+        this.currentY -= 14;
+
+        // 4 gauges in a row, equally spaced
+        const gaugeAreaW = this.contentWidth;
+        const colW = gaugeAreaW / 4;
+        const labels = ['0-100cm Actual', '0-100cm Proy 7d', '0-200cm Actual', '0-200cm Proy 7d'];
+        const values = [
+            wd.porcentajeAu1m || 0,
+            wd.porcentajeProyectado || 0,
+            wd.porcentajeAu2m || 0,
+            wd.porcentajeProyectado2m || 0,
+        ];
+        const mmVals = [
+            Math.round(wd.aguaUtil1m || 0),
+            null,
+            Math.round(wd.aguaUtil2m || 0),
+            null,
+        ];
+
+        // Background band for gauge row
+        const gaugeRowH = outerR * 2 + 38;
+        this.currentPage.drawRectangle({
+            x: this.margin, y: this.currentY - gaugeRowH,
+            width: this.contentWidth, height: gaugeRowH,
+            color: rgb(0.985, 0.985, 0.985),
+            borderColor: rgb(0.87, 0.87, 0.87), borderWidth: 0.5,
+        });
+
+        for (let i = 0; i < 4; i++) {
+            const cx = this.margin + colW * i + colW / 2;
+            const labelY = this.currentY - 12;
+            const gcy = this.currentY - 14 - outerR - 4;
+            const mmY = gcy - outerR - 8;
+
+            // Vertical divider between depth sections
+            if (i === 2) {
+                this.currentPage.drawRectangle({
+                    x: this.margin + colW * 2 - 0.5, y: this.currentY - gaugeRowH,
+                    width: 1, height: gaugeRowH,
+                    color: rgb(0.82, 0.82, 0.82),
                 });
+            }
+
+            // Label above gauge
+            const lbl = labels[i];
+            this.currentPage.drawText(lbl, {
+                x: cx - this.font.widthOfTextAtSize(lbl, 6.5) / 2,
+                y: labelY,
+                size: 6.5, font: this.font, color: rgb(0.4, 0.4, 0.4),
+            });
+
+            this.drawGaugeArc(cx, gcy, outerR, innerR, values[i], umbral);
+
+            // mm value below gauge
+            if (mmVals[i] !== null) {
+                const mmTxt = `${mmVals[i]} mm`;
+                this.currentPage.drawText(mmTxt, {
+                    x: cx - this.font.widthOfTextAtSize(mmTxt, 7) / 2,
+                    y: mmY, size: 7, font: this.font, color: rgb(0.35, 0.35, 0.35),
+                });
+            }
+        }
+
+        this.currentY -= gaugeRowH + 14;
+
+        // ── Key numbers strip ─────────────────────────────────────────
+        const stripH = 34;
+        const stripItems = [
+            { label: 'AU Inicial 0-100cm', val: `${Math.round(sd.auInicial1m || 0)} mm` },
+            { label: 'AU Inicial 0-200cm', val: `${Math.round(sd.auInicial2m || 0)} mm` },
+            { label: 'Proy. 7d 0-100cm',  val: `${Math.round(sd.proyeccionAU1mDia8 || 0)} mm` },
+            { label: 'Proy. 7d 0-200cm',  val: `${Math.round(sd.proyeccionAU2mDia8 || 0)} mm` },
+            { label: 'Umbral',             val: `${umbral}%` },
+        ];
+        const stripColW = this.contentWidth / stripItems.length;
+
+        this.currentPage.drawRectangle({
+            x: this.margin, y: this.currentY - stripH,
+            width: this.contentWidth, height: stripH,
+            color: rgb(0.18, 0.55, 0.22),
+        });
+
+        stripItems.forEach((item, i) => {
+            const sx = this.margin + stripColW * i + stripColW / 2;
+            this.currentPage.drawText(item.label, {
+                x: sx - this.font.widthOfTextAtSize(item.label, 6) / 2,
+                y: this.currentY - 13,
+                size: 6, font: this.font, color: rgb(0.85, 1, 0.85),
+            });
+            this.currentPage.drawText(item.val, {
+                x: sx - this.boldFont.widthOfTextAtSize(item.val, 9) / 2,
+                y: this.currentY - 26,
+                size: 9, font: this.boldFont, color: rgb(1, 1, 1),
             });
         });
+
+        this.currentY -= stripH + 16;
     }
 
     async addChartFallback() {
+        if (this.currentY - 200 < this.contentBottom) {
+            await this.addNewPage();
+        }
         // Título del gráfico
         this.currentPage.drawText('Balance Hidrico - Ultimos 30 dias', {
             x: this.margin,
