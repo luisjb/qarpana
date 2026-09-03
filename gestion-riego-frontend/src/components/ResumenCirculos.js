@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Container, Grid, Typography, Paper, FormControl, InputLabel,
     Select, MenuItem, CircularProgress, useTheme, Box, Card, CardContent,
-    CardActionArea, Divider, Button
+    CardActionArea, Divider, Button, Tooltip
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from '../axiosConfig';
@@ -185,16 +185,9 @@ function ResumenCirculos() {
 
     const fetchRecomendaciones = async (campoId) => {
         try {
-            // Obtener solo la última recomendación del campo
             const response = await axios.get(`/recomendaciones/campo/${campoId}`);
-
-            if (response.data && response.data.length > 0) {
-                // Tomar solo la última recomendación (la más reciente)
-                const ultimaRecomendacion = response.data[response.data.length - 1];
-                setRecomendaciones([ultimaRecomendacion]);
-            } else {
-                setRecomendaciones([]);
-            }
+            // Backend returns sorted DESC by fecha → response.data[0] is most recent
+            setRecomendaciones(response.data || []);
         } catch (error) {
             console.error('Error al obtener recomendaciones:', error);
             setRecomendaciones([]);
@@ -321,6 +314,23 @@ function ResumenCirculos() {
         return Math.round(Number(value));
     };
 
+    const formatDate = (dateString) => {
+        try {
+            const [y, m, d] = (dateString || '').substring(0, 10).split('-');
+            return `${d}/${m}/${y}`;
+        } catch { return dateString || ''; }
+    };
+
+    const stripMarkdown = (text) =>
+        (text || '').replace(/\*\*/g, '').replace(/\*/g, '');
+
+    // Map especie → most recent recommendation (backend returns DESC, so [0] is newest)
+    const lastRecByEspecie = recomendaciones.reduce((map, rec) => {
+        if (rec.cultivo && !map.has(rec.cultivo)) map.set(rec.cultivo, rec);
+        return map;
+    }, new Map());
+    const lastGenRec = recomendaciones.find(r => !r.cultivo) || null;
+
     return (
         <Container maxWidth="lg">
             <Typography variant="h4" gutterBottom sx={{ my: 4, fontWeight: 'bold', color: theme.palette.primary.main }}>
@@ -430,8 +440,32 @@ function ResumenCirculos() {
                                     </Typography>
                                 </Box>
                                 <Grid container spacing={3}>
-                                    {grupos[especie].map((lote) => (
+                                    {grupos[especie].map((lote) => {
+                                        const ultimaRec = lastRecByEspecie.get(lote.especie) || lastGenRec;
+                                        const tooltipTitle = ultimaRec ? (
+                                            <Box sx={{ p: 0.5, maxWidth: 300 }}>
+                                                <Typography variant="caption" display="block" sx={{ opacity: 0.75, mb: 0.5, fontWeight: 600 }}>
+                                                    Última recomendación · {formatDate(ultimaRec.fecha)}
+                                                    {ultimaRec.usuario ? ` · ${ultimaRec.usuario}` : ''}
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ fontSize: '0.78rem', whiteSpace: 'pre-line', lineHeight: 1.5 }}>
+                                                    {stripMarkdown(ultimaRec.texto || '').substring(0, 260)}
+                                                    {(ultimaRec.texto || '').length > 260 ? '…' : ''}
+                                                </Typography>
+                                            </Box>
+                                        ) : '';
+                                        return (
                                         <Grid item xs={12} sm={6} md={4} key={lote.id}>
+                                            <Tooltip
+                                                title={tooltipTitle}
+                                                placement="top"
+                                                arrow
+                                                enterDelay={450}
+                                                componentsProps={{
+                                                    tooltip: { sx: { maxWidth: 320, bgcolor: 'background.paper', color: 'text.primary', boxShadow: 4, border: '1px solid', borderColor: 'divider', p: 1.5 } },
+                                                    arrow: { sx: { color: 'background.paper', filter: 'drop-shadow(0 -1px 0 rgba(0,0,0,0.12))' } }
+                                                }}
+                                            >
                                             <Card
                                                 elevation={3}
                                                 sx={{
@@ -525,8 +559,10 @@ function ResumenCirculos() {
                                                     </CardContent>
                                                 </CardActionArea>
                                             </Card>
+                                            </Tooltip>
                                         </Grid>
-                                    ))}
+                                        );
+                                    })}
                                 </Grid>
                             </React.Fragment>
                         ))}

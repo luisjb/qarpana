@@ -55,11 +55,12 @@ class PDFReportGenerator {
             console.log('⏳ Esperando carga de gráficos...');
             await this.waitForChartsToLoad();
             
+            // Store all recommendations for inline use per especie group
+            // Backend returns sorted DESC by date — index 0 is most recent
+            this.allRecomendaciones = recomendaciones || [];
+
             // Capturar y agregar resumen de círculos (solo las cards)
             await this.addResumenCirculosFromPage(lotesData);
-            
-            // Agregar recomendaciones
-            await this.addRecomendaciones(recomendaciones);
             
             // Agregar información detallada por lote
             for (const lote of lotesData) {
@@ -451,7 +452,54 @@ class PDFReportGenerator {
 
             await this.createLotesCardsProgrammatic(grupo);
             this.currentY -= 8;
+            this.addEspecieRecomendacionInline(especie);
+            this.currentY -= 10;
         }
+    }
+
+    addEspecieRecomendacionInline(especie) {
+        // Find most recent recommendation for this especie (index 0 = most recent, backend returns DESC)
+        const rec = (this.allRecomendaciones || []).find(r => r.cultivo === especie);
+        if (!rec) return;
+        if (this.currentY < this.contentBottom + 50) return;
+
+        // Strip markdown markers for plain PDF text
+        const texto = (rec.texto || '').replace(/\*\*/g, '').replace(/\*/g, '');
+        const [fy, fm, fd] = (rec.fecha || '').substring(0, 10).split('-');
+        const fechaStr = fd ? `${fd}/${fm}/${fy}` : '';
+        const headerText = `Ultima recomendacion${fechaStr ? ` · ${fechaStr}` : ''}${rec.usuario ? ` · ${rec.usuario}` : ''}`;
+
+        const lines = this.splitTextToLines(texto, this.contentWidth - 24, 9);
+        const maxLines = Math.min(lines.length, 4);
+        const boxH = 16 + maxLines * 12 + 8;
+
+        this.currentPage.drawRectangle({
+            x: this.margin, y: this.currentY - boxH,
+            width: this.contentWidth, height: boxH,
+            color: rgb(0.96, 0.99, 0.96),
+            borderColor: rgb(0.6, 0.85, 0.6), borderWidth: 0.5,
+        });
+        this.currentPage.drawRectangle({
+            x: this.margin, y: this.currentY - boxH,
+            width: 3, height: boxH,
+            color: rgb(0.18, 0.55, 0.22),
+        });
+
+        this.currentPage.drawText(headerText, {
+            x: this.margin + 8, y: this.currentY - 11,
+            size: 7.5, font: this.boldFont, color: rgb(0.18, 0.55, 0.22),
+        });
+
+        for (let i = 0; i < maxLines; i++) {
+            const line = lines[i];
+            const isBullet = line.startsWith('• ') || line.startsWith('- ');
+            this.currentPage.drawText(isBullet ? `• ${line.slice(2)}` : line, {
+                x: this.margin + 8, y: this.currentY - 22 - (i * 12),
+                size: 9, font: this.font, color: rgb(0.15, 0.15, 0.15),
+            });
+        }
+
+        this.currentY -= boxH;
     }
 
     async createLotesCardsProgrammatic(lotesData) {
