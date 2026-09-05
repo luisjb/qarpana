@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcrypt');
+const argon2 = require('argon2');
 const pool = require('../db');
 const { verifyToken, isAdmin } = require('../middleware/auth');
 
@@ -34,7 +34,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
             return res.status(409).json({ error: 'El nombre de usuario ya está registrado' });
         }
 
-        const hashedPassword = await bcrypt.hash(contraseña, 10);
+        const hashedPassword = await argon2.hash(contraseña);
         const { rows } = await pool.query(
             `INSERT INTO usuarios (nombre_usuario, contraseña, tipo_usuario, email, telefono, nombre_completo, notas)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -61,7 +61,7 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         let query, values;
         if (contraseña) {
-            const hashedPassword = await bcrypt.hash(contraseña, 10);
+            const hashedPassword = await argon2.hash(contraseña);
             query = `UPDATE usuarios
                      SET nombre_usuario=$1, contraseña=$2, tipo_usuario=$3,
                          email=$4, telefono=$5, nombre_completo=$6, notas=$7
