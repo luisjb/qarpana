@@ -79,7 +79,7 @@ services:
       - TRACCAR_USER=admin
       - TRACCAR_PASSWORD=admin
       - TRACCAR_WEBHOOK_TOKEN=mi-token-secreto-123
-      - SMTP_USER=tucuenta@gmail.com
+      - SMTP_USER=info@qarpana.com.ar
       - SMTP_PASS=xxxx_xxxx_xxxx_xxxx   # App Password de Gmail (no la contraseña normal)
 
     depends_on:
