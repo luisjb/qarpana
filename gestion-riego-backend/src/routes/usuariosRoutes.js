@@ -1,13 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const argon2 = require('argon2');
+const bcrypt = require('bcrypt');
 const pool = require('../db');
 const { verifyToken, isAdmin } = require('../middleware/auth');
 
 // Obtener todos los usuarios (solo admin)
 router.get('/', verifyToken, isAdmin, async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT id, nombre_usuario, tipo_usuario FROM usuarios');
+        const { rows } = await pool.query(
+            'SELECT id, nombre_usuario, tipo_usuario, email, telefono, nombre_completo, notas, fecha_creacion FROM usuarios ORDER BY nombre_usuario'
+        );
         res.json(rows);
     } catch (err) {
         console.error('Error al obtener usuarios:', err);
@@ -17,26 +19,28 @@ router.get('/', verifyToken, isAdmin, async (req, res) => {
 
 // Crear nuevo usuario (solo admin)
 router.post('/', verifyToken, isAdmin, async (req, res) => {
-    const { nombre_usuario, contraseña, tipo_usuario } = req.body;
-    
-    if (!nombre_usuario || !contraseña || !tipo_usuario) {
-        return res.status(400).json({ error: 'Todos los campos son requeridos' });
-    }
+    const { nombre_usuario, contraseña, tipo_usuario, email, telefono, nombre_completo, notas } = req.body;
 
-    if (tipo_usuario !== 'Admin' && tipo_usuario !== 'user'  && tipo_usuario !== 'demo') {
+    if (!nombre_usuario || !contraseña || !tipo_usuario) {
+        return res.status(400).json({ error: 'Nombre de usuario, contraseña y tipo son requeridos' });
+    }
+    if (!['Admin', 'user', 'demo'].includes(tipo_usuario)) {
         return res.status(400).json({ error: 'Tipo de usuario inválido' });
     }
 
     try {
-        const userExists = await pool.query('SELECT * FROM usuarios WHERE nombre_usuario = $1', [nombre_usuario]);
+        const userExists = await pool.query('SELECT id FROM usuarios WHERE nombre_usuario = $1', [nombre_usuario]);
         if (userExists.rows.length > 0) {
             return res.status(409).json({ error: 'El nombre de usuario ya está registrado' });
         }
 
-        const hashedPassword = await argon2.hash(contraseña);
+        const hashedPassword = await bcrypt.hash(contraseña, 10);
         const { rows } = await pool.query(
-            'INSERT INTO usuarios (nombre_usuario, contraseña, tipo_usuario) VALUES ($1, $2, $3) RETURNING id, nombre_usuario, tipo_usuario',
-            [nombre_usuario, hashedPassword, tipo_usuario]
+            `INSERT INTO usuarios (nombre_usuario, contraseña, tipo_usuario, email, telefono, nombre_completo, notas)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING id, nombre_usuario, tipo_usuario, email, telefono, nombre_completo, notas, fecha_creacion`,
+            [nombre_usuario, hashedPassword, tipo_usuario,
+             email || null, telefono || null, nombre_completo || null, notas || null]
         );
         res.status(201).json(rows[0]);
     } catch (err) {
@@ -48,22 +52,33 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
 // Actualizar usuario (solo admin)
 router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     const { id } = req.params;
-    const { nombre_usuario, contraseña, tipo_usuario } = req.body;
-    
-    if (tipo_usuario && tipo_usuario !== 'Admin' && tipo_usuario !== 'user'  && tipo_usuario !== 'demo') {
+    const { nombre_usuario, contraseña, tipo_usuario, email, telefono, nombre_completo, notas } = req.body;
+
+    if (tipo_usuario && !['Admin', 'user', 'demo'].includes(tipo_usuario)) {
         return res.status(400).json({ error: 'Tipo de usuario inválido' });
     }
 
     try {
         let query, values;
         if (contraseña) {
-            const hashedPassword = await argon2.hash(contraseña);
-            query = 'UPDATE usuarios SET nombre_usuario = $1, contraseña = $2, tipo_usuario = $3 WHERE id = $4 RETURNING id, nombre_usuario, tipo_usuario';
-            values = [nombre_usuario, hashedPassword, tipo_usuario, id];
+            const hashedPassword = await bcrypt.hash(contraseña, 10);
+            query = `UPDATE usuarios
+                     SET nombre_usuario=$1, contraseña=$2, tipo_usuario=$3,
+                         email=$4, telefono=$5, nombre_completo=$6, notas=$7
+                     WHERE id=$8
+                     RETURNING id, nombre_usuario, tipo_usuario, email, telefono, nombre_completo, notas, fecha_creacion`;
+            values = [nombre_usuario, hashedPassword, tipo_usuario,
+                      email || null, telefono || null, nombre_completo || null, notas || null, id];
         } else {
-            query = 'UPDATE usuarios SET nombre_usuario = $1, tipo_usuario = $2 WHERE id = $3 RETURNING id, nombre_usuario, tipo_usuario';
-            values = [nombre_usuario, tipo_usuario, id];
+            query = `UPDATE usuarios
+                     SET nombre_usuario=$1, tipo_usuario=$2,
+                         email=$3, telefono=$4, nombre_completo=$5, notas=$6
+                     WHERE id=$7
+                     RETURNING id, nombre_usuario, tipo_usuario, email, telefono, nombre_completo, notas, fecha_creacion`;
+            values = [nombre_usuario, tipo_usuario,
+                      email || null, telefono || null, nombre_completo || null, notas || null, id];
         }
+
         const { rows } = await pool.query(query, values);
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Usuario no encontrado' });

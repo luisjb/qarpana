@@ -6,7 +6,9 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from '../axiosConfig';
-import { WaterDrop, PictureAsPdf } from '@mui/icons-material';
+import { WaterDrop, PictureAsPdf, Send } from '@mui/icons-material';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import RecomendacionesSection from './RecomendacionesSection';
 
 // Reutilizamos el componente GaugeIndicator
@@ -74,6 +76,8 @@ function ResumenCirculos() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [recomendaciones, setRecomendaciones] = useState([]);
     const [generatingPDF, setGeneratingPDF] = useState(false);
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [emailSnack, setEmailSnack] = useState({ open: false, message: '', severity: 'success' });
     const theme = useTheme();
     const navigate = useNavigate();
 
@@ -307,6 +311,62 @@ function ResumenCirculos() {
         }
     };
 
+    const handleEnviarInforme = async () => {
+        if (!selectedCampo || lotes.length === 0) {
+            setEmailSnack({ open: true, message: 'Seleccione un campo con lotes antes de enviar', severity: 'warning' });
+            return;
+        }
+
+        setSendingEmail(true);
+
+        try {
+            const { default: PDFReportGenerator } = await import('./PDFReportGenerator');
+
+            const campoSeleccionado = campos.find(c => c.id === selectedCampo);
+            if (!campoSeleccionado) throw new Error('Campo no encontrado');
+
+            const lotesDetallados = await Promise.all(
+                lotes.map(async (lote) => {
+                    try {
+                        const simResponse = await axios.get(`/simulations/${lote.id}`, {
+                            params: { campaña: lote.campaña, cultivo: lote.especie }
+                        });
+                        return { ...lote, simulationData: simResponse.data };
+                    } catch {
+                        return { ...lote, simulationData: null };
+                    }
+                })
+            );
+
+            const pdfGenerator = new PDFReportGenerator();
+            const pdfBytes = await pdfGenerator.generateReport(
+                campoSeleccionado,
+                lotesDetallados,
+                recomendaciones || [],
+                { returnBytes: true }
+            );
+
+            // Convertir Uint8Array a base64
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(pdfBytes)));
+
+            const response = await axios.post('/reportes/enviar-pdf', {
+                campoId: selectedCampo,
+                pdfBase64: base64,
+                nombreCampo: campoSeleccionado.nombre_campo,
+                campañaNombre: filtroCampaña || '',
+            });
+
+            setEmailSnack({ open: true, message: response.data.message, severity: 'success' });
+
+        } catch (error) {
+            console.error('Error al enviar informe:', error);
+            const msg = error.response?.data?.error || error.message || 'Error al enviar el informe';
+            setEmailSnack({ open: true, message: msg, severity: 'error' });
+        } finally {
+            setSendingEmail(false);
+        }
+    };
+
     const formatNumber = (value) => {
         if (value === null || value === undefined || isNaN(value)) {
             return 0;
@@ -332,6 +392,7 @@ function ResumenCirculos() {
     const lastGenRec = recomendaciones.find(r => !r.cultivo) || null;
 
     return (
+        <>
         <Container maxWidth="lg">
             <Typography variant="h4" gutterBottom sx={{ my: 4, fontWeight: 'bold', color: theme.palette.primary.main }}>
                 Resumen de Círculos
@@ -371,24 +432,41 @@ function ResumenCirculos() {
                         </FormControl>
                     </Grid>
                     <Grid item xs={12} md={4}>
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<PictureAsPdf />}
-                            onClick={handleGenerarInforme}
-                            disabled={!isAdmin || !selectedCampo || lotes.length === 0 || generatingPDF}
-                            fullWidth
-                            sx={{ height: '56px' }}
-                        >
-                            {generatingPDF ? (
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <CircularProgress size={20} color="inherit" />
-                                    Generando...
-                                </Box>
-                            ) : (
-                                'Generar Informe PDF'
+                        <Box display="flex" gap={1}>
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                startIcon={<PictureAsPdf />}
+                                onClick={handleGenerarInforme}
+                                disabled={!isAdmin || !selectedCampo || lotes.length === 0 || generatingPDF || sendingEmail}
+                                sx={{ height: '56px', flex: 1, minWidth: 0 }}
+                            >
+                                {generatingPDF ? (
+                                    <Box display="flex" alignItems="center" gap={1}>
+                                        <CircularProgress size={20} color="inherit" />
+                                        Generando...
+                                    </Box>
+                                ) : (
+                                    'Informe PDF'
+                                )}
+                            </Button>
+                            {isAdmin && (
+                                <Tooltip title="Enviar informe por email a los usuarios del campo">
+                                    <span>
+                                        <Button
+                                            variant="outlined"
+                                            color="primary"
+                                            startIcon={sendingEmail ? <CircularProgress size={16} color="inherit" /> : <Send />}
+                                            onClick={handleEnviarInforme}
+                                            disabled={!selectedCampo || lotes.length === 0 || generatingPDF || sendingEmail}
+                                            sx={{ height: '56px', whiteSpace: 'nowrap' }}
+                                        >
+                                            {sendingEmail ? 'Enviando...' : 'Enviar'}
+                                        </Button>
+                                    </span>
+                                </Tooltip>
                             )}
-                        </Button>
+                        </Box>
                     </Grid>
                 </Grid>
             </Paper>
@@ -576,6 +654,19 @@ function ResumenCirculos() {
                 );
             })()}
         </Container>
+
+        <Snackbar
+            open={emailSnack.open}
+            autoHideDuration={5000}
+            onClose={() => setEmailSnack(s => ({ ...s, open: false }))}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+            <Alert severity={emailSnack.severity} variant="filled" sx={{ borderRadius: 2 }}
+                onClose={() => setEmailSnack(s => ({ ...s, open: false }))}>
+                {emailSnack.message}
+            </Alert>
+        </Snackbar>
+        </>
     );
 }
 

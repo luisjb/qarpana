@@ -31,7 +31,7 @@ class PDFReportGenerator {
         this.usingTemplate = false;
     }
 
-    async generateReport(campoData, lotesData, recomendaciones) {
+    async generateReport(campoData, lotesData, recomendaciones, { returnBytes = false } = {}) {
         try {
             console.log('🚀 Iniciando generación de informe PDF');
             
@@ -67,11 +67,16 @@ class PDFReportGenerator {
                 await this.addLoteDetalleCompleto(lote);
             }
             
-            // Generar y descargar el PDF
+            // Generar el PDF
             const pdfBytes = await this.pdfDoc.save();
+
+            if (returnBytes) {
+                return pdfBytes;
+            }
+
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
-            
+
             const a = document.createElement('a');
             a.href = url;
             a.download = `Informe_Balance_Hidrico_${campoData.nombre_campo}_${format(new Date(), 'dd-MM-yyyy')}.pdf`;

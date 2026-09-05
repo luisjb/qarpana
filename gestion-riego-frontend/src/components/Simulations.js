@@ -881,7 +881,8 @@ function Simulations() {
                     fill: false,
                     tension: 0.1,
                     order: 0,
-                    yAxisID: 'y1'
+                    yAxisID: 'y1',
+                    hidden: true
                 },
                 {
                     type: 'line',
@@ -895,7 +896,8 @@ function Simulations() {
                     fill: false,
                     tension: 0.1,
                     order: 0,
-                    yAxisID: 'y1'
+                    yAxisID: 'y1',
+                    hidden: true
                 }
             ] : [])
         ],

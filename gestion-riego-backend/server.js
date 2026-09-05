@@ -13,6 +13,7 @@ const estadosFenologicosRoutes = require('./src/routes/estadosFenologicosRoutes'
 const campañasRoutes = require('./src/routes/campañaRoutes');
 const observacionesRoutes = require('./src/routes/observacionesRoutes');
 const recomendacionesRoutes = require('./src/routes/recomendacionesRoutes');
+const reportesRoutes = require('./src/routes/reportesRoutes');
 const estacionesRoutes = require('./src/routes/estacionesRoutes');
 const gpsRoutes = require('./src/routes/gpsRoutes');
 const geozonasPivoteRoutes = require('./src/routes/geozonasPivoteRoutes');
@@ -88,6 +89,7 @@ app.use('/api/estados-fenologicos', estadosFenologicosRoutes);
 app.use('/api/campanas', campañasRoutes);
 app.use('/api/observaciones', observacionesRoutes);
 app.use('/api/recomendaciones', recomendacionesRoutes);
+app.use('/api/reportes', reportesRoutes);
 app.use('/api/estaciones', estacionesRoutes);
 app.use('/api/geozonas-pivote', geozonasPivoteRoutes);
 
