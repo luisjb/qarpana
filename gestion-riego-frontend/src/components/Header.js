@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
     AppBar,
@@ -10,9 +10,7 @@ import {
     Menu,
     MenuItem,
     useMediaQuery,
-    useTheme,
-    Snackbar,
-    Alert
+    useTheme
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -28,40 +26,15 @@ import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 
 import logo from '../assets/logo.jpeg';
 
-const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
-
 const Header = () => {
     const navigate = useNavigate();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [anchorEl, setAnchorEl] = useState(null);
     const [adminAnchorEl, setAdminAnchorEl] = useState(null);
-    const [newVersionAvailable, setNewVersionAvailable] = useState(false);
-    const initialBuildTime = useRef(null);
     const userRole = localStorage.getItem('role');
     const isAdmin = userRole && userRole.toLowerCase() === 'admin';
     const isDemo = userRole && userRole.toLowerCase() === 'demo';
-
-    useEffect(() => {
-        const fetchVersion = async () => {
-            try {
-                const res = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
-                if (!res.ok) return;
-                const data = await res.json();
-                if (initialBuildTime.current === null) {
-                    initialBuildTime.current = data.buildTime;
-                } else if (data.buildTime !== initialBuildTime.current) {
-                    setNewVersionAvailable(true);
-                }
-            } catch {
-                // silencio si no hay conexión o no existe el archivo
-            }
-        };
-
-        fetchVersion();
-        const interval = setInterval(fetchVersion, CHECK_INTERVAL_MS);
-        return () => clearInterval(interval);
-    }, []);
 
     const handleUpdate = () => {
         if ('caches' in window) {
@@ -251,25 +224,6 @@ const Header = () => {
             )}
         </Toolbar>
         </AppBar>
-
-        <Snackbar
-            open={newVersionAvailable}
-            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-            <Alert
-                severity="info"
-                variant="filled"
-                icon={<SystemUpdateAltIcon />}
-                action={
-                    <Button color="inherit" size="small" onClick={handleUpdate} sx={{ fontWeight: 700 }}>
-                        Actualizar ahora
-                    </Button>
-                }
-                sx={{ width: '100%', alignItems: 'center' }}
-            >
-                Hay una nueva versión disponible
-            </Alert>
-        </Snackbar>
     );
 };
 
