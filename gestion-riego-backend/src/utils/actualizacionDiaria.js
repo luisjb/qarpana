@@ -143,8 +143,11 @@ async function consultarEstacionesMeteorologicas(client) {
                 fecha DATE,
                 evapotranspiracion NUMERIC,
                 temperatura NUMERIC,
+                temp_max NUMERIC,
+                temp_min NUMERIC,
                 humedad NUMERIC,
                 precipitaciones NUMERIC,
+                radiacion NUMERIC,
                 PRIMARY KEY (campo_id, fecha)
             ) ON COMMIT PRESERVE ROWS
         `);
@@ -188,25 +191,30 @@ async function consultarEstacionesMeteorologicas(client) {
 
 async function guardarDatosEstacion(client, campoId, datosEstacion) {
     try {
-        // Insertar cada dato de la estación
         for (const dato of datosEstacion) {
             await client.query(`
-                INSERT INTO temp_datos_estacion 
-                (campo_id, fecha, evapotranspiracion, temperatura, humedad, precipitaciones)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                ON CONFLICT (campo_id, fecha) 
+                INSERT INTO temp_datos_estacion
+                (campo_id, fecha, evapotranspiracion, temperatura, temp_max, temp_min, humedad, precipitaciones, radiacion)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (campo_id, fecha)
                 DO UPDATE SET
                     evapotranspiracion = EXCLUDED.evapotranspiracion,
                     temperatura = EXCLUDED.temperatura,
+                    temp_max = EXCLUDED.temp_max,
+                    temp_min = EXCLUDED.temp_min,
                     humedad = EXCLUDED.humedad,
-                    precipitaciones = EXCLUDED.precipitaciones
+                    precipitaciones = EXCLUDED.precipitaciones,
+                    radiacion = EXCLUDED.radiacion
             `, [
                 campoId,
                 dato.fecha,
                 sanitizeNumeric(dato.evapotranspiracion),
                 sanitizeNumeric(dato.temperatura),
+                sanitizeNumeric(dato.temp_max),
+                sanitizeNumeric(dato.temp_min),
                 sanitizeNumeric(dato.humedad),
-                sanitizeNumeric(dato.precipitaciones)
+                sanitizeNumeric(dato.precipitaciones),
+                sanitizeNumeric(dato.radiacion),
             ]);
         }
     } catch (error) {
@@ -217,58 +225,62 @@ async function guardarDatosEstacion(client, campoId, datosEstacion) {
 
 async function aplicarDatosEstacionALote(client, loteId, fecha, cambioDiario) {
     try {
-        // Verificar si existe la tabla temporal
-        const { rows: tablaExiste } = await client.query(`
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = 'temp_datos_estacion'
-            )
-        `);
-
-        if (!tablaExiste[0].exists) {
-            //console.log('Tabla temporal de datos de estación no existe. Saltando aplicación de datos.');
-            return;
-        }
-
-        // Obtener datos de estación para la fecha específica (HOY)
         const { rows: datosEstacion } = await client.query(`
-            SELECT tde.evapotranspiracion, tde.temperatura, tde.humedad, tde.precipitaciones
+            SELECT tde.evapotranspiracion, tde.temperatura, tde.temp_max, tde.temp_min,
+                   tde.humedad, tde.precipitaciones, tde.radiacion
             FROM temp_datos_estacion tde
             JOIN lotes l ON l.campo_id = tde.campo_id
             WHERE l.id = $1 AND tde.fecha = $2
         `, [loteId, fecha.toISOString().split('T')[0]]);
 
-        if (datosEstacion.length > 0) {
-            const datos = datosEstacion[0];
-            
-            //console.log(`📊 Aplicando datos de estación al lote ${loteId} para fecha ${fecha.toISOString().split('T')[0]}`);
-            
-            // Aplicar datos de la estación al cambio diario solo si son válidos
-            if (datos.evapotranspiracion !== null && !isNaN(datos.evapotranspiracion)) {
-                cambioDiario.evapotranspiracion = parseFloat(datos.evapotranspiracion);
-                //console.log(`✅ Evapotranspiración de estación aplicada al lote ${loteId}: ${cambioDiario.evapotranspiracion} mm/día`);
-            }
-            
-            if (datos.temperatura !== null && !isNaN(datos.temperatura)) {
-                cambioDiario.temperatura = parseFloat(datos.temperatura);
-               // console.log(`✅ Temperatura de estación aplicada al lote ${loteId}: ${cambioDiario.temperatura}°C`);
-            }
-            
-            if (datos.humedad !== null && !isNaN(datos.humedad)) {
-                cambioDiario.humedad = parseFloat(datos.humedad);
-                //console.log(`✅ Humedad de estación aplicada al lote ${loteId}: ${cambioDiario.humedad}%`);
-            }
-            
-            if (datos.precipitaciones !== null && !isNaN(datos.precipitaciones)) {
-                cambioDiario.precipitaciones = parseFloat(datos.precipitaciones);
-                //console.log(`✅ Precipitaciones de estación aplicadas al lote ${loteId}: ${cambioDiario.precipitaciones} mm`);
-            }
-        } else {
-            console.log(`ℹ No hay datos de estación disponibles para el lote ${loteId} en la fecha ${fecha.toISOString().split('T')[0]}`);
+        if (datosEstacion.length === 0) return;
+
+        const datos = datosEstacion[0];
+
+        if (datos.evapotranspiracion !== null && !isNaN(datos.evapotranspiracion))
+            cambioDiario.evapotranspiracion = parseFloat(datos.evapotranspiracion);
+
+        if (datos.temperatura !== null && !isNaN(datos.temperatura))
+            cambioDiario.temperatura = parseFloat(datos.temperatura);
+
+        if (datos.temp_max !== null && !isNaN(datos.temp_max))
+            cambioDiario.temp_max = parseFloat(datos.temp_max);
+
+        if (datos.temp_min !== null && !isNaN(datos.temp_min))
+            cambioDiario.temp_min = parseFloat(datos.temp_min);
+
+        if (datos.humedad !== null && !isNaN(datos.humedad))
+            cambioDiario.humedad = parseFloat(datos.humedad);
+
+        if (datos.precipitaciones !== null && !isNaN(datos.precipitaciones))
+            cambioDiario.precipitaciones = parseFloat(datos.precipitaciones);
+
+        if (datos.radiacion !== null && !isNaN(datos.radiacion))
+            cambioDiario.radiacion = parseFloat(datos.radiacion);
+
+        // Calcular grados días si hay temp_max y temp_min
+        if (cambioDiario.temp_max !== undefined && cambioDiario.temp_min !== undefined) {
+            const tempBase = await obtenerTempBase(client, loteId);
+            cambioDiario.grados_dias = Math.max(
+                0,
+                parseFloat((((cambioDiario.temp_max + cambioDiario.temp_min) / 2) - tempBase).toFixed(2))
+            );
         }
     } catch (error) {
         console.error(`Error aplicando datos de estación al lote ${loteId}:`, error);
-        // No lanzar error para que continúe el procesamiento
+    }
+}
+
+async function obtenerTempBase(client, loteId) {
+    try {
+        const { rows } = await client.query(`
+            SELECT COALESCE(c.temp_base_grados_dias, 10) AS temp_base
+            FROM lotes l JOIN cultivos c ON c.id = l.cultivo_id
+            WHERE l.id = $1
+        `, [loteId]);
+        return parseFloat(rows[0]?.temp_base || 10);
+    } catch {
+        return 10;
     }
 }
 
@@ -499,12 +511,15 @@ async function actualizarCambioDiario(client, cambioDiario) {
         estrato_alcanzado,
         evapotranspiracion,
         temperatura,
+        temp_max,
+        temp_min,
         humedad,
         precipitaciones,
-        etc  // AGREGAR ETC
+        etc,
+        radiacion,
+        grados_dias,
     } = cambioDiario;
 
-    // Asegurar que todos los valores estén sanitizados
     const valoresParaInsertar = [
         lote_id,
         fecha_cambio,
@@ -517,9 +532,13 @@ async function actualizarCambioDiario(client, cambioDiario) {
         sanitizeNumeric(estrato_alcanzado),
         sanitizeNumeric(evapotranspiracion),
         sanitizeNumeric(temperatura),
+        sanitizeNumeric(temp_max),
+        sanitizeNumeric(temp_min),
         sanitizeNumeric(humedad),
         sanitizeNumeric(precipitaciones),
-        sanitizeNumeric(etc)  // AGREGAR ETC
+        sanitizeNumeric(etc),
+        sanitizeNumeric(radiacion),
+        sanitizeNumeric(grados_dias),
     ];
 
     const query = `
@@ -535,11 +554,15 @@ async function actualizarCambioDiario(client, cambioDiario) {
             estrato_alcanzado,
             evapotranspiracion,
             temperatura,
+            temp_max,
+            temp_min,
             humedad,
             precipitaciones,
-            etc
+            etc,
+            radiacion,
+            grados_dias
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         ON CONFLICT (lote_id, fecha_cambio)
         DO UPDATE SET
             dias = EXCLUDED.dias,
@@ -551,9 +574,13 @@ async function actualizarCambioDiario(client, cambioDiario) {
             estrato_alcanzado = EXCLUDED.estrato_alcanzado,
             evapotranspiracion = COALESCE(EXCLUDED.evapotranspiracion, cambios_diarios.evapotranspiracion),
             temperatura = COALESCE(EXCLUDED.temperatura, cambios_diarios.temperatura),
+            temp_max = COALESCE(EXCLUDED.temp_max, cambios_diarios.temp_max),
+            temp_min = COALESCE(EXCLUDED.temp_min, cambios_diarios.temp_min),
             humedad = COALESCE(EXCLUDED.humedad, cambios_diarios.humedad),
             precipitaciones = COALESCE(EXCLUDED.precipitaciones, cambios_diarios.precipitaciones),
-            etc = COALESCE(EXCLUDED.etc, cambios_diarios.etc)
+            etc = COALESCE(EXCLUDED.etc, cambios_diarios.etc),
+            radiacion = COALESCE(EXCLUDED.radiacion, cambios_diarios.radiacion),
+            grados_dias = COALESCE(EXCLUDED.grados_dias, cambios_diarios.grados_dias)
     `;
 
     try {

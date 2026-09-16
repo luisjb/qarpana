@@ -10,21 +10,23 @@ class OmixomService {
 
     async obtenerUltimoDatoEstacion(estacionCodigo) {
         try {
-            // Obtener información de los módulos de la estación
             const modulosInfo = await this.obtenerModulosEstacion(estacionCodigo);
-            
-            if (!modulosInfo.tieneEvapotranspiracion) {
-                //console.log(`Estación ${estacionCodigo} no tiene módulo de evapotranspiración`);
+
+            const todosModulos = [
+                ...modulosInfo.modulosEvapotranspiracion,
+                ...modulosInfo.modulosTemperatura,
+                ...modulosInfo.modulosRadiacion,
+            ];
+            const modulosUnicos = [...new Set(todosModulos)];
+
+            if (modulosUnicos.length === 0) {
                 return null;
             }
 
-            // CORREGIDO: Configurar rango desde ayer hasta hoy (últimas 24 horas)
             const hoy = new Date();
             const ayer = new Date(hoy);
             ayer.setDate(hoy.getDate() - 1);
-            
-            // Formatear fechas en horario argentino (UTC-3)
-            // Desde ayer a las 00:00:00 hasta hoy a las 23:59:59
+
             const fechaInicio = ayer.toISOString().split('T')[0] + 'T00:00:01-03:00';
             const fechaFin = ayer.toISOString().split('T')[0] + 'T23:59:59-03:00';
 
@@ -33,15 +35,11 @@ class OmixomService {
                     [estacionCodigo]: {
                         date_from: fechaInicio,
                         date_to: fechaFin,
-                        modules: modulosInfo.modulosEvapotranspiracion
+                        modules: modulosUnicos,
                     }
                 }
             };
 
-            /*console.log(`Consultando datos acumulativos para estación ${estacionCodigo}`);
-            console.log(`Rango (últimas 24h): ${fechaInicio} a ${fechaFin}`);
-            console.log(`Módulos: ${modulosInfo.modulosEvapotranspiracion}`);
-*/
             const response = await axios.post(`${this.BASE_URL}/private_samples_range`, requestBody, {
                 headers: {
                     'Authorization': `Token ${this.API_TOKEN}`,
@@ -49,14 +47,9 @@ class OmixomService {
                 }
             });
 
-            // CORREGIDO: Procesar para la fecha de HOY (no ayer)
-            return this.procesarDatosRangoCompleto(response.data, modulosInfo.modulosEvapotranspiracion, hoy);
+            return this.procesarDatosRangoCompleto(response.data, modulosInfo, hoy);
         } catch (error) {
             console.error(`Error consultando estación ${estacionCodigo}:`, error.message);
-            if (error.response) {
-              /*  console.error('Response status:', error.response.status);
-                console.error('Response data:', error.response.data);*/
-            }
             return null;
         }
     }
@@ -82,126 +75,124 @@ class OmixomService {
 
             const modules = datos.modules || [];
             
-            // Buscar módulos relacionados con evapotranspiración
-            const modulosEvapotranspiracion = modules.filter(modulo => 
-                modulo.type && (
-                    modulo.type.toLowerCase().includes('evapotranspiración') ||
-                    modulo.type.toLowerCase().includes('evapotranspiracion') ||
-                    modulo.type.toLowerCase().includes('evapotranspiration') ||
-                    modulo.type.toLowerCase().includes('etp') ||
-                    modulo.type.toLowerCase().includes('eto')
+            const modulosEvapotranspiracion = modules.filter(m =>
+                m.type && (
+                    m.type.toLowerCase().includes('evapotranspiración') ||
+                    m.type.toLowerCase().includes('evapotranspiracion') ||
+                    m.type.toLowerCase().includes('evapotranspiration') ||
+                    m.type.toLowerCase().includes('etp') ||
+                    m.type.toLowerCase().includes('eto')
                 )
             );
 
-           /* console.log(`Estación ${estacionCodigo} - Módulos de evapotranspiración encontrados:`, 
-                modulosEvapotranspiracion.map(m => `${m.id}: ${m.type}`));*/
+            const modulosTemperatura = modules.filter(m =>
+                m.type && (
+                    m.type.toLowerCase().includes('temperatura') ||
+                    m.type.toLowerCase().includes('temperature') ||
+                    (m.type.toLowerCase().includes('temp') && !m.type.toLowerCase().includes('etp'))
+                )
+            );
 
-            // Si no hay módulos específicos de evapotranspiración, buscar temperatura y humedad
-            let modulosAlternativos = [];
-            if (modulosEvapotranspiracion.length === 0) {
-                const modulosTemperatura = modules.filter(m => 
-                    m.type && m.type.toLowerCase().includes('temperatura')
-                );
-                const modulosHumedad = modules.filter(m => 
+            const modulosRadiacion = modules.filter(m =>
+                m.type && (
+                    m.type.toLowerCase().includes('radiación') ||
+                    m.type.toLowerCase().includes('radiacion') ||
+                    m.type.toLowerCase().includes('radiation') ||
+                    m.type.toLowerCase().includes('solar') ||
+                    m.type.toLowerCase().includes('rad')
+                )
+            );
+
+            // Fallback ETo: si no hay módulo ETo directo, usar temp+humedad
+            let modulosEtoFinal = modulosEvapotranspiracion.map(m => m.id);
+            let esCalculado = false;
+            if (modulosEtoFinal.length === 0) {
+                const modulosHumedad = modules.filter(m =>
                     m.type && m.type.toLowerCase().includes('humedad')
                 );
-                
                 if (modulosTemperatura.length > 0 && modulosHumedad.length > 0) {
-                    modulosAlternativos = [...modulosTemperatura, ...modulosHumedad];
-                  /*  console.log(`Estación ${estacionCodigo} - Usando módulos alternativos (temp + humedad):`, 
-                        modulosAlternativos.map(m => `${m.id}: ${m.type}`));*/
+                    modulosEtoFinal = [...modulosTemperatura, ...modulosHumedad].map(m => m.id);
+                    esCalculado = true;
                 }
             }
 
             return {
-                tieneEvapotranspiracion: modulosEvapotranspiracion.length > 0 || modulosAlternativos.length > 0,
-                modulosEvapotranspiracion: modulosEvapotranspiracion.length > 0 
-                    ? modulosEvapotranspiracion.map(m => m.id)
-                    : modulosAlternativos.map(m => m.id),
-                esCalculado: modulosEvapotranspiracion.length === 0 // Si usamos temp+humedad, necesitamos calcular
+                tieneEvapotranspiracion: modulosEtoFinal.length > 0,
+                modulosEvapotranspiracion: modulosEtoFinal,
+                modulosTemperatura: modulosTemperatura.map(m => m.id),
+                modulosRadiacion: modulosRadiacion.map(m => m.id),
+                esCalculado,
             };
         } finally {
             client.release();
         }
     }
 
-    procesarDatosRangoCompleto(data, moduloIds, fechaObjetivo) {
+    procesarDatosRangoCompleto(data, modulosInfo, fechaObjetivo) {
         if (!data || !Array.isArray(data)) {
-           // console.log('No se recibieron datos de estaciones o formato incorrecto');
             return null;
         }
 
-      //  console.log(`Procesando ${data.length} muestras para acumular en fecha ${fechaObjetivo.toISOString().split('T')[0]}`);
+        const etoIds = new Set((modulosInfo.modulosEvapotranspiracion || []).map(String));
+        const tempIds = new Set((modulosInfo.modulosTemperatura || []).map(String));
+        const radIds = new Set((modulosInfo.modulosRadiacion || []).map(String));
 
-        // Acumular TODOS los valores del rango (últimas 24 horas)
-        let valoresAcumulados = [];
-        let estacionProcesada = null;
-        
+        // ETo: acumular suma; Temp: acumular para max/min; Rad: acumular suma
+        const etoVals = [];
+        const tempVals = [];
+        const radVals = [];
+
         data.forEach(muestra => {
-            try {
-                if (!muestra.date || !muestra.station) {
-                    return;
-                }
-
-                const estacionId = muestra.station;
-                estacionProcesada = estacionId;
-
-                // Extraer valores de evapotranspiración de todos los módulos
-                moduloIds.forEach(moduloId => {
-                    const valor = muestra[moduloId.toString()];
-                    if (valor !== undefined && valor !== null && !isNaN(valor)) {
-                        valoresAcumulados.push(parseFloat(valor));
-                    }
-                });
-
-            } catch (error) {
-                console.error('Error procesando muestra individual:', error);
-            }
+            if (!muestra.date || !muestra.station) return;
+            Object.keys(muestra).forEach(key => {
+                if (key === 'date' || key === 'station') return;
+                const v = parseFloat(muestra[key]);
+                if (isNaN(v)) return;
+                if (etoIds.has(key)) etoVals.push(v);
+                if (tempIds.has(key)) tempVals.push(v);
+                if (radIds.has(key)) radVals.push(v);
+            });
         });
 
-        // Sumar todos los valores de las últimas 24 horas
-        if (valoresAcumulados.length > 0) {
-            const sumaTotal = valoresAcumulados.reduce((sum, val) => sum + val, 0);
-            const fechaObjetivoStr = fechaObjetivo.toISOString().split('T')[0];
-            
-           /* console.log(`Estación ${estacionProcesada} - Acumulado para ${fechaObjetivoStr}:`);
-            console.log(`  Total de muestras procesadas: ${valoresAcumulados.length}`);
-            console.log(`  Valores individuales (primeros 10): ${valoresAcumulados.slice(0, 10).join(', ')}${valoresAcumulados.length > 10 ? '...' : ''}`);*/
-            //console.log(`  Suma total acumulada: ${sumaTotal} mm/día`);
+        const etoTotal = etoVals.length > 0 ? etoVals.reduce((s, v) => s + v, 0) : null;
+        const tempMax = tempVals.length > 0 ? Math.max(...tempVals) : null;
+        const tempMin = tempVals.length > 0 ? Math.min(...tempVals) : null;
+        const tempMedia = tempVals.length > 0 ? tempVals.reduce((s, v) => s + v, 0) / tempVals.length : null;
+        const radTotal = radVals.length > 0 ? radVals.reduce((s, v) => s + v, 0) : null;
 
-            const resultado = [{
-                fecha: fechaObjetivoStr,
-                evapotranspiracion: Math.round(sumaTotal * 1000) / 1000, // Redondear a 3 decimales
-                temperatura: null, // Se puede agregar si está disponible
-                humedad: null,     // Se puede agregar si está disponible
-                precipitaciones: 0, // Se puede agregar si está disponible
-                muestras_procesadas: valoresAcumulados.length,
-                rango_procesado: `${data.length} muestras de últimas 24h`
-            }];
-
-           // console.log(`✅ Resultado final: ${resultado[0].evapotranspiracion} mm para ${fechaObjetivoStr}`);
-            return resultado;
+        if (etoTotal === null && tempMax === null && radTotal === null) {
+            return null;
         }
 
-       // console.log('❌ No se encontraron valores válidos para procesar');
-        return null;
+        return [{
+            fecha: fechaObjetivo.toISOString().split('T')[0],
+            evapotranspiracion: etoTotal !== null ? Math.round(etoTotal * 1000) / 1000 : null,
+            temperatura: tempMedia !== null ? Math.round(tempMedia * 10) / 10 : null,
+            temp_max: tempMax !== null ? Math.round(tempMax * 10) / 10 : null,
+            temp_min: tempMin !== null ? Math.round(tempMin * 10) / 10 : null,
+            humedad: null,
+            precipitaciones: 0,
+            radiacion: radTotal !== null ? Math.round(radTotal * 100) / 100 : null,
+        }];
     }
 
-    // Método para obtener datos de un rango de días específico
     async obtenerDatosEstacionRango(estacionCodigo, diasAtras = 1) {
         try {
             const modulosInfo = await this.obtenerModulosEstacion(estacionCodigo);
-            
-            if (!modulosInfo.tieneEvapotranspiracion) {
-            //    console.log(`Estación ${estacionCodigo} no tiene módulo de evapotranspiración`);
-                return null;
-            }
+
+            const todosModulos = [
+                ...modulosInfo.modulosEvapotranspiracion,
+                ...modulosInfo.modulosTemperatura,
+                ...modulosInfo.modulosRadiacion,
+            ];
+            const modulosUnicos = [...new Set(todosModulos)];
+
+            if (modulosUnicos.length === 0) return null;
 
             const hoy = new Date();
             const fechaInicio = new Date(hoy);
             fechaInicio.setDate(hoy.getDate() - diasAtras);
-            
-            // Formatear fechas en horario argentino (UTC-3)
+
             const fechaInicioStr = fechaInicio.toISOString().split('T')[0] + 'T00:00:00-03:00';
             const fechaFinStr = hoy.toISOString().split('T')[0] + 'T23:59:59-03:00';
 
@@ -210,13 +201,10 @@ class OmixomService {
                     [estacionCodigo]: {
                         date_from: fechaInicioStr,
                         date_to: fechaFinStr,
-                        modules: modulosInfo.modulosEvapotranspiracion
+                        modules: modulosUnicos,
                     }
                 }
             };
-
-           /* console.log(`Consultando ${diasAtras} días de datos para estación ${estacionCodigo}`);
-            console.log(`Rango: ${fechaInicioStr} a ${fechaFinStr}`);*/
 
             const response = await axios.post(`${this.BASE_URL}/private_samples_range`, requestBody, {
                 headers: {
@@ -225,64 +213,55 @@ class OmixomService {
                 }
             });
 
-            return this.procesarDatosRangoMultipleDias(response.data, modulosInfo.modulosEvapotranspiracion, diasAtras);
+            return this.procesarDatosRangoMultipleDias(response.data, modulosInfo, diasAtras);
         } catch (error) {
             console.error(`Error consultando rango de datos para estación ${estacionCodigo}:`, error.message);
             return null;
         }
     }
 
-    procesarDatosRangoMultipleDias(data, moduloIds, diasAtras) {
-        if (!data || !Array.isArray(data)) {
-        //    console.log('No se recibieron datos de estaciones o formato incorrecto');
-            return null;
-        }
+    procesarDatosRangoMultipleDias(data, modulosInfo, diasAtras) {
+        if (!data || !Array.isArray(data)) return null;
 
-      //  console.log(`Procesando ${data.length} muestras para ${diasAtras} días`);
+        const etoIds = new Set((modulosInfo.modulosEvapotranspiracion || []).map(String));
+        const tempIds = new Set((modulosInfo.modulosTemperatura || []).map(String));
+        const radIds = new Set((modulosInfo.modulosRadiacion || []).map(String));
 
-        // Agrupar datos por fecha
-        const datosPorFecha = {};
-        
+        const porFecha = {};
+
         data.forEach(muestra => {
-            try {
-                if (!muestra.date || !muestra.station) return;
-
-                const fechaMuestra = new Date(muestra.date);
-                const fechaStr = fechaMuestra.toISOString().split('T')[0];
-                
-                if (!datosPorFecha[fechaStr]) {
-                    datosPorFecha[fechaStr] = [];
-                }
-
-                // Extraer valores de evapotranspiración
-                moduloIds.forEach(moduloId => {
-                    const valor = muestra[moduloId.toString()];
-                    if (valor !== undefined && valor !== null && !isNaN(valor)) {
-                        datosPorFecha[fechaStr].push(parseFloat(valor));
-                    }
-                });
-
-            } catch (error) {
-                console.error('Error procesando muestra:', error);
-            }
+            if (!muestra.date || !muestra.station) return;
+            const fecha = new Date(muestra.date).toISOString().split('T')[0];
+            if (!porFecha[fecha]) porFecha[fecha] = { eto: [], temp: [], rad: [] };
+            Object.keys(muestra).forEach(key => {
+                if (key === 'date' || key === 'station') return;
+                const v = parseFloat(muestra[key]);
+                if (isNaN(v)) return;
+                if (etoIds.has(key)) porFecha[fecha].eto.push(v);
+                if (tempIds.has(key)) porFecha[fecha].temp.push(v);
+                if (radIds.has(key)) porFecha[fecha].rad.push(v);
+            });
         });
 
-        // Sumar valores por día
         const resultados = [];
-        Object.keys(datosPorFecha).sort().forEach(fecha => {
-            const valores = datosPorFecha[fecha];
-            const sumaETP = valores.reduce((sum, val) => sum + val, 0);
-            
-          //  console.log(`Fecha ${fecha}: ${valores.length} muestras, suma = ${sumaETP} mm/día`);
-            
-            if (sumaETP > 0) {
+        Object.keys(porFecha).sort().forEach(fecha => {
+            const d = porFecha[fecha];
+            const etoTotal = d.eto.length > 0 ? d.eto.reduce((s, v) => s + v, 0) : null;
+            const tempMax = d.temp.length > 0 ? Math.max(...d.temp) : null;
+            const tempMin = d.temp.length > 0 ? Math.min(...d.temp) : null;
+            const tempMedia = d.temp.length > 0 ? d.temp.reduce((s, v) => s + v, 0) / d.temp.length : null;
+            const radTotal = d.rad.length > 0 ? d.rad.reduce((s, v) => s + v, 0) : null;
+
+            if (etoTotal !== null || tempMax !== null || radTotal !== null) {
                 resultados.push({
-                    fecha: fecha,
-                    evapotranspiracion: Math.round(sumaETP * 1000) / 1000,
-                    temperatura: null,
+                    fecha,
+                    evapotranspiracion: etoTotal !== null ? Math.round(etoTotal * 1000) / 1000 : null,
+                    temperatura: tempMedia !== null ? Math.round(tempMedia * 10) / 10 : null,
+                    temp_max: tempMax !== null ? Math.round(tempMax * 10) / 10 : null,
+                    temp_min: tempMin !== null ? Math.round(tempMin * 10) / 10 : null,
                     humedad: null,
                     precipitaciones: 0,
-                    muestras_procesadas: valores.length
+                    radiacion: radTotal !== null ? Math.round(radTotal * 100) / 100 : null,
                 });
             }
         });

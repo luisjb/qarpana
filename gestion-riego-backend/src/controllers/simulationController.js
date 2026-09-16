@@ -541,6 +541,16 @@ exports.getSimulationData = async (req, res) => {
             porcentajeAu1m: parseFloat(lote.agua_util_total) > 0 ? (ultimoDato.aguaUtil1m / parseFloat(lote.agua_util_total)) * 100 : 0,
             porcentajeAu2m: parseFloat(lote.capacidad_almacenamiento_2m) > 0 ? (ultimoDato.aguaUtil2m / parseFloat(lote.capacidad_almacenamiento_2m)) * 100 : 0,
             erroresKC: erroresKC,
+            tempMax: cambiosFiltrados.map(c => c.temp_max !== null && c.temp_max !== undefined ? parseFloat(c.temp_max) : null),
+            tempMin: cambiosFiltrados.map(c => c.temp_min !== null && c.temp_min !== undefined ? parseFloat(c.temp_min) : null),
+            gradosDias: cambiosFiltrados.map(c => c.grados_dias !== null && c.grados_dias !== undefined ? parseFloat(c.grados_dias) : null),
+            gradosDiasAcumulados: (() => {
+                let sum = 0;
+                return cambiosFiltrados.map(c => {
+                    sum += parseFloat(c.grados_dias || 0);
+                    return parseFloat(sum.toFixed(1));
+                });
+            })(),
         };
 
         // También vamos a agregar un console.log para verificar los valores

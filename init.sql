@@ -901,6 +901,15 @@ ADD COLUMN IF NOT EXISTS historial_angulos JSONB DEFAULT '[]'::jsonb;
 CREATE INDEX IF NOT EXISTS idx_vueltas_historial 
 ON vueltas_riego USING gin(historial_angulos);
 
-ALTER TABLE geozonas_pivote 
+ALTER TABLE geozonas_pivote
 ADD COLUMN latitud_centro NUMERIC,
 ADD COLUMN longitud_centro NUMERIC;
+
+-- Temperatura diaria y grados días en cambios_diarios
+ALTER TABLE cambios_diarios ADD COLUMN IF NOT EXISTS temp_max NUMERIC;
+ALTER TABLE cambios_diarios ADD COLUMN IF NOT EXISTS temp_min NUMERIC;
+ALTER TABLE cambios_diarios ADD COLUMN IF NOT EXISTS grados_dias NUMERIC;
+ALTER TABLE cambios_diarios ADD COLUMN IF NOT EXISTS radiacion NUMERIC;
+
+-- Temperatura base para cálculo de grados días por cultivo (default 10°C)
+ALTER TABLE cultivos ADD COLUMN IF NOT EXISTS temp_base_grados_dias NUMERIC DEFAULT 10;

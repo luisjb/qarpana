@@ -11,7 +11,7 @@ import Widget from './Widget';
 import CorreccionDiasDialog from './CorreccionDiasDialog';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import DownloadIcon from '@mui/icons-material/Download';
-import { WaterDrop, Cloud } from '@mui/icons-material';
+import { WaterDrop, Cloud, Thermostat } from '@mui/icons-material';
 import { useLocation } from 'react-router-dom';
 import ObservacionesSection from './ObservacionesSection';
 
@@ -1254,6 +1254,90 @@ function Simulations() {
                     <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
                         {chartData && <Chart type="bar" data={chartData} options={chartOptions} />}
                     </Paper>
+
+                    {simulationData && (simulationData.tempMax || []).some(v => v !== null) && (
+                        <Paper elevation={3} sx={{ p: 2, mt: 3, height: isMobile ? '260px' : '320px' }}>
+                            <Box display="flex" alignItems="center" mb={1}>
+                                <Thermostat style={{ color: '#ef4444' }} />
+                                <Typography variant="h6" color="primary" sx={{ ml: 1 }}>
+                                    Temperaturas y Grados Días
+                                </Typography>
+                            </Box>
+                            <Chart
+                                type="line"
+                                data={{
+                                    labels: (simulationData.fechas || []).map(f => {
+                                        try { return format(new Date(f), 'dd/MM'); } catch { return ''; }
+                                    }),
+                                    datasets: [
+                                        {
+                                            label: 'Temp. Máx (°C)',
+                                            data: simulationData.tempMax || [],
+                                            borderColor: 'rgb(239,68,68)',
+                                            backgroundColor: 'rgba(239,68,68,0.1)',
+                                            fill: false,
+                                            tension: 0.3,
+                                            pointRadius: 2,
+                                            yAxisID: 'y',
+                                        },
+                                        {
+                                            label: 'Temp. Mín (°C)',
+                                            data: simulationData.tempMin || [],
+                                            borderColor: 'rgb(59,130,246)',
+                                            backgroundColor: 'rgba(59,130,246,0.1)',
+                                            fill: false,
+                                            tension: 0.3,
+                                            pointRadius: 2,
+                                            yAxisID: 'y',
+                                        },
+                                        {
+                                            label: 'Grados Días Acum.',
+                                            data: simulationData.gradosDiasAcumulados || [],
+                                            borderColor: 'rgb(249,115,22)',
+                                            borderDash: [4, 4],
+                                            fill: false,
+                                            tension: 0.3,
+                                            pointRadius: 2,
+                                            yAxisID: 'y1',
+                                        },
+                                    ],
+                                }}
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    interaction: { mode: 'index', intersect: false },
+                                    plugins: {
+                                        legend: { position: 'top' },
+                                        tooltip: {
+                                            callbacks: {
+                                                label: ctx => {
+                                                    const v = ctx.raw;
+                                                    if (v === null || v === undefined) return null;
+                                                    const unit = ctx.dataset.yAxisID === 'y1' ? ' GD' : ' °C';
+                                                    return `${ctx.dataset.label}: ${parseFloat(v).toFixed(1)}${unit}`;
+                                                },
+                                            },
+                                        },
+                                    },
+                                    scales: {
+                                        x: { ticks: { maxTicksLimit: 15 } },
+                                        y: {
+                                            type: 'linear',
+                                            position: 'left',
+                                            title: { display: true, text: 'Temperatura (°C)' },
+                                        },
+                                        y1: {
+                                            type: 'linear',
+                                            position: 'right',
+                                            title: { display: true, text: 'Grados Días Acum.' },
+                                            grid: { drawOnChartArea: false },
+                                        },
+                                    },
+                                }}
+                            />
+                        </Paper>
+                    )}
+
                     {simulationData && isAdmin && (
                         <Paper elevation={3} sx={{ p: 2, height: isMobile ? '300px' : '400px' }}>
                             <ObservacionesSection

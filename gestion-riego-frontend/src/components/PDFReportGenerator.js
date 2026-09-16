@@ -785,6 +785,14 @@ class PDFReportGenerator {
         // Gráfico de simulación
         await this.captureDetailedChartImproved(lote);
 
+        // Gráfico de temperaturas (si hay datos)
+        if (lote.simulationData) {
+            const temps = lote.simulationData.tempMax || [];
+            if (temps.some(v => v !== null && v !== undefined)) {
+                await this.createTempChartFromData(lote.simulationData);
+            }
+        }
+
         // Observaciones del lote
         this.addObservacionesInline(lote);
     }
@@ -978,161 +986,294 @@ class PDFReportGenerator {
 
     async createChartFromData(simulationData) {
         try {
-            console.log('📊 Creando gráfico desde datos de simulación');
-            
-            // Verificar si necesitamos nueva página
-            if (this.currentY - 250 < this.contentBottom) {
+            console.log('📊 Renderizando gráfico con Chart.js off-screen');
+
+            const { Chart, registerables } = await import('chart.js');
+            Chart.register(...registerables);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 900;
+            canvas.height = 320;
+
+            const histLen = (simulationData.fechas || []).length;
+            const projLen = (simulationData.fechasProyeccion || []).length;
+            const allDates = [...(simulationData.fechas || []), ...(simulationData.fechasProyeccion || [])];
+            const labels = allDates.map(d => {
+                const parts = (d || '').substring(0, 10).split('-');
+                return parts[2] && parts[1] ? `${parts[2]}/${parts[1]}` : d;
+            });
+
+            const chart = new Chart(canvas, {
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            type: 'bar',
+                            label: 'Lluvias',
+                            data: [...(simulationData.lluvias || []), ...new Array(projLen).fill(null)],
+                            backgroundColor: 'rgba(81,175,238,0.75)',
+                            order: 1,
+                            yAxisID: 'y',
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Riego',
+                            data: [...(simulationData.riego || []), ...new Array(projLen).fill(null)],
+                            backgroundColor: 'rgba(76,0,255,0.75)',
+                            order: 2,
+                            yAxisID: 'y',
+                        },
+                        {
+                            type: 'line',
+                            label: 'Agua Util',
+                            data: [...(simulationData.aguaUtil || []), ...new Array(projLen).fill(null)],
+                            borderColor: 'rgb(15,18,139)',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.1,
+                            order: 0,
+                            yAxisID: 'y1',
+                            pointRadius: 0,
+                        },
+                        {
+                            type: 'line',
+                            label: 'Proyectado',
+                            data: [...new Array(histLen).fill(null), ...(simulationData.aguaUtilProyectada || [])],
+                            borderColor: 'rgba(15,17,139,0.5)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.1,
+                            order: 0,
+                            yAxisID: 'y1',
+                            pointRadius: 0,
+                        },
+                        {
+                            type: 'line',
+                            label: 'Umbral',
+                            data: simulationData.aguaUtilUmbral || [],
+                            borderColor: 'rgb(214,0,0)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0,
+                            order: 0,
+                            yAxisID: 'y1',
+                            pointRadius: 0,
+                        },
+                    ],
+                },
+                options: {
+                    animation: false,
+                    responsive: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { font: { size: 11 }, boxWidth: 16, padding: 12 },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            ticks: { maxTicksLimit: 14, maxRotation: 45, font: { size: 9 } },
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                        },
+                        y: {
+                            position: 'right',
+                            title: { display: true, text: 'mm (lluvia/riego)', font: { size: 9 } },
+                            ticks: { font: { size: 9 } },
+                            grid: { drawOnChartArea: false },
+                        },
+                        y1: {
+                            position: 'left',
+                            title: { display: true, text: 'Agua Util (mm)', font: { size: 9 } },
+                            ticks: { font: { size: 9 } },
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                        },
+                    },
+                },
+            });
+
+            // Give the chart one tick to finish drawing
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const imageData = canvas.toDataURL('image/png');
+            chart.destroy();
+
+            // Embed PNG in PDF
+            const base64 = imageData.split(',')[1];
+            const imgBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+            const pngImage = await this.pdfDoc.embedPng(imgBytes);
+
+            const imgW = this.contentWidth;
+            const imgH = Math.round((320 / 900) * imgW);
+
+            if (this.currentY - imgH < this.contentBottom) {
                 await this.addNewPage();
             }
-            
-            // Título del gráfico
-            this.currentPage.drawText('Balance Hidrico - Ultimos 30 dias', {
+
+            this.currentPage.drawImage(pngImage, {
                 x: this.margin,
-                y: this.currentY,
-                size: 12,
-                font: this.boldFont,
-                color: rgb(0.26, 0.63, 0.28),
+                y: this.currentY - imgH,
+                width: imgW,
+                height: imgH,
             });
-            
-            this.currentY -= 25;
-            
-            const chartHeight = 200;
+
+            this.currentY -= imgH + 15;
+            this.addBalanceSummary(simulationData);
+
+            return true;
+
+        } catch (error) {
+            console.error('❌ Error renderizando gráfico con Chart.js:', error);
+            // Fallback a gráfico simple si algo falla
+            return this.createSimpleChartFallback(simulationData);
+        }
+    }
+
+    createSimpleChartFallback(simulationData) {
+        try {
+            if (this.currentY - 220 < this.contentBottom) return false;
+
+            const chartHeight = 160;
             const chartWidth = this.contentWidth;
             const chartStartY = this.currentY - chartHeight;
-            
-            // Fondo del gráfico
+
             this.currentPage.drawRectangle({
-                x: this.margin,
-                y: chartStartY,
-                width: chartWidth,
-                height: chartHeight,
+                x: this.margin, y: chartStartY,
+                width: chartWidth, height: chartHeight,
                 color: rgb(0.98, 0.98, 0.98),
-                borderColor: rgb(0.8, 0.8, 0.8),
-                borderWidth: 1,
+                borderColor: rgb(0.8, 0.8, 0.8), borderWidth: 1,
             });
-            
-            // Grid horizontal
-            for (let i = 1; i < 5; i++) {
-                const y = chartStartY + (chartHeight * i / 5);
-                this.currentPage.drawLine({
-                    start: { x: this.margin, y: y },
-                    end: { x: this.margin + chartWidth, y: y },
-                    thickness: 0.5,
-                    color: rgb(0.9, 0.9, 0.9),
-                });
-            }
-            
-            // Grid vertical
-            const numVerticalLines = Math.min(simulationData.fechas?.length || 10, 10);
-            for (let i = 1; i < numVerticalLines; i++) {
-                const x = this.margin + (chartWidth * i / numVerticalLines);
-                this.currentPage.drawLine({
-                    start: { x: x, y: chartStartY },
-                    end: { x: x, y: chartStartY + chartHeight },
-                    thickness: 0.5,
-                    color: rgb(0.9, 0.9, 0.9),
-                });
-            }
-            
-            // Dibujar datos reales si están disponibles
-            if (simulationData.aguaUtil && simulationData.aguaUtil.length > 0) {
-                const maxValue = Math.max(...simulationData.aguaUtil.filter(v => v !== null && !isNaN(v)));
-                const minValue = Math.min(...simulationData.aguaUtil.filter(v => v !== null && !isNaN(v)));
-                const range = maxValue - minValue || 100;
-                
-                console.log('📈 Dibujando con datos reales:', {
-                    puntos: simulationData.aguaUtil.length,
-                    max: maxValue,
-                    min: minValue
-                });
-                
-                // Línea de agua útil con datos reales
-                const points = simulationData.aguaUtil.map((value, index) => {
-                    if (value === null || isNaN(value)) return null;
-                    
-                    const x = this.margin + (chartWidth * index / (simulationData.aguaUtil.length - 1));
-                    const normalizedValue = (value - minValue) / range;
-                    const y = chartStartY + chartHeight * 0.2 + (chartHeight * 0.6 * normalizedValue);
-                    
-                    return { x, y };
-                }).filter(p => p !== null);
-                
-                // Dibujar línea de agua útil
-                for (let i = 0; i < points.length - 1; i++) {
-                    if (points[i] && points[i + 1]) {
-                        this.currentPage.drawLine({
-                            start: points[i],
-                            end: points[i + 1],
-                            thickness: 2,
-                            color: rgb(0.15, 0.18, 0.54),
-                        });
-                    }
+
+            const vals = (simulationData.aguaUtil || []).filter(v => v !== null && !isNaN(v));
+            if (vals.length > 1) {
+                const maxV = Math.max(...vals);
+                const minV = Math.min(...vals);
+                const range = maxV - minV || 1;
+                const pts = vals.map((v, i) => ({
+                    x: this.margin + (chartWidth * i / (vals.length - 1)),
+                    y: chartStartY + 10 + (chartHeight - 20) * (v - minV) / range,
+                }));
+                for (let i = 0; i < pts.length - 1; i++) {
+                    this.currentPage.drawLine({ start: pts[i], end: pts[i + 1], thickness: 2, color: rgb(0.15, 0.18, 0.54) });
                 }
-                
-                // Línea de umbral si existe
-                if (simulationData.aguaUtilUmbral && simulationData.aguaUtilUmbral.length > 0) {
-                    const umbralValue = simulationData.aguaUtilUmbral[0];
-                    const umbralNormalized = (umbralValue - minValue) / range;
-                    const umbralY = chartStartY + chartHeight * 0.2 + (chartHeight * 0.6 * umbralNormalized);
-                    
-                    this.currentPage.drawLine({
-                        start: { x: this.margin, y: umbralY },
-                        end: { x: this.margin + chartWidth, y: umbralY },
-                        thickness: 2,
-                        color: rgb(0.84, 0, 0),
-                        dashArray: [5, 5],
-                    });
-                }
-                
-                // Etiquetas con valores reales
-                this.currentPage.drawText(`Máx: ${Math.round(maxValue)} mm`, {
-                    x: this.margin + 10,
-                    y: chartStartY + chartHeight - 20,
-                    size: 8,
-                    font: this.font,
-                    color: rgb(0.15, 0.18, 0.54),
-                });
-                
-                this.currentPage.drawText(`Mín: ${Math.round(minValue)} mm`, {
-                    x: this.margin + 10,
-                    y: chartStartY + 10,
-                    size: 8,
-                    font: this.font,
-                    color: rgb(0.15, 0.18, 0.54),
-                });
-                
-            } else {
-                // Si no hay datos, usar gráfico simulado
-                this.addSimulatedChart(chartStartY, chartWidth, chartHeight);
             }
-            
-            // Leyenda (usando caracteres compatibles con WinAnsi)
-            this.currentPage.drawText('— Agua Útil', {
-                x: this.margin + chartWidth - 100,
-                y: chartStartY + chartHeight - 20,
-                size: 8,
-                font: this.font,
-                color: rgb(0.15, 0.18, 0.54),
-            });
-            
-            this.currentPage.drawText('- - Umbral', {
-                x: this.margin + chartWidth - 100,
-                y: chartStartY + chartHeight - 35,
-                size: 8,
-                font: this.font,
-                color: rgb(0.84, 0, 0),
-            });
-            
-            this.currentY = chartStartY - 20;
-            
-            // Agregar resumen de datos
+
+            this.currentY = chartStartY - 15;
             this.addBalanceSummary(simulationData);
-            
             return true;
-            
+        } catch { return false; }
+    }
+
+    async createTempChartFromData(simulationData) {
+        try {
+            const tempMax = (simulationData.tempMax || []).map(v => v !== null ? parseFloat(v) : null);
+            const tempMin = (simulationData.tempMin || []).map(v => v !== null ? parseFloat(v) : null);
+            const gradosDiasAcum = simulationData.gradosDiasAcumulados || [];
+            const fechas = (simulationData.fechas || []).map(f => {
+                try {
+                    const d = new Date(f);
+                    return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+                } catch { return ''; }
+            });
+
+            if (tempMax.filter(v => v !== null).length === 0) return;
+
+            const { Chart, registerables } = await import('chart.js');
+            Chart.register(...registerables);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 900;
+            canvas.height = 260;
+
+            const chart = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: fechas,
+                    datasets: [
+                        {
+                            label: 'Temp. Máx (°C)',
+                            data: tempMax,
+                            borderColor: 'rgb(239,68,68)',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.3,
+                            pointRadius: 2,
+                            yAxisID: 'y',
+                            spanGaps: true,
+                        },
+                        {
+                            label: 'Temp. Mín (°C)',
+                            data: tempMin,
+                            borderColor: 'rgb(59,130,246)',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.3,
+                            pointRadius: 2,
+                            yAxisID: 'y',
+                            spanGaps: true,
+                        },
+                        {
+                            label: 'Grados Días Acum.',
+                            data: gradosDiasAcum,
+                            borderColor: 'rgb(249,115,22)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.3,
+                            pointRadius: 1,
+                            yAxisID: 'y1',
+                        },
+                    ],
+                },
+                options: {
+                    animation: false,
+                    responsive: false,
+                    plugins: {
+                        legend: { display: true, position: 'top', labels: { font: { size: 11 } } },
+                    },
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 12, font: { size: 9 } } },
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: { display: true, text: 'Temperatura (°C)', font: { size: 10 } },
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: 'Grados Días Acum.', font: { size: 10 } },
+                            grid: { drawOnChartArea: false },
+                        },
+                    },
+                },
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const imageData = canvas.toDataURL('image/png');
+            chart.destroy();
+
+            const base64 = imageData.split(',')[1];
+            const imgBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+            const pngImage = await this.pdfDoc.embedPng(imgBytes);
+
+            const imgW = this.contentWidth;
+            const imgH = Math.round((260 / 900) * imgW);
+
+            if (this.currentY - imgH - 20 < this.contentBottom) {
+                await this.addNewPage();
+            }
+
+            this.currentY -= 10;
+            this.currentPage.drawImage(pngImage, {
+                x: this.margin,
+                y: this.currentY - imgH,
+                width: imgW,
+                height: imgH,
+            });
+            this.currentY -= imgH + 15;
         } catch (error) {
-            console.error('❌ Error creando gráfico desde datos:', error);
-            return false;
+            console.error('Error renderizando gráfico de temperaturas:', error);
         }
     }
 
