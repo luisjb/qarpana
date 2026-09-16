@@ -257,30 +257,22 @@ function ResumenCirculos() {
                 throw new Error('Campo no encontrado');
             }
 
-            // Obtener datos detallados de simulación para cada lote
+            // Obtener datos de simulación y observaciones para cada lote
             const lotesDetallados = await Promise.all(
                 lotes.map(async (lote) => {
-                    try {
-                        // Intentar obtener datos de simulación completos
-                        const simResponse = await axios.get(`/simulations/${lote.id}`, {
-                            params: {
-                                campaña: lote.campaña,
-                                cultivo: lote.especie
-                            }
-                        });
-
-                        return {
-                            ...lote,
-                            simulationData: simResponse.data
-                        };
-                    } catch (error) {
-                        console.error(`Error al obtener simulación del lote ${lote.id}:`, error);
-                        // Retornar lote con datos básicos si falla la simulación
-                        return {
-                            ...lote,
-                            simulationData: null
-                        };
-                    }
+                    const [simResult, obsResult] = await Promise.allSettled([
+                        axios.get(`/simulations/${lote.id}`, {
+                            params: { campaña: lote.campaña, cultivo: lote.especie }
+                        }),
+                        axios.get(`/observaciones/lote/${lote.id}`, {
+                            params: { campaña: lote.campaña }
+                        })
+                    ]);
+                    return {
+                        ...lote,
+                        simulationData: simResult.status === 'fulfilled' ? simResult.value.data : null,
+                        observaciones: obsResult.status === 'fulfilled' ? (obsResult.value.data || []) : [],
+                    };
                 })
             );
 
@@ -327,14 +319,19 @@ function ResumenCirculos() {
 
             const lotesDetallados = await Promise.all(
                 lotes.map(async (lote) => {
-                    try {
-                        const simResponse = await axios.get(`/simulations/${lote.id}`, {
+                    const [simResult, obsResult] = await Promise.allSettled([
+                        axios.get(`/simulations/${lote.id}`, {
                             params: { campaña: lote.campaña, cultivo: lote.especie }
-                        });
-                        return { ...lote, simulationData: simResponse.data };
-                    } catch {
-                        return { ...lote, simulationData: null };
-                    }
+                        }),
+                        axios.get(`/observaciones/lote/${lote.id}`, {
+                            params: { campaña: lote.campaña }
+                        })
+                    ]);
+                    return {
+                        ...lote,
+                        simulationData: simResult.status === 'fulfilled' ? simResult.value.data : null,
+                        observaciones: obsResult.status === 'fulfilled' ? (obsResult.value.data || []) : [],
+                    };
                 })
             );
 

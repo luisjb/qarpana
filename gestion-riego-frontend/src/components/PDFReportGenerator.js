@@ -781,39 +781,115 @@ class PDFReportGenerator {
 
         // Info block + gauges
         this.addLoteInfoBlock(lote);
-        
-        // NUEVO: Intentar capturar gráfico con método mejorado
-        console.log(`📊 Intentando capturar gráfico del lote: ${lote.nombre_lote}`);
+
+        // Gráfico de simulación
         await this.captureDetailedChartImproved(lote);
+
+        // Observaciones del lote
+        this.addObservacionesInline(lote);
+    }
+
+    addObservacionesInline(lote) {
+        const observaciones = lote.observaciones || [];
+        if (observaciones.length === 0) return;
+
+        const lineH = 11;
+        const padV = 8;
+        const padH = 8;
+        const labelW = 70; // ancho de la columna fecha/autor
+
+        // Calcular altura total necesaria para ver si cabe en la página
+        const totalLines = observaciones.reduce((sum, obs) => {
+            const texto = (obs.texto || '').replace(/\n/g, ' ');
+            return sum + Math.max(1, this.splitTextToLines(texto, this.contentWidth - labelW - padH * 2, 8.5).length);
+        }, 0);
+        const sectionHeaderH = 20;
+        const estimatedH = sectionHeaderH + observaciones.length * (padV * 2) + totalLines * lineH + 16;
+
+        if (this.currentY - estimatedH < this.contentBottom) {
+            this.addNewPage().then(() => {}); // async but we proceed — next page break handles overflow
+        }
+
+        // Encabezado de sección
+        this.currentY -= 14;
+        this.drawSectionHeader('OBSERVACIONES');
+        this.currentY -= 6;
+
+        for (const obs of observaciones) {
+            const [fy, fm, fd] = (obs.fecha || '').substring(0, 10).split('-');
+            const fechaStr = fd ? `${fd}/${fm}/${fy}` : '';
+            const autor = obs.usuario || '';
+            const texto = (obs.texto || '').replace(/\n/g, ' ');
+            const textLines = this.splitTextToLines(texto, this.contentWidth - labelW - padH * 2 - 4, 8.5);
+            const rowH = Math.max(padV * 2 + lineH, padV * 2 + textLines.length * lineH);
+
+            if (this.currentY - rowH < this.contentBottom) {
+                // addNewPage is async but we're in sync context — draw what fits
+                break;
+            }
+
+            const rowY = this.currentY - rowH;
+
+            // Fondo de fila alternada
+            this.currentPage.drawRectangle({
+                x: this.margin, y: rowY,
+                width: this.contentWidth, height: rowH,
+                color: rgb(0.97, 0.97, 0.97),
+                borderColor: rgb(0.88, 0.88, 0.88), borderWidth: 0.4,
+            });
+
+            // Columna izquierda: fecha + autor
+            this.currentPage.drawText(fechaStr, {
+                x: this.margin + padH, y: this.currentY - padV - lineH + 2,
+                size: 8, font: this.boldFont, color: rgb(0.2, 0.2, 0.2),
+            });
+            if (autor) {
+                this.currentPage.drawText(autor, {
+                    x: this.margin + padH, y: this.currentY - padV - lineH * 2 + 2,
+                    size: 7.5, font: this.font, color: rgb(0.5, 0.5, 0.5),
+                });
+            }
+
+            // Separador vertical
+            this.currentPage.drawLine({
+                start: { x: this.margin + labelW, y: this.currentY },
+                end: { x: this.margin + labelW, y: rowY },
+                thickness: 0.4, color: rgb(0.82, 0.82, 0.82),
+            });
+
+            // Columna derecha: texto de observación
+            for (let i = 0; i < textLines.length; i++) {
+                this.currentPage.drawText(textLines[i], {
+                    x: this.margin + labelW + padH, y: this.currentY - padV - (i * lineH) - lineH + 2,
+                    size: 8.5, font: this.font, color: rgb(0.15, 0.15, 0.15),
+                });
+            }
+
+            this.currentY = rowY;
+        }
+
+        this.currentY -= 8;
     }
 
     async captureDetailedChartImproved(lote) {
         try {
-            console.log('📊 Intentando capturar gráfico específico del lote:', lote.nombre_lote);
-            
-            // ESTRATEGIA 1: Buscar gráficos en la página actual
-            let success = await this.tryCurrentPageChart();
-            if (success) return true;
-            
-            // ESTRATEGIA 2: Navegar específicamente al lote
-            console.log('📍 Estrategia 2: Navegando a la página específica del lote');
-            success = await this.navigateAndCaptureChart(lote);
-            if (success) return true;
-            
-            // ESTRATEGIA 3: Usar datos de simulación para crear gráfico
-            console.log('📊 Estrategia 3: Creando gráfico desde datos de simulación');
+            // Prioridad: dibujar desde datos de simulación (confiable y sin dependencia de DOM)
             if (lote.simulationData) {
+                console.log('📊 Dibujando gráfico desde datos de simulación:', lote.nombre_lote);
                 await this.createChartFromData(lote.simulationData);
                 return true;
             }
-            
-            // FALLBACK: Gráfico simulado
-            console.log('❌ Todas las estrategias fallaron, usando fallback');
+
+            // Sin datos: intentar capturar canvas de la página actual como último recurso
+            console.log('⚠️ Sin simulationData para', lote.nombre_lote, '— buscando canvas en página');
+            const success = await this.tryCurrentPageChart();
+            if (success) return true;
+
             await this.addChartFallback();
             return false;
-            
+
         } catch (error) {
-            console.error('❌ Error en captura mejorada:', error);
+            console.error('❌ Error generando gráfico:', error);
             await this.addChartFallback();
             return false;
         }

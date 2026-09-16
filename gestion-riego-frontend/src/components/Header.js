@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-    AppBar, 
-    Toolbar, 
-    Typography, 
-    Button, 
-    Box, 
-    IconButton, 
-    Menu, 
-    MenuItem, 
-    useMediaQuery, 
-    useTheme 
+import {
+    AppBar,
+    Toolbar,
+    Typography,
+    Button,
+    Box,
+    IconButton,
+    Menu,
+    MenuItem,
+    useMediaQuery,
+    useTheme,
+    Snackbar,
+    Alert
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -22,8 +24,11 @@ import WaterDrop from '@mui/icons-material/WaterDrop';
 import AgricultureIcon from '@mui/icons-material/Agriculture';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 
 import logo from '../assets/logo.jpeg';
+
+const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
 
 const Header = () => {
     const navigate = useNavigate();
@@ -31,9 +36,39 @@ const Header = () => {
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [anchorEl, setAnchorEl] = useState(null);
     const [adminAnchorEl, setAdminAnchorEl] = useState(null);
+    const [newVersionAvailable, setNewVersionAvailable] = useState(false);
+    const initialBuildTime = useRef(null);
     const userRole = localStorage.getItem('role');
     const isAdmin = userRole && userRole.toLowerCase() === 'admin';
     const isDemo = userRole && userRole.toLowerCase() === 'demo';
+
+    useEffect(() => {
+        const fetchVersion = async () => {
+            try {
+                const res = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (initialBuildTime.current === null) {
+                    initialBuildTime.current = data.buildTime;
+                } else if (data.buildTime !== initialBuildTime.current) {
+                    setNewVersionAvailable(true);
+                }
+            } catch {
+                // silencio si no hay conexión o no existe el archivo
+            }
+        };
+
+        fetchVersion();
+        const interval = setInterval(fetchVersion, CHECK_INTERVAL_MS);
+        return () => clearInterval(interval);
+    }, []);
+
+    const handleUpdate = () => {
+        if ('caches' in window) {
+            caches.keys().then(names => names.forEach(name => caches.delete(name)));
+        }
+        window.location.reload();
+    };
 
     const handleMenu = (event) => {
         setAnchorEl(event.currentTarget);
@@ -132,6 +167,12 @@ const Header = () => {
                     </Box>
                     </MenuItem>
                 ))}
+                <MenuItem onClick={handleUpdate}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <SystemUpdateAltIcon />
+                    <Typography sx={{ ml: 1, fontFamily: 'Poppins, Arial, sans-serif' }}>Actualizar app</Typography>
+                    </Box>
+                </MenuItem>
                 <MenuItem onClick={handleLogout}>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <LogoutIcon />
@@ -189,9 +230,18 @@ const Header = () => {
                         </Menu>
                     </>
                 )}
-                <Button 
-                color="inherit" 
-                onClick={handleLogout} 
+                <Button
+                color="inherit"
+                onClick={handleUpdate}
+                startIcon={<SystemUpdateAltIcon />}
+                sx={{ mr: 1, fontFamily: 'Poppins, Arial, sans-serif', opacity: 0.7, '&:hover': { opacity: 1 } }}
+                title="Actualizar la aplicación"
+                >
+                Actualizar
+                </Button>
+                <Button
+                color="inherit"
+                onClick={handleLogout}
                 startIcon={<LogoutIcon />}
                 sx={{ fontFamily: 'Poppins, Arial, sans-serif' }}
                 >
@@ -201,6 +251,25 @@ const Header = () => {
             )}
         </Toolbar>
         </AppBar>
+
+        <Snackbar
+            open={newVersionAvailable}
+            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+            <Alert
+                severity="info"
+                variant="filled"
+                icon={<SystemUpdateAltIcon />}
+                action={
+                    <Button color="inherit" size="small" onClick={handleUpdate} sx={{ fontWeight: 700 }}>
+                        Actualizar ahora
+                    </Button>
+                }
+                sx={{ width: '100%', alignItems: 'center' }}
+            >
+                Hay una nueva versión disponible
+            </Alert>
+        </Snackbar>
     );
 };
 
