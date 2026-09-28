@@ -8,7 +8,7 @@ const { verifyToken, isAdmin } = require('../middleware/auth');
 router.get('/', verifyToken, isAdmin, async (req, res) => {
     try {
         const { rows } = await pool.query(
-            'SELECT id, nombre_usuario, tipo_usuario, email, telefono, nombre_completo, notas, fecha_creacion FROM usuarios ORDER BY nombre_usuario'
+            'SELECT id, nombre_usuario, tipo_usuario, email, emails_adicionales, telefono, nombre_completo, notas, fecha_creacion FROM usuarios ORDER BY nombre_usuario'
         );
         res.json(rows);
     } catch (err) {
@@ -19,7 +19,7 @@ router.get('/', verifyToken, isAdmin, async (req, res) => {
 
 // Crear nuevo usuario (solo admin)
 router.post('/', verifyToken, isAdmin, async (req, res) => {
-    const { nombre_usuario, contraseña, tipo_usuario, email, telefono, nombre_completo, notas } = req.body;
+    const { nombre_usuario, contraseña, tipo_usuario, email, emails_adicionales, telefono, nombre_completo, notas } = req.body;
 
     if (!nombre_usuario || !contraseña || !tipo_usuario) {
         return res.status(400).json({ error: 'Nombre de usuario, contraseña y tipo son requeridos' });
@@ -36,11 +36,11 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
 
         const hashedPassword = await argon2.hash(contraseña);
         const { rows } = await pool.query(
-            `INSERT INTO usuarios (nombre_usuario, contraseña, tipo_usuario, email, telefono, nombre_completo, notas)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING id, nombre_usuario, tipo_usuario, email, telefono, nombre_completo, notas, fecha_creacion`,
+            `INSERT INTO usuarios (nombre_usuario, contraseña, tipo_usuario, email, emails_adicionales, telefono, nombre_completo, notas)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             RETURNING id, nombre_usuario, tipo_usuario, email, emails_adicionales, telefono, nombre_completo, notas, fecha_creacion`,
             [nombre_usuario, hashedPassword, tipo_usuario,
-             email || null, telefono || null, nombre_completo || null, notas || null]
+             email || null, emails_adicionales || [], telefono || null, nombre_completo || null, notas || null]
         );
         res.status(201).json(rows[0]);
     } catch (err) {
@@ -52,7 +52,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
 // Actualizar usuario (solo admin)
 router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     const { id } = req.params;
-    const { nombre_usuario, contraseña, tipo_usuario, email, telefono, nombre_completo, notas } = req.body;
+    const { nombre_usuario, contraseña, tipo_usuario, email, emails_adicionales, telefono, nombre_completo, notas } = req.body;
 
     if (tipo_usuario && !['Admin', 'user', 'demo'].includes(tipo_usuario)) {
         return res.status(400).json({ error: 'Tipo de usuario inválido' });
@@ -64,19 +64,19 @@ router.put('/:id', verifyToken, isAdmin, async (req, res) => {
             const hashedPassword = await argon2.hash(contraseña);
             query = `UPDATE usuarios
                      SET nombre_usuario=$1, contraseña=$2, tipo_usuario=$3,
-                         email=$4, telefono=$5, nombre_completo=$6, notas=$7
-                     WHERE id=$8
-                     RETURNING id, nombre_usuario, tipo_usuario, email, telefono, nombre_completo, notas, fecha_creacion`;
+                         email=$4, emails_adicionales=$5, telefono=$6, nombre_completo=$7, notas=$8
+                     WHERE id=$9
+                     RETURNING id, nombre_usuario, tipo_usuario, email, emails_adicionales, telefono, nombre_completo, notas, fecha_creacion`;
             values = [nombre_usuario, hashedPassword, tipo_usuario,
-                      email || null, telefono || null, nombre_completo || null, notas || null, id];
+                      email || null, emails_adicionales || [], telefono || null, nombre_completo || null, notas || null, id];
         } else {
             query = `UPDATE usuarios
                      SET nombre_usuario=$1, tipo_usuario=$2,
-                         email=$3, telefono=$4, nombre_completo=$5, notas=$6
-                     WHERE id=$7
-                     RETURNING id, nombre_usuario, tipo_usuario, email, telefono, nombre_completo, notas, fecha_creacion`;
+                         email=$3, emails_adicionales=$4, telefono=$5, nombre_completo=$6, notas=$7
+                     WHERE id=$8
+                     RETURNING id, nombre_usuario, tipo_usuario, email, emails_adicionales, telefono, nombre_completo, notas, fecha_creacion`;
             values = [nombre_usuario, tipo_usuario,
-                      email || null, telefono || null, nombre_completo || null, notas || null, id];
+                      email || null, emails_adicionales || [], telefono || null, nombre_completo || null, notas || null, id];
         }
 
         const { rows } = await pool.query(query, values);

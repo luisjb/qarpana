@@ -13,9 +13,6 @@
     <entry key='osmand.enable'>false</entry>
     <entry key='osmand.port'>0</entry>
     
-    <!-- URL BASE PARA TESTS -->
-    <entry key='web.url'>http://172.18.0.5:5000</entry>
-    
     <!-- EVENT FORWARDING (WEBHOOKS) PARA NOTIFICACIONES -->
     <entry key='event.forward.enable'>true</entry>
     <entry key='event.forward.url'>http://backend:5000/api/traccar/webhook</entry>

@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import {
     Edit, Delete, PersonAdd, Visibility, VisibilityOff,
-    Email, Phone, Person, AdminPanelSettings, Badge, Notes
+    Email, Phone, Person, AdminPanelSettings, Badge, Notes, Add
 } from '@mui/icons-material';
 
 const ROLE_CONFIG = {
@@ -20,7 +20,7 @@ const ROLE_CONFIG = {
 
 const EMPTY_FORM = {
     nombre_usuario: '', contraseña: '', tipo_usuario: 'user',
-    nombre_completo: '', email: '', telefono: '', notas: ''
+    nombre_completo: '', email: '', emails_adicionales: [], telefono: '', notas: ''
 };
 
 function getInitials(u) {
@@ -47,6 +47,7 @@ function UserManagement() {
     const [deleteDialog, setDeleteDialog] = useState({ open: false, user: null });
     const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' });
     const [errors, setErrors] = useState({});
+    const [emailInput, setEmailInput] = useState('');
 
     useEffect(() => { fetchUsers(); }, []);
 
@@ -68,6 +69,7 @@ function UserManagement() {
         setEditingId(null);
         setErrors({});
         setShowPassword(false);
+        setEmailInput('');
         setFormOpen(true);
     };
 
@@ -78,13 +80,35 @@ function UserManagement() {
             tipo_usuario: user.tipo_usuario || 'user',
             nombre_completo: user.nombre_completo || '',
             email: user.email || '',
+            emails_adicionales: user.emails_adicionales || [],
             telefono: user.telefono || '',
             notas: user.notas || '',
         });
         setEditingId(user.id);
         setErrors({});
         setShowPassword(false);
+        setEmailInput('');
         setFormOpen(true);
+    };
+
+    const addEmailAdicional = () => {
+        const val = emailInput.trim();
+        if (!val) return;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+            setErrors(e => ({ ...e, emailInput: 'Email inválido' }));
+            return;
+        }
+        if (form.emails_adicionales.includes(val)) {
+            setErrors(e => ({ ...e, emailInput: 'Ya está en la lista' }));
+            return;
+        }
+        setForm(f => ({ ...f, emails_adicionales: [...f.emails_adicionales, val] }));
+        setEmailInput('');
+        setErrors(e => { const { emailInput: _, ...rest } = e; return rest; });
+    };
+
+    const removeEmailAdicional = (email) => {
+        setForm(f => ({ ...f, emails_adicionales: f.emails_adicionales.filter(e => e !== email) }));
     };
 
     const validate = () => {
@@ -221,6 +245,14 @@ function UserManagement() {
                                                 </Typography>
                                             </Box>
                                         )}
+                                        {(user.emails_adicionales || []).map(e => (
+                                            <Box key={e} sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                                                <Email sx={{ fontSize: 14, color: 'text.disabled', opacity: 0.5 }} />
+                                                <Typography variant="caption" color="text.secondary" noWrap sx={{ opacity: 0.75 }}>
+                                                    {e}
+                                                </Typography>
+                                            </Box>
+                                        ))}
                                         {user.telefono && (
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
                                                 <Phone sx={{ fontSize: 14, color: 'text.disabled' }} />
@@ -240,7 +272,7 @@ function UserManagement() {
                                                 </Typography>
                                             </Box>
                                         )}
-                                        {!user.email && !user.telefono && !user.notas && (
+                                        {!user.email && !(user.emails_adicionales?.length) && !user.telefono && !user.notas && (
                                             <Typography variant="caption" color="text.disabled" fontStyle="italic">
                                                 Sin información adicional
                                             </Typography>
@@ -322,7 +354,7 @@ function UserManagement() {
                         </Grid>
                         <Grid item xs={12} sm={6}>
                             <TextField
-                                fullWidth size="small" label="Email"
+                                fullWidth size="small" label="Email principal"
                                 type="email" value={form.email}
                                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                                 error={!!errors.email} helperText={errors.email}
@@ -334,6 +366,33 @@ function UserManagement() {
                                 value={form.telefono}
                                 onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))}
                             />
+                        </Grid>
+                        <Grid item xs={12}>
+                            <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                Emails adicionales para reportes
+                            </Typography>
+                            <Box sx={{ display: 'flex', gap: 1, mb: form.emails_adicionales.length > 0 ? 1 : 0 }}>
+                                <TextField
+                                    fullWidth size="small" label="Agregar email"
+                                    type="email" value={emailInput}
+                                    onChange={e => { setEmailInput(e.target.value); setErrors(er => { const { emailInput: _, ...r } = er; return r; }); }}
+                                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addEmailAdicional())}
+                                    error={!!errors.emailInput} helperText={errors.emailInput}
+                                />
+                                <Button variant="outlined" size="small" onClick={addEmailAdicional}
+                                    sx={{ minWidth: 40, px: 1 }}>
+                                    <Add fontSize="small" />
+                                </Button>
+                            </Box>
+                            {form.emails_adicionales.length > 0 && (
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {form.emails_adicionales.map(e => (
+                                        <Chip key={e} label={e} size="small" onDelete={() => removeEmailAdicional(e)}
+                                            icon={<Email sx={{ fontSize: '14px !important' }} />}
+                                            sx={{ maxWidth: 240 }} />
+                                    ))}
+                                </Box>
+                            )}
                         </Grid>
                         <Grid item xs={12}>
                             <TextField

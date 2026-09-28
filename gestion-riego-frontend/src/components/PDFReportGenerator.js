@@ -793,8 +793,6 @@ class PDFReportGenerator {
             }
         }
 
-        // Observaciones del lote
-        this.addObservacionesInline(lote);
     }
 
     addObservacionesInline(lote) {
@@ -994,6 +992,8 @@ class PDFReportGenerator {
             const canvas = document.createElement('canvas');
             canvas.width = 900;
             canvas.height = 320;
+            canvas.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+            document.body.appendChild(canvas);
 
             const histLen = (simulationData.fechas || []).length;
             const projLen = (simulationData.fechasProyeccion || []).length;
@@ -1002,6 +1002,9 @@ class PDFReportGenerator {
                 const parts = (d || '').substring(0, 10).split('-');
                 return parts[2] && parts[1] ? `${parts[2]}/${parts[1]}` : d;
             });
+
+            let resolveChart;
+            const chartReady = new Promise(r => { resolveChart = r; });
 
             const chart = new Chart(canvas, {
                 data: {
@@ -1064,7 +1067,7 @@ class PDFReportGenerator {
                     ],
                 },
                 options: {
-                    animation: false,
+                    animation: { duration: 0, onComplete: () => resolveChart() },
                     responsive: false,
                     plugins: {
                         legend: {
@@ -1093,11 +1096,12 @@ class PDFReportGenerator {
                 },
             });
 
-            // Give the chart one tick to finish drawing
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await chartReady;
+            await new Promise(r => setTimeout(r, 20));
 
             const imageData = canvas.toDataURL('image/png');
             chart.destroy();
+            document.body.removeChild(canvas);
 
             // Embed PNG in PDF
             const base64 = imageData.split(',')[1];
@@ -1185,6 +1189,11 @@ class PDFReportGenerator {
             const canvas = document.createElement('canvas');
             canvas.width = 900;
             canvas.height = 260;
+            canvas.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+            document.body.appendChild(canvas);
+
+            let resolveTempChart;
+            const tempChartReady = new Promise(r => { resolveTempChart = r; });
 
             const chart = new Chart(canvas, {
                 type: 'line',
@@ -1227,7 +1236,7 @@ class PDFReportGenerator {
                     ],
                 },
                 options: {
-                    animation: false,
+                    animation: { duration: 0, onComplete: () => resolveTempChart() },
                     responsive: false,
                     plugins: {
                         legend: { display: true, position: 'top', labels: { font: { size: 11 } } },
@@ -1249,9 +1258,11 @@ class PDFReportGenerator {
                 },
             });
 
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await tempChartReady;
+            await new Promise(r => setTimeout(r, 20));
             const imageData = canvas.toDataURL('image/png');
             chart.destroy();
+            document.body.removeChild(canvas);
 
             const base64 = imageData.split(',')[1];
             const imgBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));

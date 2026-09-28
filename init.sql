@@ -913,3 +913,6 @@ ALTER TABLE cambios_diarios ADD COLUMN IF NOT EXISTS radiacion NUMERIC;
 
 -- Temperatura base para cálculo de grados días por cultivo (default 10°C)
 ALTER TABLE cultivos ADD COLUMN IF NOT EXISTS temp_base_grados_dias NUMERIC DEFAULT 10;
+
+-- Emails adicionales por usuario para envío de reportes
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS emails_adicionales TEXT[] DEFAULT '{}';

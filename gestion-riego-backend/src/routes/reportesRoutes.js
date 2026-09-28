@@ -42,15 +42,23 @@ router.post('/enviar-pdf', verifyToken, isAdmin, async (req, res) => {
             return res.status(400).json({ error: 'El campo no tiene usuarios asociados' });
         }
 
-        // Obtener emails de esos usuarios
+        // Obtener emails (principal y adicionales) de esos usuarios
         const usuariosResult = await pool.query(
-            'SELECT nombre_usuario, email, nombre_completo FROM usuarios WHERE id = ANY($1) AND email IS NOT NULL AND email != \'\'',
+            'SELECT nombre_usuario, email, emails_adicionales, nombre_completo FROM usuarios WHERE id = ANY($1)',
             [usuariosIds]
         );
 
-        const destinatarios = usuariosResult.rows;
+        // Construir lista plana de destinatarios: email principal + emails adicionales
+        const toList = [];
+        for (const u of usuariosResult.rows) {
+            const nombre = u.nombre_completo || u.nombre_usuario;
+            if (u.email) toList.push(`${nombre} <${u.email}>`);
+            for (const extra of (u.emails_adicionales || [])) {
+                if (extra) toList.push(`${nombre} <${extra}>`);
+            }
+        }
 
-        if (destinatarios.length === 0) {
+        if (toList.length === 0) {
             return res.status(400).json({
                 error: 'Ningún usuario asociado al campo tiene email registrado. Agregue emails en la gestión de usuarios.'
             });
@@ -61,11 +69,6 @@ router.post('/enviar-pdf', verifyToken, isAdmin, async (req, res) => {
 
         const pdfBuffer = Buffer.from(pdfBase64, 'base64');
         const nombreArchivo = `Informe_Balance_Hidrico_${(nombreCampo || 'campo').replace(/\s+/g, '_')}_${fecha.replace(/\//g, '-')}.pdf`;
-
-        const toList = destinatarios.map(u => {
-            const nombre = u.nombre_completo || u.nombre_usuario;
-            return `${nombre} <${u.email}>`;
-        });
 
         await transporter.sendMail({
             from: `"Qarpana - Balance Hídrico" <${process.env.SMTP_USER}>`,
@@ -93,8 +96,8 @@ router.post('/enviar-pdf', verifyToken, isAdmin, async (req, res) => {
         });
 
         res.json({
-            message: `Informe enviado a ${destinatarios.length} destinatario${destinatarios.length !== 1 ? 's' : ''}`,
-            destinatarios: destinatarios.map(u => u.email),
+            message: `Informe enviado a ${toList.length} destinatario${toList.length !== 1 ? 's' : ''}`,
+            destinatarios: toList,
         });
 
     } catch (err) {
