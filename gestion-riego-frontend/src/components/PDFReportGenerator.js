@@ -457,10 +457,6 @@ class PDFReportGenerator {
 
             await this.createLotesCardsProgrammatic(grupo);
             this.currentY -= 8;
-            // Ensure at least 100pt for the recommendation box; add page if needed
-            if (this.currentY < this.contentBottom + 100) {
-                await this.addNewPage();
-            }
             await this.addEspecieRecomendacionInline(especie);
             this.currentY -= 10;
         }
@@ -471,7 +467,6 @@ class PDFReportGenerator {
         // First look for a specific recommendation for this especie, then fall back to general (cultivo=null)
         const rec = all.find(r => r.cultivo === especie) || all.find(r => !r.cultivo) || null;
         if (!rec) return;
-        if (this.currentY < this.contentBottom + 20) return;
 
         // Strip markdown markers for plain PDF text
         const texto = (rec.texto || '')
@@ -487,6 +482,11 @@ class PDFReportGenerator {
         const maxLines = Math.min(lines.length, 8);
         const truncated = lines.length > maxLines;
         const boxH = 18 + maxLines * LINE_H + 8;
+
+        // Add new page if the box won't fit above the footer
+        if (this.currentY - boxH < this.contentBottom + 8) {
+            await this.addNewPage();
+        }
 
         // Subtle left border only — no background fill
         this.currentPage.drawRectangle({
