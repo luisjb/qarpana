@@ -343,8 +343,13 @@ function ResumenCirculos() {
                 { returnBytes: true }
             );
 
-            // Convertir Uint8Array a base64
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(pdfBytes)));
+            // Convertir Uint8Array a base64 en chunks para evitar stack overflow con PDFs grandes
+            const bytes = new Uint8Array(pdfBytes);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i += 8192) {
+                binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + 8192, bytes.length)));
+            }
+            const base64 = btoa(binary);
 
             const response = await axios.post('/reportes/enviar-pdf', {
                 campoId: selectedCampo,

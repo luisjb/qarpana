@@ -457,16 +457,21 @@ class PDFReportGenerator {
 
             await this.createLotesCardsProgrammatic(grupo);
             this.currentY -= 8;
+            // Ensure at least 70pt for the recommendation box; add page if needed
+            if (this.currentY < this.contentBottom + 70) {
+                await this.addNewPage();
+            }
             this.addEspecieRecomendacionInline(especie);
             this.currentY -= 10;
         }
     }
 
     addEspecieRecomendacionInline(especie) {
-        // Find most recent recommendation for this especie (index 0 = most recent, backend returns DESC)
-        const rec = (this.allRecomendaciones || []).find(r => r.cultivo === especie);
+        const all = this.allRecomendaciones || [];
+        // First look for a specific recommendation for this especie, then fall back to general (cultivo=null)
+        const rec = all.find(r => r.cultivo === especie) || all.find(r => !r.cultivo) || null;
         if (!rec) return;
-        if (this.currentY < this.contentBottom + 50) return;
+        if (this.currentY < this.contentBottom + 20) return;
 
         // Strip markdown markers for plain PDF text
         const texto = (rec.texto || '').replace(/\*\*/g, '').replace(/\*/g, '');
