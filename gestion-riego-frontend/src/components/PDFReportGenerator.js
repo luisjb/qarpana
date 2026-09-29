@@ -457,8 +457,8 @@ class PDFReportGenerator {
 
             await this.createLotesCardsProgrammatic(grupo);
             this.currentY -= 8;
-            // Ensure at least 70pt for the recommendation box; add page if needed
-            if (this.currentY < this.contentBottom + 70) {
+            // Ensure at least 100pt for the recommendation box; add page if needed
+            if (this.currentY < this.contentBottom + 100) {
                 await this.addNewPage();
             }
             await this.addEspecieRecomendacionInline(especie);
@@ -482,9 +482,11 @@ class PDFReportGenerator {
         const fechaStr = fd ? `${fd}/${fm}/${fy}` : '';
         const headerText = `Ultima recomendacion${fechaStr ? ` · ${fechaStr}` : ''}${rec.usuario ? ` · ${rec.usuario}` : ''}`;
 
+        const LINE_H = 14;
         const lines = this.splitTextToLines(texto, this.contentWidth - 24, 9);
-        const maxLines = Math.min(lines.length, 4);
-        const boxH = 16 + maxLines * 12 + 8;
+        const maxLines = Math.min(lines.length, 8);
+        const truncated = lines.length > maxLines;
+        const boxH = 18 + maxLines * LINE_H + 8;
 
         // Subtle left border only — no background fill
         this.currentPage.drawRectangle({
@@ -494,15 +496,20 @@ class PDFReportGenerator {
         });
 
         this.currentPage.drawText(headerText, {
-            x: this.margin + 8, y: this.currentY - 11,
+            x: this.margin + 8, y: this.currentY - 12,
             size: 7.5, font: this.boldFont, color: rgb(0.45, 0.45, 0.45),
         });
 
         for (let i = 0; i < maxLines; i++) {
             const line = lines[i];
+            if (!line.trim()) continue;
             const isBullet = line.startsWith('• ') || line.startsWith('- ');
-            this.currentPage.drawText(isBullet ? `• ${line.slice(2)}` : line, {
-                x: this.margin + 8, y: this.currentY - 22 - (i * 12),
+            const displayLine = truncated && i === maxLines - 1
+                ? (isBullet ? `• ${line.slice(2)}` : line) + ' …'
+                : (isBullet ? `• ${line.slice(2)}` : line);
+            this.currentPage.drawText(displayLine, {
+                x: this.margin + (isBullet ? 10 : 8),
+                y: this.currentY - 24 - (i * LINE_H),
                 size: 9, font: this.font, color: rgb(0.2, 0.2, 0.2),
             });
         }
@@ -1767,24 +1774,29 @@ class PDFReportGenerator {
     }
 
     splitTextToLines(text, maxWidth, fontSize) {
-        const words = text.split(' ');
-        const lines = [];
-        let currentLine = '';
-        
-        // Aproximación simple para dividir texto
         const avgCharWidth = fontSize * 0.6;
         const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth);
-        
-        words.forEach(word => {
-            if ((currentLine + word).length <= maxCharsPerLine) {
-                currentLine += (currentLine ? ' ' : '') + word;
-            } else {
-                if (currentLine) lines.push(currentLine);
-                currentLine = word;
+        const lines = [];
+
+        for (const paragraph of text.split('\n')) {
+            if (!paragraph.trim()) {
+                lines.push('');
+                continue;
             }
-        });
-        
-        if (currentLine) lines.push(currentLine);
+            const words = paragraph.split(' ');
+            let currentLine = '';
+            for (const word of words) {
+                const candidate = currentLine ? `${currentLine} ${word}` : word;
+                if (candidate.length <= maxCharsPerLine) {
+                    currentLine = candidate;
+                } else {
+                    if (currentLine) lines.push(currentLine);
+                    currentLine = word;
+                }
+            }
+            if (currentLine) lines.push(currentLine);
+        }
+
         return lines;
     }
 }
