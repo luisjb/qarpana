@@ -461,12 +461,12 @@ class PDFReportGenerator {
             if (this.currentY < this.contentBottom + 70) {
                 await this.addNewPage();
             }
-            this.addEspecieRecomendacionInline(especie);
+            await this.addEspecieRecomendacionInline(especie);
             this.currentY -= 10;
         }
     }
 
-    addEspecieRecomendacionInline(especie) {
+    async addEspecieRecomendacionInline(especie) {
         const all = this.allRecomendaciones || [];
         // First look for a specific recommendation for this especie, then fall back to general (cultivo=null)
         const rec = all.find(r => r.cultivo === especie) || all.find(r => !r.cultivo) || null;
@@ -474,7 +474,10 @@ class PDFReportGenerator {
         if (this.currentY < this.contentBottom + 20) return;
 
         // Strip markdown markers for plain PDF text
-        const texto = (rec.texto || '').replace(/\*\*/g, '').replace(/\*/g, '');
+        const texto = (rec.texto || '')
+            .replace(/\*\*/g, '').replace(/\*/g, '')
+            .replace(/__/g, '').replace(/==/g, '')
+            .replace(/\{[rgbo]\}/g, '').replace(/\{\/[rgbo]\}/g, '');
         const [fy, fm, fd] = (rec.fecha || '').substring(0, 10).split('-');
         const fechaStr = fd ? `${fd}/${fm}/${fy}` : '';
         const headerText = `Ultima recomendacion${fechaStr ? ` · ${fechaStr}` : ''}${rec.usuario ? ` · ${rec.usuario}` : ''}`;
@@ -483,21 +486,16 @@ class PDFReportGenerator {
         const maxLines = Math.min(lines.length, 4);
         const boxH = 16 + maxLines * 12 + 8;
 
+        // Subtle left border only — no background fill
         this.currentPage.drawRectangle({
             x: this.margin, y: this.currentY - boxH,
-            width: this.contentWidth, height: boxH,
-            color: rgb(0.96, 0.99, 0.96),
-            borderColor: rgb(0.6, 0.85, 0.6), borderWidth: 0.5,
-        });
-        this.currentPage.drawRectangle({
-            x: this.margin, y: this.currentY - boxH,
-            width: 3, height: boxH,
-            color: rgb(0.18, 0.55, 0.22),
+            width: 2, height: boxH,
+            color: rgb(0.7, 0.7, 0.7),
         });
 
         this.currentPage.drawText(headerText, {
             x: this.margin + 8, y: this.currentY - 11,
-            size: 7.5, font: this.boldFont, color: rgb(0.18, 0.55, 0.22),
+            size: 7.5, font: this.boldFont, color: rgb(0.45, 0.45, 0.45),
         });
 
         for (let i = 0; i < maxLines; i++) {
@@ -505,11 +503,51 @@ class PDFReportGenerator {
             const isBullet = line.startsWith('• ') || line.startsWith('- ');
             this.currentPage.drawText(isBullet ? `• ${line.slice(2)}` : line, {
                 x: this.margin + 8, y: this.currentY - 22 - (i * 12),
-                size: 9, font: this.font, color: rgb(0.15, 0.15, 0.15),
+                size: 9, font: this.font, color: rgb(0.2, 0.2, 0.2),
             });
         }
 
         this.currentY -= boxH;
+
+        // Embed images from the recommendation
+        for (const img of (rec.imagenes || [])) {
+            if (!img || !img.data) continue;
+            const [meta, b64] = img.data.split(',');
+            if (!b64) continue;
+            const isJpeg = meta.includes('image/jpeg') || meta.includes('image/jpg');
+            const isPng = meta.includes('image/png');
+            if (!isJpeg && !isPng) continue;
+
+            let bytes;
+            try {
+                const raw = atob(b64);
+                bytes = new Uint8Array(raw.length);
+                for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+            } catch (e) { continue; }
+
+            let embeddedImage;
+            try {
+                embeddedImage = isJpeg
+                    ? await this.pdfDoc.embedJpg(bytes)
+                    : await this.pdfDoc.embedPng(bytes);
+            } catch (e) { console.warn('PDF embed image error:', e); continue; }
+
+            const maxW = this.contentWidth;
+            const maxH = 200;
+            const scale = Math.min(maxW / embeddedImage.width, maxH / embeddedImage.height, 1);
+            const imgW = embeddedImage.width * scale;
+            const imgH = embeddedImage.height * scale;
+
+            this.currentY -= 6;
+            if (this.currentY - imgH < this.contentBottom) {
+                await this.addNewPage();
+            }
+            this.currentPage.drawImage(embeddedImage, {
+                x: this.margin, y: this.currentY - imgH,
+                width: imgW, height: imgH,
+            });
+            this.currentY -= imgH;
+        }
     }
 
     async createLotesCardsProgrammatic(lotesData) {

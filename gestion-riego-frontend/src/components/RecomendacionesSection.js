@@ -7,7 +7,8 @@ import {
 } from '@mui/material';
 import {
     Delete, Edit, Add, Save, Cancel, Announcement,
-    FormatBold, FormatItalic, FormatListBulleted
+    FormatBold, FormatItalic, FormatListBulleted, Image, Close,
+    FormatUnderlined, Highlight
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import axios from '../axiosConfig';
@@ -18,17 +19,19 @@ const MarkdownText = ({ text }) => {
 
     const parseLine = (line) => {
         const result = [];
-        // **bold** tiene prioridad sobre *italic* gracias al orden del alternation
-        const regex = /\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+        const regex = /\*\*([^*]+)\*\*|\*([^*]+)\*|__([^_]+)__|==([^=]+)==|\{r\}([^{]+)\{\/r\}|\{b\}([^{]+)\{\/b\}|\{g\}([^{]+)\{\/g\}|\{o\}([^{]+)\{\/o\}/g;
         let last = 0;
         let m;
         while ((m = regex.exec(line)) !== null) {
             if (m.index > last) result.push(line.slice(last, m.index));
-            if (m[1] !== undefined) {
-                result.push(<strong key={m.index}>{m[1]}</strong>);
-            } else {
-                result.push(<em key={m.index}>{m[2]}</em>);
-            }
+            if (m[1] !== undefined) result.push(<strong key={m.index}>{m[1]}</strong>);
+            else if (m[2] !== undefined) result.push(<em key={m.index}>{m[2]}</em>);
+            else if (m[3] !== undefined) result.push(<u key={m.index}>{m[3]}</u>);
+            else if (m[4] !== undefined) result.push(<mark key={m.index} style={{ backgroundColor: '#fff176', padding: '0 2px', borderRadius: 2 }}>{m[4]}</mark>);
+            else if (m[5] !== undefined) result.push(<span key={m.index} style={{ color: '#d32f2f' }}>{m[5]}</span>);
+            else if (m[6] !== undefined) result.push(<span key={m.index} style={{ color: '#1565c0' }}>{m[6]}</span>);
+            else if (m[7] !== undefined) result.push(<span key={m.index} style={{ color: '#2e7d32' }}>{m[7]}</span>);
+            else if (m[8] !== undefined) result.push(<span key={m.index} style={{ color: '#e65100' }}>{m[8]}</span>);
             last = m.index + m[0].length;
         }
         if (last < line.length) result.push(line.slice(last));
@@ -65,7 +68,8 @@ function RecomendacionesSection({ campoId, especies = [] }) {
     const [nuevaRecomendacion, setNuevaRecomendacion] = useState({
         fecha: format(new Date(), 'yyyy-MM-dd'),
         cultivo: '',
-        texto: ''
+        texto: '',
+        imagenes: []
     });
     const [editando, setEditando] = useState(null);
     const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -73,6 +77,7 @@ function RecomendacionesSection({ campoId, especies = [] }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const textareaRef = useRef(null);
+    const imagenesRef = useRef(null);
 
     useEffect(() => {
         if (campoId) fetchRecomendaciones();
@@ -143,6 +148,62 @@ function RecomendacionesSection({ campoId, especies = [] }) {
         }
     };
 
+    const compressImage = (file) => new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new window.Image();
+            img.onload = () => {
+                const MAX = 1200;
+                let { width, height } = img;
+                if (width > MAX || height > MAX) {
+                    if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+                    else { width = Math.round(width * MAX / height); height = MAX; }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                resolve({ data: canvas.toDataURL('image/jpeg', 0.85), name: file.name });
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    const handleImageSelect = async (e) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+        const compressed = await Promise.all(files.map(compressImage));
+        if (editando) {
+            setEditando(prev => ({ ...prev, imagenes: [...(prev.imagenes || []), ...compressed] }));
+        } else {
+            setNuevaRecomendacion(prev => ({ ...prev, imagenes: [...(prev.imagenes || []), ...compressed] }));
+        }
+        e.target.value = '';
+    };
+
+    const removeImageFromForm = (idx) => {
+        if (editando) {
+            setEditando(prev => ({ ...prev, imagenes: prev.imagenes.filter((_, i) => i !== idx) }));
+        } else {
+            setNuevaRecomendacion(prev => ({ ...prev, imagenes: prev.imagenes.filter((_, i) => i !== idx) }));
+        }
+    };
+
+    const handlePaste = async (e) => {
+        const items = Array.from(e.clipboardData?.items || []);
+        const imageItems = items.filter(item => item.type.startsWith('image/'));
+        if (!imageItems.length) return;
+        e.preventDefault();
+        const files = imageItems.map(item => item.getAsFile()).filter(Boolean);
+        const compressed = await Promise.all(files.map(compressImage));
+        if (editando) {
+            setEditando(prev => ({ ...prev, imagenes: [...(prev.imagenes || []), ...compressed] }));
+        } else {
+            setNuevaRecomendacion(prev => ({ ...prev, imagenes: [...(prev.imagenes || []), ...compressed] }));
+        }
+    };
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         if (editando) setEditando(prev => ({ ...prev, [name]: value }));
@@ -157,7 +218,8 @@ function RecomendacionesSection({ campoId, especies = [] }) {
                 await axios.put(`/recomendaciones/${editando.id}`, {
                     fecha: editando.fecha,
                     cultivo: editando.cultivo,
-                    texto: editando.texto
+                    texto: editando.texto,
+                    imagenes: editando.imagenes || []
                 });
                 setEditando(null);
             } else {
@@ -165,9 +227,10 @@ function RecomendacionesSection({ campoId, especies = [] }) {
                     campo_id: campoId,
                     fecha: nuevaRecomendacion.fecha,
                     cultivo: nuevaRecomendacion.cultivo,
-                    texto: nuevaRecomendacion.texto
+                    texto: nuevaRecomendacion.texto,
+                    imagenes: nuevaRecomendacion.imagenes || []
                 });
-                setNuevaRecomendacion({ fecha: format(new Date(), 'yyyy-MM-dd'), cultivo: '', texto: '' });
+                setNuevaRecomendacion({ fecha: format(new Date(), 'yyyy-MM-dd'), cultivo: '', texto: '', imagenes: [] });
                 setMostrarFormulario(false);
             }
             fetchRecomendaciones();
@@ -186,7 +249,8 @@ function RecomendacionesSection({ campoId, especies = [] }) {
             // que en UTC-3 convierte el midnight UTC al día anterior
             fecha: rec.fecha.substring(0, 10),
             cultivo: rec.cultivo || '',
-            texto: rec.texto
+            texto: rec.texto,
+            imagenes: rec.imagenes || []
         });
         setMostrarFormulario(true);
     };
@@ -222,6 +286,7 @@ function RecomendacionesSection({ campoId, especies = [] }) {
 
     const currentCultivo = editando ? editando.cultivo : nuevaRecomendacion.cultivo;
     const currentTexto = editando ? editando.texto : nuevaRecomendacion.texto;
+    const currentImagenes = editando ? (editando.imagenes || []) : (nuevaRecomendacion.imagenes || []);
 
     return (
         <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
@@ -263,7 +328,7 @@ function RecomendacionesSection({ campoId, especies = [] }) {
                         {/* Columna derecha: toolbar + textarea */}
                         <Grid item xs={12} md={8}>
                             {/* Barra de formato */}
-                            <Box sx={{ display: 'flex', gap: 0.5, mb: 0.5 }}>
+                            <Box sx={{ display: 'flex', gap: 0.5, mb: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
                                 <Tooltip title="Negrita — seleccioná texto y hacé clic">
                                     <IconButton size="small" onClick={() => applyWrapFormat('**')}
                                         sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.5 }}>
@@ -276,12 +341,39 @@ function RecomendacionesSection({ campoId, especies = [] }) {
                                         <FormatItalic fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
+                                <Tooltip title="Subrayado — seleccioná texto y hacé clic">
+                                    <IconButton size="small" onClick={() => applyWrapFormat('__')}
+                                        sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.5 }}>
+                                        <FormatUnderlined fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Resaltado amarillo — seleccioná texto y hacé clic">
+                                    <IconButton size="small" onClick={() => applyWrapFormat('==')}
+                                        sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.5 }}>
+                                        <Highlight fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
                                 <Tooltip title="Ítem de lista — activa/desactiva en la línea actual">
                                     <IconButton size="small" onClick={applyBullet}
                                         sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.5 }}>
                                         <FormatListBulleted fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
+                                <Box sx={{ width: '1px', bgcolor: 'divider', alignSelf: 'stretch', mx: 0.25 }} />
+                                {[
+                                    { code: 'r', color: '#d32f2f', label: 'Rojo' },
+                                    { code: 'b', color: '#1565c0', label: 'Azul' },
+                                    { code: 'g', color: '#2e7d32', label: 'Verde' },
+                                    { code: 'o', color: '#e65100', label: 'Naranja' },
+                                ].map(({ code, color, label }) => (
+                                    <Tooltip key={code} title={`Color ${label} — seleccioná texto y hacé clic`}>
+                                        <IconButton size="small"
+                                            onClick={() => applyWrapFormat(`{${code}}`, `{/${code}}`)}
+                                            sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.5 }}>
+                                            <Box sx={{ width: 14, height: 14, borderRadius: '50%', bgcolor: color }} />
+                                        </IconButton>
+                                    </Tooltip>
+                                ))}
                             </Box>
                             <TextField
                                 fullWidth label="Recomendación" name="texto"
@@ -289,9 +381,32 @@ function RecomendacionesSection({ campoId, especies = [] }) {
                                 onChange={handleInputChange}
                                 multiline rows={5} required
                                 inputRef={textareaRef}
-                                inputProps={{ style: { fontFamily: 'inherit', lineHeight: 1.7, fontSize: '0.95rem' } }}
-                                helperText="** negrita **   * cursiva *   • lista"
+                                inputProps={{ style: { fontFamily: 'inherit', lineHeight: 1.7, fontSize: '0.95rem' }, onPaste: handlePaste }}
+                                helperText="** negrita **   * cursiva *   __ subrayado __   == resaltado ==   • lista   · pegá imágenes con Ctrl+V"
                             />
+                            {/* Image attachments */}
+                            <Box sx={{ mt: 1 }}>
+                                <input type="file" accept="image/*" multiple hidden ref={imagenesRef} onChange={handleImageSelect} />
+                                <Button size="small" startIcon={<Image />} variant="outlined"
+                                    onClick={() => imagenesRef.current?.click()}>
+                                    Adjuntar imágenes
+                                </Button>
+                                {currentImagenes.length > 0 && (
+                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                                        {currentImagenes.map((img, idx) => (
+                                            <Box key={idx} sx={{ position: 'relative', display: 'inline-block' }}>
+                                                <img src={img.data} alt={img.name || `img-${idx}`}
+                                                    style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 4, display: 'block' }} />
+                                                <IconButton size="small" onClick={() => removeImageFromForm(idx)}
+                                                    sx={{ position: 'absolute', top: -6, right: -6, bgcolor: 'background.paper',
+                                                          border: '1px solid', borderColor: 'divider', p: 0.2 }}>
+                                                    <Close sx={{ fontSize: 12 }} />
+                                                </IconButton>
+                                            </Box>
+                                        ))}
+                                    </Box>
+                                )}
+                            </Box>
                         </Grid>
                     </Grid>
                     <Box display="flex" justifyContent="flex-end" mt={2} gap={1}>
@@ -345,6 +460,14 @@ function RecomendacionesSection({ campoId, especies = [] }) {
                                     secondary={
                                         <Box sx={{ mt: 0.5, pr: 12 }}>
                                             <MarkdownText text={rec.texto} />
+                                            {rec.imagenes && rec.imagenes.length > 0 && (
+                                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                                                    {rec.imagenes.map((img, idx) => (
+                                                        <img key={idx} src={img.data} alt={img.name || `img-${idx}`}
+                                                            style={{ width: 100, height: 75, objectFit: 'cover', borderRadius: 4 }} />
+                                                    ))}
+                                                </Box>
+                                            )}
                                         </Box>
                                     }
                                 />

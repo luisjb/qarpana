@@ -9,7 +9,7 @@ router.get('/campo/:campoId', verifyToken, async (req, res) => {
         const { campoId } = req.params;
 
         const query = `
-            SELECT r.id, r.campo_id, r.fecha, r.cultivo, r.texto, r.fecha_creacion,
+            SELECT r.id, r.campo_id, r.fecha, r.cultivo, r.texto, r.fecha_creacion, r.imagenes,
                    u.nombre_usuario as usuario
             FROM recomendaciones_campo r
             LEFT JOIN usuarios u ON r.usuario_id = u.id
@@ -28,7 +28,7 @@ router.get('/campo/:campoId', verifyToken, async (req, res) => {
 // Crear nueva recomendación - solo admins pueden crear
 router.post('/', verifyToken, isAdmin, async (req, res) => {
     try {
-        const { campo_id, fecha, cultivo, texto } = req.body;
+        const { campo_id, fecha, cultivo, texto, imagenes } = req.body;
         const usuario_id = req.user.userId;
 
         if (!campo_id || !fecha || !texto) {
@@ -36,8 +36,8 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
         }
 
         const result = await pool.query(
-            'INSERT INTO recomendaciones_campo (campo_id, fecha, cultivo, texto, usuario_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [campo_id, fecha, cultivo || null, texto, usuario_id]
+            'INSERT INTO recomendaciones_campo (campo_id, fecha, cultivo, texto, usuario_id, imagenes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [campo_id, fecha, cultivo || null, texto, usuario_id, JSON.stringify(imagenes || [])]
         );
 
         const userResult = await pool.query('SELECT nombre_usuario FROM usuarios WHERE id = $1', [usuario_id]);
@@ -57,15 +57,15 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
 router.put('/:id', verifyToken, isAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { fecha, cultivo, texto } = req.body;
+        const { fecha, cultivo, texto, imagenes } = req.body;
 
         if (!fecha || !texto) {
             return res.status(400).json({ error: 'Todos los campos son obligatorios' });
         }
 
         const result = await pool.query(
-            'UPDATE recomendaciones_campo SET fecha = $1, cultivo = $2, texto = $3 WHERE id = $4 RETURNING *',
-            [fecha, cultivo || null, texto, id]
+            'UPDATE recomendaciones_campo SET fecha = $1, cultivo = $2, texto = $3, imagenes = $4 WHERE id = $5 RETURNING *',
+            [fecha, cultivo || null, texto, JSON.stringify(imagenes || []), id]
         );
 
         if (result.rows.length === 0) {

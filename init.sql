@@ -916,3 +916,6 @@ ALTER TABLE cultivos ADD COLUMN IF NOT EXISTS temp_base_grados_dias NUMERIC DEFA
 
 -- Emails adicionales por usuario para envío de reportes
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS emails_adicionales TEXT[] DEFAULT '{}';
+
+-- Imágenes adjuntas a recomendaciones (base64 comprimido)
+ALTER TABLE recomendaciones_campo ADD COLUMN IF NOT EXISTS imagenes JSONB DEFAULT '[]';
