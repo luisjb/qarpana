@@ -41,6 +41,7 @@ class PDFReportGenerator {
             // Cargar fuentes
             this.font = await this.pdfDoc.embedFont(StandardFonts.Helvetica);
             this.boldFont = await this.pdfDoc.embedFont(StandardFonts.HelveticaBold);
+            this.italicFont = await this.pdfDoc.embedFont(StandardFonts.HelveticaOblique);
             
             // Verificar y cargar plantilla
             await this.loadTemplate();
@@ -468,11 +469,7 @@ class PDFReportGenerator {
         const rec = all.find(r => r.cultivo === especie) || all.find(r => !r.cultivo) || null;
         if (!rec) return;
 
-        // Strip markdown markers for plain PDF text
-        const texto = (rec.texto || '')
-            .replace(/\*\*/g, '').replace(/\*/g, '')
-            .replace(/__/g, '').replace(/==/g, '')
-            .replace(/\{[rgbo]\}/g, '').replace(/\{\/[rgbo]\}/g, '');
+        const texto = rec.texto || '';
         const [fy, fm, fd] = (rec.fecha || '').substring(0, 10).split('-');
         const fechaStr = fd ? `${fd}/${fm}/${fy}` : '';
         const headerText = `Ultima recomendacion${fechaStr ? ` · ${fechaStr}` : ''}${rec.usuario ? ` · ${rec.usuario}` : ''}`;
@@ -507,11 +504,12 @@ class PDFReportGenerator {
             const displayLine = truncated && i === maxLines - 1
                 ? (isBullet ? `• ${line.slice(2)}` : line) + ' …'
                 : (isBullet ? `• ${line.slice(2)}` : line);
-            this.currentPage.drawText(displayLine, {
-                x: this.margin + (isBullet ? 10 : 8),
-                y: this.currentY - 24 - (i * LINE_H),
-                size: 9, font: this.font, color: rgb(0.2, 0.2, 0.2),
-            });
+            this.drawStyledLine(
+                displayLine,
+                this.margin + (isBullet ? 10 : 8),
+                this.currentY - 24 - (i * LINE_H),
+                9
+            );
         }
 
         this.currentY -= boxH;
@@ -1037,7 +1035,13 @@ class PDFReportGenerator {
             console.log('📊 Renderizando gráfico con Chart.js off-screen');
 
             const { Chart, registerables } = await import('chart.js');
-            Chart.register(...registerables);
+            let annotationPlugin = null;
+            try {
+                const mod = await import('chartjs-plugin-annotation');
+                annotationPlugin = mod.default;
+            } catch (e) { /* skip if not available */ }
+            if (annotationPlugin) Chart.register(...registerables, annotationPlugin);
+            else Chart.register(...registerables);
 
             const canvas = document.createElement('canvas');
             canvas.width = 900;
@@ -1052,6 +1056,46 @@ class PDFReportGenerator {
                 const parts = (d || '').substring(0, 10).split('-');
                 return parts[2] && parts[1] ? `${parts[2]}/${parts[1]}` : d;
             });
+
+            // Build phenology annotations
+            const phaseColors = [
+                'rgba(110,243,110,0.2)', 'rgba(156,105,46,0.2)',
+                'rgba(255,238,86,0.2)',  'rgba(75,192,192,0.2)',
+            ];
+            const fenologiaAnnotations = {};
+            if (annotationPlugin && simulationData.estadosFenologicos?.length) {
+                const allVals = [
+                    ...(simulationData.aguaUtil || []),
+                    ...(simulationData.aguaUtilProyectada || []).filter(v => v !== null && !isNaN(v)),
+                ];
+                const maxVal = allVals.length > 0 ? Math.max(...allVals) * 1.25 : 100;
+                let startDay = 0;
+                simulationData.estadosFenologicos.forEach((estado, idx) => {
+                    fenologiaAnnotations[`box${idx}`] = {
+                        type: 'box',
+                        xMin: startDay, xMax: estado.dias,
+                        yMin: 0, yMax: maxVal,
+                        yScaleID: 'y1',
+                        backgroundColor: phaseColors[idx % phaseColors.length],
+                        borderColor: 'transparent',
+                        drawTime: 'beforeDatasetsDraw',
+                    };
+                    fenologiaAnnotations[`lbl${idx}`] = {
+                        type: 'label',
+                        xValue: (startDay + estado.dias) / 2,
+                        yValue: maxVal * 0.88,
+                        yScaleID: 'y1',
+                        backgroundColor: 'rgba(255,255,255,0.75)',
+                        borderRadius: 3,
+                        content: estado.fenologia,
+                        font: { size: 10, weight: 'bold' },
+                        color: 'rgba(0,0,0,0.8)',
+                        padding: { top: 3, bottom: 3, left: 5, right: 5 },
+                        drawTime: 'afterDatasetsDraw',
+                    };
+                    startDay = estado.dias;
+                });
+            }
 
             let resolveChart;
             const chartReady = new Promise(r => { resolveChart = r; });
@@ -1124,6 +1168,9 @@ class PDFReportGenerator {
                             position: 'bottom',
                             labels: { font: { size: 11 }, boxWidth: 16, padding: 12 },
                         },
+                        annotation: Object.keys(fenologiaAnnotations).length > 0
+                            ? { annotations: fenologiaAnnotations }
+                            : undefined,
                     },
                     scales: {
                         x: {
@@ -1771,6 +1818,71 @@ class PDFReportGenerator {
             u8arr[n] = bstr.charCodeAt(n);
         }
         return u8arr;
+    }
+
+    parseStyledSegments(line) {
+        const segments = [];
+        const regex = /\*\*([^*]+)\*\*|\*([^*]+)\*|__([^_]+)__|==([^=]+)==|\{r\}([^{]+)\{\/r\}|\{b\}([^{]+)\{\/b\}|\{g\}([^{]+)\{\/g\}|\{o\}([^{]+)\{\/o\}/g;
+        let last = 0;
+        let m;
+        while ((m = regex.exec(line)) !== null) {
+            if (m.index > last) segments.push({ text: line.slice(last, m.index), style: 'normal' });
+            if (m[1] !== undefined) segments.push({ text: m[1], style: 'bold' });
+            else if (m[2] !== undefined) segments.push({ text: m[2], style: 'italic' });
+            else if (m[3] !== undefined) segments.push({ text: m[3], style: 'underline' });
+            else if (m[4] !== undefined) segments.push({ text: m[4], style: 'highlight' });
+            else if (m[5] !== undefined) segments.push({ text: m[5], style: 'red' });
+            else if (m[6] !== undefined) segments.push({ text: m[6], style: 'blue' });
+            else if (m[7] !== undefined) segments.push({ text: m[7], style: 'green' });
+            else if (m[8] !== undefined) segments.push({ text: m[8], style: 'orange' });
+            last = m.index + m[0].length;
+        }
+        if (last < line.length) segments.push({ text: line.slice(last), style: 'normal' });
+        return segments.length > 0 ? segments : [{ text: line, style: 'normal' }];
+    }
+
+    drawStyledLine(line, x, y, size) {
+        const segments = this.parseStyledSegments(line);
+        const colorMap = {
+            normal:    rgb(0.2, 0.2, 0.2),
+            bold:      rgb(0.15, 0.15, 0.15),
+            italic:    rgb(0.2, 0.2, 0.2),
+            underline: rgb(0.2, 0.2, 0.2),
+            highlight: rgb(0.1, 0.1, 0.1),
+            red:       rgb(0.83, 0.18, 0.18),
+            blue:      rgb(0.08, 0.40, 0.75),
+            green:     rgb(0.18, 0.49, 0.20),
+            orange:    rgb(0.90, 0.40, 0.00),
+        };
+        let curX = x;
+        for (const seg of segments) {
+            if (!seg.text) continue;
+            const font = seg.style === 'bold' ? this.boldFont
+                : seg.style === 'italic' ? (this.italicFont || this.font)
+                : this.font;
+            const color = colorMap[seg.style] || colorMap.normal;
+            const textWidth = font.widthOfTextAtSize(seg.text, size);
+
+            if (seg.style === 'highlight') {
+                this.currentPage.drawRectangle({
+                    x: curX - 1, y: y - 2,
+                    width: textWidth + 2, height: size + 3,
+                    color: rgb(1.0, 0.96, 0.55),
+                    opacity: 0.8,
+                });
+            }
+
+            this.currentPage.drawText(seg.text, { x: curX, y, size, font, color });
+
+            if (seg.style === 'underline') {
+                this.currentPage.drawLine({
+                    start: { x: curX, y: y - 1.5 },
+                    end: { x: curX + textWidth, y: y - 1.5 },
+                    thickness: 0.8, color,
+                });
+            }
+            curX += textWidth;
+        }
     }
 
     splitTextToLines(text, maxWidth, fontSize) {
