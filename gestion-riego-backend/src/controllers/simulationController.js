@@ -24,7 +24,7 @@ exports.getSimulationData = async (req, res) => {
             SELECT l.*, c.nombre_cultivo, c.indice_crecimiento_radicular, c.indice_capacidad_extraccion,
                     cd.fecha_cambio, cd.precipitaciones, cd.riego_cantidad, cd.evapotranspiracion,
                     cd.agua_util_diaria, cd.lluvia_efectiva, cd.kc, cd.dias, cd.crecimiento_radicular,
-                    cd.correccion_agua,
+                    cd.correccion_agua, cd.temp_max, cd.temp_min, cd.grados_dias, cd.radiacion,
                     l.porcentaje_agua_util_umbral, l.agua_util_total, l.capacidad_almacenamiento_2m, l.fecha_siembra, l.capacidad_extraccion,
                     (SELECT array_agg(valor ORDER BY estratos) 
                         FROM agua_util_inicial 
