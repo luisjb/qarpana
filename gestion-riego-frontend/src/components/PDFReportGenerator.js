@@ -477,8 +477,9 @@ class PDFReportGenerator {
         const HEADER_H = 24; // space reserved from sectionTop to first line baseline
         const PAD_BOTTOM = 8;
 
-        const lines = this.splitTextToLines(texto, this.contentWidth - 24, 9)
-            .filter(l => l.trim());
+        const lines = this.repairMarkersAcrossLines(
+            this.splitTextToLines(texto, this.contentWidth - 24, 9)
+        ).filter(l => l.trim());
         if (lines.length === 0) return;
 
         // Ensure there's room for at least header + 1 line
@@ -1843,6 +1844,47 @@ class PDFReportGenerator {
             u8arr[n] = bstr.charCodeAt(n);
         }
         return u8arr;
+    }
+
+    repairMarkersAcrossLines(lines) {
+        const colorPairs = [
+            { open: '{r}', close: '{/r}' },
+            { open: '{b}', close: '{/b}' },
+            { open: '{g}', close: '{/g}' },
+            { open: '{o}', close: '{/o}' },
+        ];
+        const symMarkers = ['**', '__', '=='];
+
+        const fixed = [];
+        let carryColor = null;
+
+        for (const rawLine of lines) {
+            let l = carryColor ? (carryColor.open + rawLine) : rawLine;
+            carryColor = null;
+
+            // Repair color markers
+            for (const pair of colorPairs) {
+                const opens = l.split(pair.open).length - 1;
+                const closes = l.split(pair.close).length - 1;
+                if (opens > closes) {
+                    l = l + pair.close;
+                    carryColor = pair;
+                    break;
+                }
+            }
+
+            // Repair symmetric markers (odd count = unclosed)
+            for (const marker of symMarkers) {
+                const count = l.split(marker).length - 1;
+                if (count % 2 !== 0) l = l + marker;
+            }
+            // Single * (excluding **)
+            const singleStars = (l.match(/(?<!\*)\*(?!\*)/g) || []).length;
+            if (singleStars % 2 !== 0) l = l + '*';
+
+            fixed.push(l);
+        }
+        return fixed;
     }
 
     parseStyledSegments(line) {
