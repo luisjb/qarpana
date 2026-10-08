@@ -465,7 +465,6 @@ class PDFReportGenerator {
 
     async addEspecieRecomendacionInline(especie) {
         const all = this.allRecomendaciones || [];
-        // First look for a specific recommendation for this especie, then fall back to general (cultivo=null)
         const rec = all.find(r => r.cultivo === especie) || all.find(r => !r.cultivo) || null;
         if (!rec) return;
 
@@ -475,44 +474,70 @@ class PDFReportGenerator {
         const headerText = `Ultima recomendacion${fechaStr ? ` · ${fechaStr}` : ''}${rec.usuario ? ` · ${rec.usuario}` : ''}`;
 
         const LINE_H = 14;
-        const lines = this.splitTextToLines(texto, this.contentWidth - 24, 9);
-        const maxLines = Math.min(lines.length, 8);
-        const truncated = lines.length > maxLines;
-        const boxH = 18 + maxLines * LINE_H + 8;
+        const HEADER_H = 24; // space reserved from sectionTop to first line baseline
+        const PAD_BOTTOM = 8;
 
-        // Add new page if the box won't fit above the footer
-        if (this.currentY - boxH < this.contentBottom + 8) {
+        const lines = this.splitTextToLines(texto, this.contentWidth - 24, 9)
+            .filter(l => l.trim());
+        if (lines.length === 0) return;
+
+        // Ensure there's room for at least header + 1 line
+        if (this.currentY - HEADER_H - LINE_H < this.contentBottom + PAD_BOTTOM) {
             await this.addNewPage();
         }
 
-        // Subtle left border only — no background fill
-        this.currentPage.drawRectangle({
-            x: this.margin, y: this.currentY - boxH,
-            width: 2, height: boxH,
-            color: rgb(0.7, 0.7, 0.7),
-        });
+        // --- draw header on the current section ---
+        const drawSectionHeader = (label) => {
+            this.currentPage.drawText(label, {
+                x: this.margin + 8, y: this.currentY - 12,
+                size: 7.5, font: this.boldFont, color: rgb(0.45, 0.45, 0.45),
+            });
+        };
 
-        this.currentPage.drawText(headerText, {
-            x: this.margin + 8, y: this.currentY - 12,
-            size: 7.5, font: this.boldFont, color: rgb(0.45, 0.45, 0.45),
-        });
+        let sectionTop = this.currentY;
+        drawSectionHeader(headerText);
+        this.currentY -= HEADER_H;
 
-        for (let i = 0; i < maxLines; i++) {
-            const line = lines[i];
-            if (!line.trim()) continue;
+        // --- draw lines, page-breaking as needed ---
+        for (const line of lines) {
+            // If this line won't fit, close current section and start a new page
+            if (this.currentY - LINE_H < this.contentBottom + PAD_BOTTOM) {
+                // Draw left border for the section we just finished
+                const sectionH = sectionTop - this.currentY;
+                if (sectionH > 0) {
+                    this.currentPage.drawRectangle({
+                        x: this.margin, y: this.currentY,
+                        width: 2, height: sectionH,
+                        color: rgb(0.7, 0.7, 0.7),
+                    });
+                }
+                await this.addNewPage();
+                sectionTop = this.currentY;
+                drawSectionHeader(`${headerText} (cont.)`);
+                this.currentY -= HEADER_H;
+            }
+
             const isBullet = line.startsWith('• ') || line.startsWith('- ');
-            const displayLine = truncated && i === maxLines - 1
-                ? (isBullet ? `• ${line.slice(2)}` : line) + ' …'
-                : (isBullet ? `• ${line.slice(2)}` : line);
+            const displayLine = isBullet ? `• ${line.slice(2)}` : line;
             this.drawStyledLine(
                 displayLine,
                 this.margin + (isBullet ? 10 : 8),
-                this.currentY - 24 - (i * LINE_H),
+                this.currentY,
                 9
             );
+            this.currentY -= LINE_H;
         }
 
-        this.currentY -= boxH;
+        // Close final section border
+        this.currentY -= PAD_BOTTOM;
+        const finalH = sectionTop - this.currentY;
+        if (finalH > 0) {
+            this.currentPage.drawRectangle({
+                x: this.margin, y: this.currentY,
+                width: 2, height: finalH,
+                color: rgb(0.7, 0.7, 0.7),
+            });
+        }
 
         // Embed images from the recommendation
         for (const img of (rec.imagenes || [])) {
