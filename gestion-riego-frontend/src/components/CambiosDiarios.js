@@ -364,7 +364,7 @@ function CambiosDiarios() {
     };
 
     return (
-        <Container maxWidth="lg">
+        <Container maxWidth="xl">
             <Typography variant="h4" gutterBottom>
                 Cambios Diarios
             </Typography>
@@ -415,7 +415,7 @@ function CambiosDiarios() {
                 Carga Masiva Evapotranspiración
             </Button>
             <TableContainer component={Paper} style={{ marginTop: '20px' }}>
-                <Table>
+                <Table size="small">
                     <TableHead>
                         <TableRow>
                             <TableCell>Fecha de Registro</TableCell>
@@ -423,7 +423,6 @@ function CambiosDiarios() {
                             <TableCell>Fecha Inicio Riego</TableCell>
                             <TableCell>Precipitaciones (mm)</TableCell>
                             <TableCell>Humedad (%)</TableCell>
-                            <TableCell>Temperatura (°C)</TableCell>
                             <TableCell>Temp. Máx (°C)</TableCell>
                             <TableCell>Temp. Mín (°C)</TableCell>
                             <TableCell>Evapotranspiración (mm)</TableCell>
@@ -442,7 +441,6 @@ function CambiosDiarios() {
                                 <TableCell>{cambio.riego_fecha_inicio ? formatRiegoDateFixed(cambio.riego_fecha_inicio) : '-'}</TableCell>
                                 <TableCell>{cambio.precipitaciones !== null ? parseFloat(cambio.precipitaciones).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.humedad !== null ? parseFloat(cambio.humedad).toFixed(2) : '-'}</TableCell>
-                                <TableCell>{cambio.temperatura !== null ? parseFloat(cambio.temperatura).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.temp_max !== null && cambio.temp_max !== undefined ? parseFloat(cambio.temp_max).toFixed(1) : '-'}</TableCell>
                                 <TableCell>{cambio.temp_min !== null && cambio.temp_min !== undefined ? parseFloat(cambio.temp_min).toFixed(1) : '-'}</TableCell>
                                 <TableCell>{cambio.evapotranspiracion !== null ? parseFloat(cambio.evapotranspiracion).toFixed(2) : '-'}</TableCell>
