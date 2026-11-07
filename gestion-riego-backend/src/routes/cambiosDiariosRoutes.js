@@ -49,6 +49,27 @@ async function calcularCrecimientoRadicular(client, loteId, diasDesdeSiembra) {
     return ultimoCrecimiento > 0 ? ultimoCrecimiento + indice : indice;
 }
 
+// Convierte a número o null (para campos opcionales como temperaturas)
+const toNumberOrNull = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    const number = parseFloat(value);
+    return isNaN(number) ? null : number;
+};
+
+const esAdmin = (req) => req.user?.role?.toLowerCase() === 'admin';
+
+// Calcula grados días a partir de temp máx/mín y la temperatura base del cultivo del lote
+async function calcularGradosDias(client, loteId, tempMax, tempMin) {
+    if (tempMax === null || tempMin === null) return null;
+    const { rows } = await client.query(`
+        SELECT COALESCE(c.temp_base_grados_dias, 10) AS temp_base
+        FROM lotes l JOIN cultivos c ON c.id = l.cultivo_id
+        WHERE l.id = $1
+    `, [loteId]);
+    const tempBase = parseFloat(rows[0]?.temp_base ?? 10);
+    return Math.max(0, parseFloat((((tempMax + tempMin) / 2) - tempBase).toFixed(2)));
+}
+
 // Calcular lluvia efectiva
 function calcularLluviaEfectiva(precipitaciones) {
     const pp = convertToNumberOrZero(precipitaciones);
@@ -93,6 +114,8 @@ router.post('/', verifyToken, async (req, res) => {
             temperatura = 0,
             evapotranspiracion = 0,
             correccion_agua = 0,
+            temp_max = null,
+            temp_min = null,
         } = req.body;
 
         // Validación básica
@@ -110,7 +133,15 @@ router.post('/', verifyToken, async (req, res) => {
         const safeHumedad = parseFloat(humedad) || 0;
         const safeTemperatura = parseFloat(temperatura) || 0;
         const safeEvapotranspiracion = parseFloat(evapotranspiracion) || 0;
-        const safeCorreccion = parseFloat(correccion_agua) || 0;
+        // Solo los administradores pueden cargar correcciones de agua
+        const safeCorreccion = esAdmin(req) ? (parseFloat(correccion_agua) || 0) : 0;
+        const safeTempMax = esAdmin(req) ? toNumberOrNull(temp_max) : null;
+        const safeTempMin = esAdmin(req) ? toNumberOrNull(temp_min) : null;
+
+        if (safeTempMax !== null && safeTempMin !== null && safeTempMin > safeTempMax) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'La temperatura mínima no puede ser mayor que la máxima' });
+        }
 
         // Obtener fecha de siembra y datos del lote
         const { rows } = await client.query(
@@ -222,8 +253,9 @@ router.post('/', verifyToken, async (req, res) => {
             `INSERT INTO cambios_diarios 
             (lote_id, fecha_cambio, riego_cantidad, riego_fecha_inicio, 
              precipitaciones, humedad, temperatura, evapotranspiracion,
-             lluvia_efectiva, etc, kc, dias, correccion_agua) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+             lluvia_efectiva, etc, kc, dias, correccion_agua,
+             temp_max, temp_min, grados_dias) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) 
             RETURNING *`,
             [
                 lote_id,
@@ -238,7 +270,10 @@ router.post('/', verifyToken, async (req, res) => {
                 etc,
                 kc,
                 diasDesdeSiembra,
-                safeCorreccion
+                safeCorreccion,
+                safeTempMax,
+                safeTempMin,
+                await calcularGradosDias(client, lote_id, safeTempMax, safeTempMin)
             ]
         );
 
@@ -281,7 +316,9 @@ router.put('/:id', verifyToken, async (req, res) => {
             humedad,
             temperatura,
             evapotranspiracion,
-            correccion_agua
+            correccion_agua,
+            temp_max,
+            temp_min
         } = req.body;
 
         // Validación de valores numéricos
@@ -290,13 +327,34 @@ router.put('/:id', verifyToken, async (req, res) => {
         const safeHumedad = parseFloat(humedad) || 0;
         const safeTemperatura = parseFloat(temperatura) || 0;
         const safeEvapotranspiracion = parseFloat(evapotranspiracion) || 0;
-        const safeCorreccion = parseFloat(correccion_agua) || 0;
 
         // Obtener el lote_id del cambio diario actual
         const { rows: [cambioActual] } = await client.query(
-            'SELECT cd.lote_id, cd.fecha_cambio, l.fecha_siembra FROM cambios_diarios cd JOIN lotes l ON cd.lote_id = l.id WHERE cd.id = $1',
+            `SELECT cd.lote_id, cd.fecha_cambio, cd.correccion_agua, cd.temp_max, cd.temp_min,
+                    l.fecha_siembra
+             FROM cambios_diarios cd JOIN lotes l ON cd.lote_id = l.id WHERE cd.id = $1`,
             [id]
         );
+
+        if (!cambioActual) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Cambio diario no encontrado' });
+        }
+
+        // Solo los administradores pueden modificar la corrección de agua y las temperaturas máx/mín.
+        // Para el resto de los usuarios se conservan los valores existentes.
+        const admin = esAdmin(req);
+        const safeCorreccion = admin
+            ? (parseFloat(correccion_agua) || 0)
+            : (parseFloat(cambioActual.correccion_agua) || 0);
+        const safeTempMax = admin ? toNumberOrNull(temp_max) : toNumberOrNull(cambioActual.temp_max);
+        const safeTempMin = admin ? toNumberOrNull(temp_min) : toNumberOrNull(cambioActual.temp_min);
+
+        if (safeTempMax !== null && safeTempMin !== null && safeTempMin > safeTempMax) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'La temperatura mínima no puede ser mayor que la máxima' });
+        }
+        const gradosDias = await calcularGradosDias(client, cambioActual.lote_id, safeTempMax, safeTempMin);
 
         // Calcular días desde siembra de forma segura
         let diasDesdeSiembra;
@@ -370,8 +428,11 @@ router.put('/:id', verifyToken, async (req, res) => {
             etc = $7,
             lluvia_efectiva = $8,
             kc = $9,
-            correccion_agua = $10
-            WHERE id = $11
+            correccion_agua = $10,
+            temp_max = $11,
+            temp_min = $12,
+            grados_dias = $13
+            WHERE id = $14
             RETURNING *`,
             [
                 safeRiego,
@@ -384,6 +445,9 @@ router.put('/:id', verifyToken, async (req, res) => {
                 lluvia_efectiva,
                 kc,
                 safeCorreccion,
+                safeTempMax,
+                safeTempMin,
+                gradosDias,
                 id
             ]
         );

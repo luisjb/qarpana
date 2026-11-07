@@ -914,6 +914,26 @@ ALTER TABLE cambios_diarios ADD COLUMN IF NOT EXISTS radiacion NUMERIC;
 -- Temperatura base para cálculo de grados días por cultivo (default 10°C)
 ALTER TABLE cultivos ADD COLUMN IF NOT EXISTS temp_base_grados_dias NUMERIC DEFAULT 10;
 
+-- Valores por defecto de temperatura base por especie de cultivo
+UPDATE cultivos SET temp_base_grados_dias = 6  WHERE UPPER(nombre_cultivo) LIKE '%GIRASOL%';
+UPDATE cultivos SET temp_base_grados_dias = 8  WHERE UPPER(nombre_cultivo) LIKE '%MAIZ%' OR nombre_cultivo ILIKE '%maíz%';
+UPDATE cultivos SET temp_base_grados_dias = 7  WHERE UPPER(nombre_cultivo) LIKE '%SOJA%';
+UPDATE cultivos SET temp_base_grados_dias = 0  WHERE UPPER(nombre_cultivo) LIKE '%TRIGO%';
+UPDATE cultivos SET temp_base_grados_dias = 10 WHERE UPPER(nombre_cultivo) LIKE '%SORGO%';
+
+-- Recalcular grados_dias históricos usando la temperatura base correcta por cultivo
+-- Fórmula: max(0, (temp_max + temp_min) / 2 - temp_base_grados_dias)
+UPDATE cambios_diarios cd
+SET grados_dias = GREATEST(
+    0,
+    ROUND(((cd.temp_max + cd.temp_min) / 2.0 - c.temp_base_grados_dias)::numeric, 2)
+)
+FROM lotes l
+JOIN cultivos c ON c.id = l.cultivo_id
+WHERE cd.lote_id = l.id
+  AND cd.temp_max IS NOT NULL
+  AND cd.temp_min IS NOT NULL;
+
 -- Emails adicionales por usuario para envío de reportes
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS emails_adicionales TEXT[] DEFAULT '{}';
 

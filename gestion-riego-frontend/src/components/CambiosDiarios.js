@@ -31,7 +31,9 @@ function CambiosDiarios() {
         temperatura: '',
         evapotranspiracion: '',
         etc: '',
-        correccion_agua: ''
+        correccion_agua: '',
+        temp_max: '',
+        temp_min: ''
     };
     const [formData, setFormData] = useState({
         fecha_cambio: new Date().toISOString().split('T')[0], // Fecha actual por defecto
@@ -120,6 +122,12 @@ function CambiosDiarios() {
                 ...prev,
                 [name]: value || new Date().toISOString().split('T')[0]
             }));
+        } else if (name === 'temp_max' || name === 'temp_min') {
+            // Temperaturas: se permite vacío (sin dato) y valores 0 o negativos
+            setCurrentCambio(prev => ({
+                ...prev,
+                [name]: value
+            }));
         } else if (name === 'riego_fecha_inicio') {
             setCurrentCambio(prev => ({
                 ...prev,
@@ -136,6 +144,14 @@ function CambiosDiarios() {
 
     const handleSubmit = async (event) => {
         event.preventDefault();
+        const tempMax = currentCambio.temp_max === '' || currentCambio.temp_max === null || currentCambio.temp_max === undefined
+            ? null : Number(currentCambio.temp_max);
+        const tempMin = currentCambio.temp_min === '' || currentCambio.temp_min === null || currentCambio.temp_min === undefined
+            ? null : Number(currentCambio.temp_min);
+        if (tempMax !== null && tempMin !== null && tempMin > tempMax) {
+            window.alert('La temperatura mínima no puede ser mayor que la máxima');
+            return;
+        }
         try {
             const dataToSend = {
                 ...currentCambio,
@@ -147,8 +163,16 @@ function CambiosDiarios() {
                 humedad: currentCambio.humedad === '' ? 0 : Number(currentCambio.humedad),
                 temperatura: currentCambio.temperatura === '' ? 0 : Number(currentCambio.temperatura),
                 evapotranspiracion: currentCambio.evapotranspiracion === '' ? 0 : Number(currentCambio.evapotranspiracion),
-                correccion_agua: currentCambio.correccion_agua === '' ? 0 : Number(currentCambio.correccion_agua)
+                correccion_agua: currentCambio.correccion_agua === '' ? 0 : Number(currentCambio.correccion_agua),
+                temp_max: tempMax,
+                temp_min: tempMin
             };
+            // Solo los administradores pueden cargar correcciones de agua y temperaturas máx/mín
+            if (!isAdmin) {
+                delete dataToSend.correccion_agua;
+                delete dataToSend.temp_max;
+                delete dataToSend.temp_min;
+            }
     
             if (editing) {
                 await axios.put(`/cambios-diarios/${currentCambio.id}`, dataToSend);
@@ -162,11 +186,17 @@ function CambiosDiarios() {
             setCurrentCambio(initialCambioState);
         } catch (error) {
             console.error('Error al guardar cambio diario:', error);
+            const msg = error.response?.data?.error;
+            if (msg) window.alert(msg);
         }
     };
 
     const handleEdit = (cambio) => {
-        setCurrentCambio(cambio);
+        setCurrentCambio({
+            ...cambio,
+            temp_max: cambio.temp_max ?? '',
+            temp_min: cambio.temp_min ?? ''
+        });
         setEditing(true);
         setOpenDialog(true);
     };
@@ -394,6 +424,8 @@ function CambiosDiarios() {
                             <TableCell>Precipitaciones (mm)</TableCell>
                             <TableCell>Humedad (%)</TableCell>
                             <TableCell>Temperatura (°C)</TableCell>
+                            <TableCell>Temp. Máx (°C)</TableCell>
+                            <TableCell>Temp. Mín (°C)</TableCell>
                             <TableCell>Evapotranspiración (mm)</TableCell>
                             <TableCell>Corrección Agua (mm)</TableCell>
                             <TableCell>ETC</TableCell>
@@ -411,6 +443,8 @@ function CambiosDiarios() {
                                 <TableCell>{cambio.precipitaciones !== null ? parseFloat(cambio.precipitaciones).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.humedad !== null ? parseFloat(cambio.humedad).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.temperatura !== null ? parseFloat(cambio.temperatura).toFixed(2) : '-'}</TableCell>
+                                <TableCell>{cambio.temp_max !== null && cambio.temp_max !== undefined ? parseFloat(cambio.temp_max).toFixed(1) : '-'}</TableCell>
+                                <TableCell>{cambio.temp_min !== null && cambio.temp_min !== undefined ? parseFloat(cambio.temp_min).toFixed(1) : '-'}</TableCell>
                                 <TableCell>{cambio.evapotranspiracion !== null ? parseFloat(cambio.evapotranspiracion).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.correccion_agua !== null ? parseFloat(cambio.correccion_agua).toFixed(2) : '-'}</TableCell>
                                 <TableCell>{cambio.etc !== null ? parseFloat(cambio.etc).toFixed(2) : '-'}</TableCell>
@@ -578,7 +612,10 @@ function CambiosDiarios() {
                             type="number"
                             value={currentCambio.correccion_agua}
                             onChange={handleInputChange}
-                            helperText="Valor positivo para incrementar, negativo para reducir"
+                            disabled={!isAdmin}
+                            helperText={isAdmin
+                                ? "Valor positivo para incrementar, negativo para reducir"
+                                : "Solo los administradores pueden cargar correcciones de agua"}
                         />
                         <TextField
                             fullWidth
@@ -609,6 +646,30 @@ function CambiosDiarios() {
                             value={currentCambio.evapotranspiracion}
                             onChange={handleInputChange}
                             disabled={!isAdmin}
+                        />
+                        <TextField
+                            fullWidth
+                            margin="normal"
+                            name="temp_max"
+                            label="Temperatura Máxima (°C)"
+                            type="number"
+                            inputProps={{ step: '0.1' }}
+                            value={currentCambio.temp_max ?? ''}
+                            onChange={handleInputChange}
+                            disabled={!isAdmin}
+                            helperText="Carga manual (ej. datos no registrados por la estación)"
+                        />
+                        <TextField
+                            fullWidth
+                            margin="normal"
+                            name="temp_min"
+                            label="Temperatura Mínima (°C)"
+                            type="number"
+                            inputProps={{ step: '0.1' }}
+                            value={currentCambio.temp_min ?? ''}
+                            onChange={handleInputChange}
+                            disabled={!isAdmin}
+                            helperText="Se usa junto con la máxima para calcular grados días"
                         />
                     </form>
                 </DialogContent>
