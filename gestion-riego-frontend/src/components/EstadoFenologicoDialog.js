@@ -8,19 +8,20 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, especie, onSave }) {
-    const [estados, setEstados] = useState([{ nombre: '', dias: '' }]);
+    const [estados, setEstados] = useState([{ nombre: '', dias: '', grados_dias: '' }]);
     const [isEditing, setIsEditing] = useState(false);
 
+    const normalizeEspecie = (s) =>
+        (s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
     useEffect(() => {
-        console.log('EstadoFenologicoDialog useEffect - loteId:', loteId, 'open:', open);
         if (loteId && open) {
             fetchEstadosFenologicos();
         } else if (open && !loteId) {
-            console.error('Dialog opened but loteId is undefined');
-            setEstados([{ nombre: '', dias: '' }]);
+            setEstados([{ nombre: '', dias: '', grados_dias: '' }]);
             setIsEditing(false);
         }
-    }, [loteId, open]);
+    }, [loteId, open, especie]);
 
     const fetchEstadosFenologicos = async () => {
         if (!loteId) {
@@ -41,9 +42,8 @@ function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, especie,
                 if (especie) {
                     try {
                         const defResponse = await axios.get('/fenologia-default');
-                        const especieUpper = especie.toUpperCase();
                         const defaults = defResponse.data.filter(
-                            d => d.especie.toUpperCase() === especieUpper
+                            d => normalizeEspecie(d.especie) === normalizeEspecie(especie)
                         );
                         if (defaults.length > 0) {
                             setEstados(defaults.map(d => ({ nombre: d.etapa, dias: d.dias, grados_dias: d.grados_dias })));
