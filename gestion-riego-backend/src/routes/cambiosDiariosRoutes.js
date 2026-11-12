@@ -569,4 +569,72 @@ router.post('/evapotranspiracion-masiva', verifyToken, async (req, res) => {
     }
 });
 
+router.post('/temperatura-masiva', verifyToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const { datos, tipo, ids } = req.body;
+
+        let lotes = [];
+        if (tipo === 'campo') {
+            const lotesQuery = await client.query(
+                'SELECT id FROM lotes WHERE campo_id = ANY($1)',
+                [ids]
+            );
+            lotes = lotesQuery.rows.map(row => row.id);
+        } else {
+            lotes = ids;
+        }
+
+        for (const { fecha, temp_max, temp_min } of datos) {
+            const tMax = parseFloat(temp_max);
+            const tMin = parseFloat(temp_min);
+            if (isNaN(tMax) || isNaN(tMin)) continue;
+
+            for (const loteId of lotes) {
+                const { rows: tempRows } = await client.query(
+                    `SELECT COALESCE(c.temp_base_grados_dias, 10) AS temp_base
+                     FROM lotes l JOIN cultivos c ON c.id = l.cultivo_id
+                     WHERE l.id = $1`, [loteId]
+                );
+                const tempBase = parseFloat(tempRows[0]?.temp_base || 10);
+                const gradosDias = Math.max(0, parseFloat(((tMax + tMin) / 2 - tempBase).toFixed(2)));
+
+                const { rows: [existingRecord] } = await client.query(
+                    'SELECT id FROM cambios_diarios WHERE lote_id = $1 AND fecha_cambio = $2',
+                    [loteId, fecha]
+                );
+
+                if (existingRecord) {
+                    await client.query(
+                        `UPDATE cambios_diarios SET temp_max = $1, temp_min = $2, grados_dias = $3 WHERE id = $4`,
+                        [tMax, tMin, gradosDias, existingRecord.id]
+                    );
+                } else {
+                    const { rows: [loteInfo] } = await client.query(
+                        'SELECT fecha_siembra FROM lotes WHERE id = $1', [loteId]
+                    );
+                    const diasDesdeSiembra = Math.floor(
+                        (new Date(fecha) - new Date(loteInfo.fecha_siembra)) / (1000 * 60 * 60 * 24)
+                    );
+                    await client.query(
+                        `INSERT INTO cambios_diarios (lote_id, fecha_cambio, temp_max, temp_min, grados_dias, dias, correccion_agua)
+                         VALUES ($1, $2, $3, $4, $5, $6, 0)`,
+                        [loteId, fecha, tMax, tMin, gradosDias, diasDesdeSiembra]
+                    );
+                }
+            }
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: 'Carga masiva de temperatura completada con éxito' });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Error en carga masiva de temperatura:', err);
+        res.status(500).json({ error: 'Error del servidor', details: err.message });
+    } finally {
+        client.release();
+    }
+});
+
 module.exports = router;

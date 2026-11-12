@@ -11,6 +11,7 @@ import { Edit, Delete, WaterDrop } from '@mui/icons-material';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import EstadoFenologicoDialog from './EstadoFenologicoDialog';
 import AguaUtilDialog from './AguaUtilDialog';
+import FenologiaDefaultPanel from './FenologiaDefaultPanel';
 
 function LotesManagement() {
     const { campoId } = useParams();
@@ -269,6 +270,7 @@ function LotesManagement() {
     return (
         <Container maxWidth="md">
             <Typography variant="h4" gutterBottom>Lotes del Campo: {nombreCampo}</Typography>
+            {isAdmin && <FenologiaDefaultPanel />}
             {isAdmin && (
                 <Button variant="contained" color="primary" onClick={() => setOpenDialog(true)}>
                     Agregar Nuevo Lote

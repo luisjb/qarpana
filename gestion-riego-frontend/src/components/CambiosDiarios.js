@@ -22,6 +22,9 @@ function CambiosDiarios() {
     const [tipoEvapMasiva, setTipoEvapMasiva] = useState('campo');
     const [selectedItems, setSelectedItems] = useState([]);
     const [availableItems, setAvailableItems] = useState([]);
+    const [openTempDialog, setOpenTempDialog] = useState(false);
+    const [tempMasiva, setTempMasiva] = useState([{ fecha: '', temp_max: '', temp_min: '' }]);
+    const [selectedTempItems, setSelectedTempItems] = useState([]);
     const initialCambioState = {
         fecha_cambio: new Date().toISOString().split('T')[0],
         riego_cantidad: '',
@@ -51,10 +54,10 @@ function CambiosDiarios() {
     }, []);
 
     useEffect(() => {
-        if (openEvapDialog) {
+        if (openEvapDialog || openTempDialog) {
             fetchAvailableItems();
         }
-    }, [openEvapDialog, tipoEvapMasiva]);
+    }, [openEvapDialog, tipoEvapMasiva, openTempDialog]);
 
     const checkAdminStatus = () => {
         const userRole = localStorage.getItem('role');
@@ -237,6 +240,43 @@ function CambiosDiarios() {
         setEvapMasiva(newEvapMasiva);
     };
 
+    const handleTempInputChange = (index, event) => {
+        const { name, value } = event.target;
+        const newTempMasiva = [...tempMasiva];
+        newTempMasiva[index] = { ...newTempMasiva[index], [name]: value };
+        setTempMasiva(newTempMasiva);
+    };
+
+    const handleAddTempRow = () => {
+        setTempMasiva([...tempMasiva, { fecha: '', temp_max: '', temp_min: '' }]);
+    };
+
+    const handleRemoveTempRow = (index) => {
+        setTempMasiva(tempMasiva.filter((_, i) => i !== index));
+    };
+
+    const handleTempItemSelection = (event) => {
+        const { target: { value } } = event;
+        setSelectedTempItems(typeof value === 'string' ? value.split(',') : value);
+    };
+
+    const handleTempMasivaSubmit = async () => {
+        try {
+            await axios.post('/cambios-diarios/temperatura-masiva', {
+                datos: tempMasiva,
+                tipo: 'campo',
+                ids: selectedTempItems
+            });
+            setOpenTempDialog(false);
+            setTempMasiva([{ fecha: '', temp_max: '', temp_min: '' }]);
+            setSelectedTempItems([]);
+            if (selectedLote) fetchCambiosDiarios(selectedLote);
+        } catch (error) {
+            console.error('Error al cargar temperatura masiva:', error);
+            if (error.response) console.error('Detalles:', error.response.data);
+        }
+    };
+
     const handleEvapMasivaSubmit = async () => {
         try {
             const response = await axios.post('/cambios-diarios/evapotranspiracion-masiva', {
@@ -414,6 +454,17 @@ function CambiosDiarios() {
             >
                 Carga Masiva Evapotranspiración
             </Button>
+            {isAdmin && (
+                <Button
+                    variant="contained"
+                    color="secondary"
+                    onClick={() => setOpenTempDialog(true)}
+                    disabled={!selectedCampo && !selectedLote}
+                    style={{ marginTop: '20px', marginLeft: '10px' }}
+                >
+                    Carga Masiva Temperatura
+                </Button>
+            )}
             <TableContainer component={Paper} style={{ marginTop: '20px' }}>
                 <Table size="small">
                     <TableHead>
@@ -554,6 +605,90 @@ function CambiosDiarios() {
                     </Button>
                 </DialogActions>
             </Dialog>
+            <Dialog open={openTempDialog} onClose={() => setOpenTempDialog(false)} maxWidth="md" fullWidth>
+                <DialogTitle>Carga Masiva de Temperatura</DialogTitle>
+                <DialogContent>
+                    <Grid container spacing={3}>
+                        <Grid item xs={12} md={6}>
+                            <FormControl fullWidth margin="normal">
+                                <InputLabel>Campos</InputLabel>
+                                <Select
+                                    multiple
+                                    value={selectedTempItems}
+                                    onChange={handleTempItemSelection}
+                                    label="Campos"
+                                    renderValue={(selected) => selected.map(id =>
+                                        availableItems.find(item => item.id.toString() === id.toString())?.nombre
+                                    ).join(', ')}
+                                >
+                                    {availableItems.map((item) => (
+                                        <MenuItem key={item.id} value={item.id}>
+                                            <Checkbox checked={selectedTempItems.indexOf(item.id.toString()) > -1 || selectedTempItems.indexOf(item.id) > -1} />
+                                            <ListItemText primary={item.nombre} />
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                    </Grid>
+                    {tempMasiva.map((item, index) => (
+                        <Grid container spacing={2} key={index} alignItems="center" style={{ marginTop: '10px' }}>
+                            <Grid item xs={4}>
+                                <TextField
+                                    fullWidth
+                                    name="fecha"
+                                    label="Fecha"
+                                    type="date"
+                                    value={item.fecha}
+                                    onChange={(e) => handleTempInputChange(index, e)}
+                                    InputLabelProps={{ shrink: true }}
+                                    required
+                                />
+                            </Grid>
+                            <Grid item xs={3}>
+                                <TextField
+                                    fullWidth
+                                    name="temp_max"
+                                    label="Temp. Máx (°C)"
+                                    type="number"
+                                    value={item.temp_max}
+                                    onChange={(e) => handleTempInputChange(index, e)}
+                                />
+                            </Grid>
+                            <Grid item xs={3}>
+                                <TextField
+                                    fullWidth
+                                    name="temp_min"
+                                    label="Temp. Mín (°C)"
+                                    type="number"
+                                    value={item.temp_min}
+                                    onChange={(e) => handleTempInputChange(index, e)}
+                                />
+                            </Grid>
+                            <Grid item xs={2}>
+                                <IconButton onClick={() => handleRemoveTempRow(index)} color="error">
+                                    <Delete />
+                                </IconButton>
+                            </Grid>
+                        </Grid>
+                    ))}
+                    <Button onClick={handleAddTempRow} startIcon={<CloudUpload />} style={{ marginTop: '20px' }}>
+                        Añadir Fila
+                    </Button>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenTempDialog(false)}>Cancelar</Button>
+                    <Button
+                        onClick={handleTempMasivaSubmit}
+                        color="primary"
+                        variant="contained"
+                        disabled={selectedTempItems.length === 0 || tempMasiva.length === 0}
+                    >
+                        Cargar
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             <Dialog open={openDialog} onClose={() => {
                 setOpenDialog(false);
                 setEditing(false);

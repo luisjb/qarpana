@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Container, Grid, Typography, Paper, FormControl, InputLabel,
     Select, MenuItem, CircularProgress, useTheme, Box, Card, CardContent,
-    CardActionArea, Divider, Button, Tooltip
+    CardActionArea, Divider, Button, Tooltip, Checkbox, ListItemText, OutlinedInput
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from '../axiosConfig';
@@ -78,6 +78,7 @@ function ResumenCirculos() {
     const [generatingPDF, setGeneratingPDF] = useState(false);
     const [sendingEmail, setSendingEmail] = useState(false);
     const [emailSnack, setEmailSnack] = useState({ open: false, message: '', severity: 'success' });
+    const [lotesSeleccionados, setLotesSeleccionados] = useState([]);
     const theme = useTheme();
     const navigate = useNavigate();
 
@@ -124,9 +125,9 @@ function ResumenCirculos() {
             setLoading(true);
             const response = await axios.get(`/lotes/campo/${campoId}`);
 
-            const all = response.data.lotes && response.data.lotes.length > 0
+            const all = (response.data.lotes && response.data.lotes.length > 0
                 ? response.data.lotes
-                : [];
+                : []).filter(l => l.activo !== false);
 
             setTodosLotes(all);
             const campañasUnicas = [...new Set(all.map(l => l.campaña).filter(Boolean))].sort();
@@ -174,8 +175,10 @@ function ResumenCirculos() {
 
                 const lotesConDatos = await Promise.all(lotesPromises);
                 setLotes(lotesConDatos);
+                setLotesSeleccionados(lotesConDatos.map(l => l.id));
             } else {
                 setLotes([]);
+                setLotesSeleccionados([]);
             }
 
             setLoading(false);
@@ -210,8 +213,7 @@ function ResumenCirculos() {
     const handleFiltroCampañaChange = (event) => {
         const campaña = event.target.value;
         setFiltroCampaña(campaña);
-        const lotesVer = campaña ? todosLotes.filter(l => l.campaña === campaña) : todosLotes;
-        // Re-fetch waterData only for the filtered lots
+        const lotesVer = (campaña ? todosLotes.filter(l => l.campaña === campaña) : todosLotes).filter(l => l.activo !== false);
         if (lotesVer.length > 0) {
             setLoading(true);
             Promise.all(lotesVer.map(async (lote) => {
@@ -223,10 +225,12 @@ function ResumenCirculos() {
                 }
             })).then(result => {
                 setLotes(result);
+                setLotesSeleccionados(result.map(l => l.id));
                 setLoading(false);
             });
         } else {
             setLotes([]);
+            setLotesSeleccionados([]);
         }
     };
 
@@ -238,8 +242,10 @@ function ResumenCirculos() {
         }
     };
 
+    const lotesVisibles = lotes.filter(l => lotesSeleccionados.includes(l.id));
+
     const handleGenerarInforme = async () => {
-        if (!selectedCampo || lotes.length === 0) {
+        if (!selectedCampo || lotesVisibles.length === 0) {
             alert('Seleccione un campo con lotes para generar el informe');
             return;
         }
@@ -257,9 +263,8 @@ function ResumenCirculos() {
                 throw new Error('Campo no encontrado');
             }
 
-            // Obtener datos de simulación y observaciones para cada lote
             const lotesDetallados = await Promise.all(
-                lotes.map(async (lote) => {
+                lotesVisibles.map(async (lote) => {
                     const [simResult, obsResult] = await Promise.allSettled([
                         axios.get(`/simulations/${lote.id}`, {
                             params: { campaña: lote.campaña, cultivo: lote.especie }
@@ -276,19 +281,11 @@ function ResumenCirculos() {
                 })
             );
 
-            // Usar las recomendaciones obtenidas del backend (solo la última)
-            let recomendacionesParaPDF = recomendaciones;
-            if (!recomendacionesParaPDF || recomendacionesParaPDF.length === 0) {
-                // Si no hay recomendaciones, usar un array vacío
-                recomendacionesParaPDF = [];
-            }
-
-            // Generar el PDF
             const pdfGenerator = new PDFReportGenerator();
             await pdfGenerator.generateReport(
                 campoSeleccionado,
                 lotesDetallados,
-                recomendacionesParaPDF
+                recomendaciones || []
             );
 
         } catch (error) {
@@ -304,7 +301,7 @@ function ResumenCirculos() {
     };
 
     const handleEnviarInforme = async () => {
-        if (!selectedCampo || lotes.length === 0) {
+        if (!selectedCampo || lotesVisibles.length === 0) {
             setEmailSnack({ open: true, message: 'Seleccione un campo con lotes antes de enviar', severity: 'warning' });
             return;
         }
@@ -318,7 +315,7 @@ function ResumenCirculos() {
             if (!campoSeleccionado) throw new Error('Campo no encontrado');
 
             const lotesDetallados = await Promise.all(
-                lotes.map(async (lote) => {
+                lotesVisibles.map(async (lote) => {
                     const [simResult, obsResult] = await Promise.allSettled([
                         axios.get(`/simulations/${lote.id}`, {
                             params: { campaña: lote.campaña, cultivo: lote.especie }
@@ -433,6 +430,33 @@ function ResumenCirculos() {
                             </Select>
                         </FormControl>
                     </Grid>
+                    {lotes.length > 0 && (
+                        <Grid item xs={12}>
+                            <FormControl fullWidth>
+                                <InputLabel>Lotes a mostrar</InputLabel>
+                                <Select
+                                    multiple
+                                    value={lotesSeleccionados}
+                                    onChange={(e) => setLotesSeleccionados(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                                    input={<OutlinedInput label="Lotes a mostrar" />}
+                                    renderValue={(selected) => {
+                                        if (selected.length === lotes.length) return 'Todos los lotes';
+                                        return `${selected.length} de ${lotes.length} lotes seleccionados`;
+                                    }}
+                                >
+                                    {lotes.map(lote => (
+                                        <MenuItem key={lote.id} value={lote.id}>
+                                            <Checkbox checked={lotesSeleccionados.includes(lote.id)} />
+                                            <ListItemText
+                                                primary={lote.nombre_lote}
+                                                secondary={lote.especie || ''}
+                                            />
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                    )}
                     <Grid item xs={12} md={4}>
                         <Box display="flex" gap={1}>
                             <Button
@@ -440,7 +464,7 @@ function ResumenCirculos() {
                                 color="primary"
                                 startIcon={<PictureAsPdf />}
                                 onClick={handleGenerarInforme}
-                                disabled={!isAdmin || !selectedCampo || lotes.length === 0 || generatingPDF || sendingEmail}
+                                disabled={!isAdmin || !selectedCampo || lotesVisibles.length === 0 || generatingPDF || sendingEmail}
                                 sx={{ height: '56px', flex: 1, minWidth: 0 }}
                             >
                                 {generatingPDF ? (
@@ -460,7 +484,7 @@ function ResumenCirculos() {
                                             color="primary"
                                             startIcon={sendingEmail ? <CircularProgress size={16} color="inherit" /> : <Send />}
                                             onClick={handleEnviarInforme}
-                                            disabled={!selectedCampo || lotes.length === 0 || generatingPDF || sendingEmail}
+                                            disabled={!selectedCampo || lotesVisibles.length === 0 || generatingPDF || sendingEmail}
                                             sx={{ height: '56px', whiteSpace: 'nowrap' }}
                                         >
                                             {sendingEmail ? 'Enviando...' : 'Enviar'}
@@ -492,8 +516,7 @@ function ResumenCirculos() {
             )}
 
             {(() => {
-                // Agrupar lotes por especie (cultivo), ordenados alfabéticamente
-                const grupos = lotes.reduce((acc, lote) => {
+                const grupos = lotesVisibles.reduce((acc, lote) => {
                     const especie = lote.especie || 'Sin cultivo';
                     if (!acc[especie]) acc[especie] = [];
                     acc[especie].push(lote);

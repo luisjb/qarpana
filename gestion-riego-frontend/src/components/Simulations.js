@@ -770,10 +770,11 @@ function Simulations() {
                             label += ': ';
                         }
                         if (context.parsed.y !== null) {
-                            // Para ETC y Capacidad de Extracción, mostrar el valor original (no multiplicado)
+                            // Para datasets con originalData, mostrar el valor sin multiplicar
                             if (context.dataset.originalData) {
                                 const originalValue = context.dataset.originalData[context.dataIndex];
-                                label += formatNumber(originalValue) + ' mm';
+                                const unit = context.dataset.label === 'Kc' ? '' : ' mm';
+                                label += formatNumber(originalValue) + unit;
                             } else {
                                 label += formatNumber(context.parsed.y) + ' mm';
                                 if (label.includes('Umbral')) {
@@ -892,6 +893,21 @@ function Simulations() {
                     // Guardar valores originales para el tooltip
                     originalData: simulationData.capacidadExtraccion || [],
                     borderColor: 'rgb(153, 102, 255)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1,
+                    order: 0,
+                    yAxisID: 'y1',
+                    hidden: true
+                },
+                {
+                    type: 'line',
+                    label: 'Kc',
+                    // Multiplicar por 10 para visualizar en la escala del gráfico
+                    data: (simulationData.kc || []).map(val => val !== null && val !== undefined ? parseFloat(val) * 10 : null),
+                    // Guardar valores originales para el tooltip
+                    originalData: (simulationData.kc || []).map(val => val !== null && val !== undefined ? parseFloat(val) : null),
+                    borderColor: 'rgb(34, 197, 94)',
                     borderWidth: 2,
                     fill: false,
                     tension: 0.1,

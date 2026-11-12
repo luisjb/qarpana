@@ -939,3 +939,39 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS emails_adicionales TEXT[] DEFAULT 
 
 -- Imágenes adjuntas a recomendaciones (base64 comprimido)
 ALTER TABLE recomendaciones_campo ADD COLUMN IF NOT EXISTS imagenes JSONB DEFAULT '[]';
+
+-- Fenología por defecto por tipo de cultivo (grados días y días por etapa)
+CREATE TABLE IF NOT EXISTS fenologia_default (
+    id SERIAL PRIMARY KEY,
+    especie VARCHAR(100) NOT NULL,
+    etapa VARCHAR(200) NOT NULL,
+    dias INTEGER NOT NULL,
+    grados_dias NUMERIC NOT NULL,
+    orden INTEGER DEFAULT 0
+);
+
+INSERT INTO fenologia_default (especie, etapa, dias, grados_dias, orden) VALUES
+    ('MAIZ',     'Siembra - Emergencia',           10,  60,   1),
+    ('MAIZ',     'Emergencia - R1',                65,  765,  2),
+    ('MAIZ',     'R1 - Madurez Fisiológica',      125,  805,  3),
+    ('SOJA',     'Siembra - Emergencia',            8,  110,  1),
+    ('SOJA',     'Emergencia - R1',                48,  800,  2),
+    ('SOJA',     'R1 - R3',                        68,  280,  3),
+    ('SOJA',     'R3 - R5',                        82,  360,  4),
+    ('SOJA',     'R5 - R6',                       105,  350,  5),
+    ('SOJA',     'R6 - R7',                       123,  300,  6),
+    ('SORGO',    'Siembra - Emergencia',           10,  110,  1),
+    ('SORGO',    'Emergencia - R1',                80, 1000,  2),
+    ('SORGO',    'R1 - Madurez Fisiológica',      130,  800,  3),
+    ('GIRASOL',  'Siembra - R5',                  80,  850,  1),
+    ('GIRASOL',  'R5 - Madurez Fisiológica',      130,  850,  2),
+    ('GARBANZO', 'Siembra - Inicio PC',            81, 1000,  1),
+    ('GARBANZO', 'Inicio PC - R1',                96,  200,  2),
+    ('GARBANZO', 'R1 - Fin PC',                  122,  400,  3),
+    ('GARBANZO', 'Fin PC - Madurez Fisiológica', 173, 1000,  4),
+    ('TRIGO',    'Siembra - Emergencia',            9,  140,  1),
+    ('TRIGO',    'Emergencia - Inicio PC',        122, 1100,  2),
+    ('TRIGO',    'Inicio PC - Antesis',           142,  325,  3),
+    ('TRIGO',    'Antesis - Fin PC',              152,  334,  4),
+    ('TRIGO',    'Fin PC - Madurez Fisiológica',  167,  482,  5)
+ON CONFLICT DO NOTHING;
