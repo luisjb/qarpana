@@ -10,7 +10,7 @@ router.get('/lote/:loteId', verifyToken, async (req, res) => {
     }
     try {
         const result = await pool.query(`
-            SELECT id, fenologia, dias
+            SELECT id, fenologia, dias, grados_dias
             FROM estado_fenologico
             WHERE lote_id = $1
             ORDER BY dias
@@ -43,15 +43,15 @@ router.post('/lote/:loteId', verifyToken, async (req, res) => {
         // Eliminar estados fenológicos existentes para este lote
         await pool.query('DELETE FROM estado_fenologico WHERE lote_id = $1', [loteId]);
 
-        // Insertar nuevos estados fenológicos
         for (let estado of estados) {
             if (!estado.nombre || !estado.dias || isNaN(estado.dias)) {
                 await pool.query('ROLLBACK');
                 return res.status(400).json({ error: 'Datos de estado fenológico inválidos' });
             }
+            const gd = estado.grados_dias !== undefined && estado.grados_dias !== '' ? parseFloat(estado.grados_dias) : null;
             await pool.query(
-                'INSERT INTO estado_fenologico (lote_id, fenologia, dias) VALUES ($1, $2, $3)',
-                [loteId, estado.nombre, parseInt(estado.dias, 10)]
+                'INSERT INTO estado_fenologico (lote_id, fenologia, dias, grados_dias) VALUES ($1, $2, $3, $4)',
+                [loteId, estado.nombre, parseInt(estado.dias, 10), gd]
             );
         }
 
@@ -82,15 +82,15 @@ router.put('/lote/:loteId', verifyToken, async (req, res) => {
         // Eliminar estados fenológicos existentes
         await pool.query('DELETE FROM estado_fenologico WHERE lote_id = $1', [loteId]);
 
-        // Insertar estados fenológicos actualizados
         for (let estado of estados) {
             if (!estado.nombre || !estado.dias || isNaN(estado.dias)) {
                 await pool.query('ROLLBACK');
                 return res.status(400).json({ error: 'Datos de estado fenológico inválidos' });
             }
+            const gd = estado.grados_dias !== undefined && estado.grados_dias !== '' ? parseFloat(estado.grados_dias) : null;
             await pool.query(
-                'INSERT INTO estado_fenologico (lote_id, fenologia, dias) VALUES ($1, $2, $3)',
-                [loteId, estado.nombre, parseInt(estado.dias, 10)]
+                'INSERT INTO estado_fenologico (lote_id, fenologia, dias, grados_dias) VALUES ($1, $2, $3, $4)',
+                [loteId, estado.nombre, parseInt(estado.dias, 10), gd]
             );
         }
 

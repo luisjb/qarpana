@@ -940,6 +940,9 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS emails_adicionales TEXT[] DEFAULT 
 -- Imágenes adjuntas a recomendaciones (base64 comprimido)
 ALTER TABLE recomendaciones_campo ADD COLUMN IF NOT EXISTS imagenes JSONB DEFAULT '[]';
 
+-- Grados días por etapa en fenología por lote
+ALTER TABLE estado_fenologico ADD COLUMN IF NOT EXISTS grados_dias NUMERIC;
+
 -- Fenología por defecto por tipo de cultivo (grados días y días por etapa)
 CREATE TABLE IF NOT EXISTS fenologia_default (
     id SERIAL PRIMARY KEY,

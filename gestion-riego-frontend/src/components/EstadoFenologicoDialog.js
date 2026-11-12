@@ -33,11 +33,11 @@ function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, especie,
                 setEstados(response.data.map(estado => ({
                     id: estado.id,
                     nombre: estado.fenologia,
-                    dias: estado.dias
+                    dias: estado.dias,
+                    grados_dias: estado.grados_dias !== null && estado.grados_dias !== undefined ? estado.grados_dias : ''
                 })));
                 setIsEditing(true);
             } else {
-                // Intentar precargar desde fenología por defecto del cultivo
                 if (especie) {
                     try {
                         const defResponse = await axios.get('/fenologia-default');
@@ -46,15 +46,15 @@ function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, especie,
                             d => d.especie.toUpperCase() === especieUpper
                         );
                         if (defaults.length > 0) {
-                            setEstados(defaults.map(d => ({ nombre: d.etapa, dias: d.dias })));
+                            setEstados(defaults.map(d => ({ nombre: d.etapa, dias: d.dias, grados_dias: d.grados_dias })));
                         } else {
-                            setEstados([{ nombre: '', dias: '' }]);
+                            setEstados([{ nombre: '', dias: '', grados_dias: '' }]);
                         }
                     } catch {
-                        setEstados([{ nombre: '', dias: '' }]);
+                        setEstados([{ nombre: '', dias: '', grados_dias: '' }]);
                     }
                 } else {
-                    setEstados([{ nombre: '', dias: '' }]);
+                    setEstados([{ nombre: '', dias: '', grados_dias: '' }]);
                 }
                 setIsEditing(false);
             }
@@ -72,7 +72,7 @@ function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, especie,
     };
 
     const handleAddEstado = () => {
-        setEstados([...estados, { nombre: '', dias: '' }]);
+        setEstados([...estados, { nombre: '', dias: '', grados_dias: '' }]);
     };
 
     const handleRemoveEstado = (index) => {
@@ -127,10 +127,9 @@ function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, especie,
                                         required
                                     />
                                 </Grid>
-                                <Grid item xs={5}>
+                                <Grid item xs={3}>
                                     <TextField
                                         fullWidth
-                                        marginTop='10'
                                         label="Días Hasta"
                                         type="number"
                                         value={estado.dias}
@@ -138,7 +137,17 @@ function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, especie,
                                         required
                                     />
                                 </Grid>
-                                <Grid item xs={2}>
+                                <Grid item xs={3}>
+                                    <TextField
+                                        fullWidth
+                                        label="°Días etapa"
+                                        type="number"
+                                        value={estado.grados_dias}
+                                        onChange={(e) => handleChange(index, 'grados_dias', e.target.value)}
+                                        inputProps={{ min: 0 }}
+                                    />
+                                </Grid>
+                                <Grid item xs={1}>
                                     <IconButton onClick={() => handleRemoveEstado(index)} color="error" disabled={estados.length === 1}>
                                         <DeleteIcon />
                                     </IconButton>
