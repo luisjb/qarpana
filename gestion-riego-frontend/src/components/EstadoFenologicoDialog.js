@@ -12,7 +12,9 @@ function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, especie,
     const [isEditing, setIsEditing] = useState(false);
 
     const normalizeEspecie = (s) =>
-        (s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        (s || '').toUpperCase()
+            .normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .replace(/\s+2[°º]?\s*$/, '');
 
     useEffect(() => {
         if (loteId && open) {
