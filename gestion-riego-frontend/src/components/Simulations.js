@@ -770,11 +770,13 @@ function Simulations() {
                             label += ': ';
                         }
                         if (context.parsed.y !== null) {
-                            if (context.dataset.label === 'Kc') {
-                                label += parseFloat(context.parsed.y).toFixed(2);
-                            } else if (context.dataset.originalData) {
+                            if (context.dataset.originalData) {
                                 const originalValue = context.dataset.originalData[context.dataIndex];
-                                label += formatNumber(originalValue) + ' mm';
+                                if (context.dataset.label === 'Kc') {
+                                    label += parseFloat(originalValue).toFixed(2);
+                                } else {
+                                    label += formatNumber(originalValue) + ' mm';
+                                }
                             } else {
                                 label += formatNumber(context.parsed.y) + ' mm';
                                 if (label.includes('Umbral')) {
@@ -903,7 +905,8 @@ function Simulations() {
                 {
                     type: 'line',
                     label: 'Kc',
-                    data: (simulationData.kc || []).map(val => val !== null && val !== undefined ? parseFloat(val) : null),
+                    data: (simulationData.kc || []).map(val => val !== null && val !== undefined ? parseFloat(val) * 10 : null),
+                    originalData: (simulationData.kc || []).map(val => val !== null && val !== undefined ? parseFloat(val) : null),
                     borderColor: 'rgb(34, 197, 94)',
                     borderWidth: 2,
                     fill: false,
