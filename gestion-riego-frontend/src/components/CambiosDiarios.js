@@ -457,7 +457,7 @@ function CambiosDiarios() {
             {isAdmin && (
                 <Button
                     variant="contained"
-                    color="secondary"
+                    color="primary"
                     onClick={() => setOpenTempDialog(true)}
                     disabled={!selectedCampo && !selectedLote}
                     style={{ marginTop: '20px', marginLeft: '10px' }}

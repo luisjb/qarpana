@@ -399,7 +399,7 @@ function ResumenCirculos() {
 
             <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
                 <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} sm={6} md={4}>
+                    <Grid item xs={12} sm={6} md={lotes.length > 0 ? 3 : 4}>
                         <FormControl fullWidth>
                             <InputLabel id="campo-label">Campo</InputLabel>
                             <Select
@@ -414,7 +414,7 @@ function ResumenCirculos() {
                             </Select>
                         </FormControl>
                     </Grid>
-                    <Grid item xs={12} sm={6} md={4}>
+                    <Grid item xs={12} sm={6} md={lotes.length > 0 ? 3 : 4}>
                         <FormControl fullWidth>
                             <InputLabel>Campaña</InputLabel>
                             <Select
@@ -431,7 +431,7 @@ function ResumenCirculos() {
                         </FormControl>
                     </Grid>
                     {lotes.length > 0 && (
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={6} md={3}>
                             <FormControl fullWidth>
                                 <InputLabel>Lotes a mostrar</InputLabel>
                                 <Select
@@ -440,8 +440,8 @@ function ResumenCirculos() {
                                     onChange={(e) => setLotesSeleccionados(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
                                     input={<OutlinedInput label="Lotes a mostrar" />}
                                     renderValue={(selected) => {
-                                        if (selected.length === lotes.length) return 'Todos los lotes';
-                                        return `${selected.length} de ${lotes.length} lotes seleccionados`;
+                                        if (selected.length === lotes.length) return 'Todos';
+                                        return `${selected.length}/${lotes.length} lotes`;
                                     }}
                                 >
                                     {lotes.map(lote => (
@@ -457,7 +457,7 @@ function ResumenCirculos() {
                             </FormControl>
                         </Grid>
                     )}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} sm={6} md={lotes.length > 0 ? 3 : 4}>
                         <Box display="flex" gap={1}>
                             <Button
                                 variant="contained"

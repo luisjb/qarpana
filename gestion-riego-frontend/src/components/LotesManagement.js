@@ -578,6 +578,7 @@ function LotesManagement() {
                     }}
                     loteId={selectedLote.id}
                     cultivoNombre={selectedLote.nombre_cultivo}
+                    especie={selectedLote.especie}
                     onSave={() => {
                         //console.log("Guardando estado fenológico");
                         setOpenEstadoFenologicoDialog(false);

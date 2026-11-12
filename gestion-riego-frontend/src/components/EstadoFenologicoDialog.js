@@ -7,7 +7,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, onSave }) {
+function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, especie, onSave }) {
     const [estados, setEstados] = useState([{ nombre: '', dias: '' }]);
     const [isEditing, setIsEditing] = useState(false);
 
@@ -28,9 +28,7 @@ function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, onSave }
             return;
         }
         try {
-            console.log('Fetching estados fenológicos for loteId:', loteId);
             const response = await axios.get(`/estados-fenologicos/lote/${loteId}`);
-            console.log('Fetched estados fenológicos:', response.data);
             if (response.data.length > 0) {
                 setEstados(response.data.map(estado => ({
                     id: estado.id,
@@ -39,7 +37,25 @@ function EstadoFenologicoDialog({ open, onClose, loteId, cultivoNombre, onSave }
                 })));
                 setIsEditing(true);
             } else {
-                setEstados([{ nombre: '', dias: '' }]);
+                // Intentar precargar desde fenología por defecto del cultivo
+                if (especie) {
+                    try {
+                        const defResponse = await axios.get('/fenologia-default');
+                        const especieUpper = especie.toUpperCase();
+                        const defaults = defResponse.data.filter(
+                            d => d.especie.toUpperCase() === especieUpper
+                        );
+                        if (defaults.length > 0) {
+                            setEstados(defaults.map(d => ({ nombre: d.etapa, dias: d.dias })));
+                        } else {
+                            setEstados([{ nombre: '', dias: '' }]);
+                        }
+                    } catch {
+                        setEstados([{ nombre: '', dias: '' }]);
+                    }
+                } else {
+                    setEstados([{ nombre: '', dias: '' }]);
+                }
                 setIsEditing(false);
             }
         } catch (error) {
