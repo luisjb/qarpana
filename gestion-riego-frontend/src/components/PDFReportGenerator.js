@@ -736,13 +736,14 @@ class PDFReportGenerator {
     }
 
     drawGaugeArc(cx, cy, outerR, innerR, percentage, umbral = 50) {
-        const p = Math.min(Math.max(Number(percentage) || 0, 0), 100);
+        const raw = Math.max(Number(percentage) || 0, 0);
+        const p = Math.min(raw, 100); // arc capped at 100%
 
         // Gray background
         this.currentPage.drawCircle({ x: cx, y: cy, size: outerR, color: rgb(0.88, 0.88, 0.88) });
 
         if (p > 0) {
-            const [r, g, b] = this.getColorByUmbral(p, umbral);
+            const [r, g, b] = this.getColorByUmbral(raw, umbral);
             const fillColor = rgb(r / 255, g / 255, b / 255);
 
             if (p >= 99.5) {
@@ -760,8 +761,8 @@ class PDFReportGenerator {
         // White donut hole
         this.currentPage.drawCircle({ x: cx, y: cy, size: innerR, color: rgb(1, 1, 1) });
 
-        // Percentage text
-        const text = `${Math.round(p)}%`;
+        // Percentage text — show real value even if > 100%
+        const text = `${Math.round(raw)}%`;
         const tSize = 6;
         this.currentPage.drawText(text, {
             x: cx - text.length * tSize * 0.28,

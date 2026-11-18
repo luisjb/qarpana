@@ -610,19 +610,8 @@ router.post('/temperatura-masiva', verifyToken, async (req, res) => {
                         `UPDATE cambios_diarios SET temp_max = $1, temp_min = $2, grados_dias = $3 WHERE id = $4`,
                         [tMax, tMin, gradosDias, existingRecord.id]
                     );
-                } else {
-                    const { rows: [loteInfo] } = await client.query(
-                        'SELECT fecha_siembra FROM lotes WHERE id = $1', [loteId]
-                    );
-                    const diasDesdeSiembra = Math.floor(
-                        (new Date(fecha) - new Date(loteInfo.fecha_siembra)) / (1000 * 60 * 60 * 24)
-                    );
-                    await client.query(
-                        `INSERT INTO cambios_diarios (lote_id, fecha_cambio, temp_max, temp_min, grados_dias, dias, correccion_agua)
-                         VALUES ($1, $2, $3, $4, $5, $6, 0)`,
-                        [loteId, fecha, tMax, tMin, gradosDias, diasDesdeSiembra]
-                    );
                 }
+                // No insertar filas nuevas: filas sin evapotranspiracion rompen el balance hidrico
             }
         }
 
